@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-size: 13px;
+      color: #202124;
+      background-color: #ffffff;
+    }
+    .header {
+      margin-bottom: 16px;
+    }
+    .header h2 {
+      font-size: 18px;
+      margin: 0 0 4px 0;
+      font-weight: 500;
+      color: #1a73e8;
+    }
+    .header p {
+      margin: 0;
+      font-size: 12px;
+      color: #5f6368;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #5f6368;
+      margin-bottom: 6px;
+    }
+    select, input[type="date"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 13px;
+      background-color: #fff;
+      color: #202124;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    select:focus, input[type="date"]:focus {
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+    .presets {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-chip {
+      background: #f1f3f4;
+      border: 1px solid #dadce0;
+      border-radius: 16px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      color: #3c4043;
+      transition: all 0.15s ease;
+    }
+    .btn-chip:hover {
+      background: #e8eaed;
+      border-color: #bdc1c6;
+    }
+    .days-card {
+      background: #f8f9fa;
+      border: 1px solid #e8eaed;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .day-row {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e8eaed;
+    }
+    .day-row:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    .day-title {
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #202124;
+    }
+    .period-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .period-col {
+      display: flex;
+      flex-direction: column;
+    }
+    .period-label {
+      font-size: 10px;
+      color: #70757a;
+      margin-bottom: 3px;
+      font-weight: 500;
+    }
+    .period-col select {
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .btn-primary {
+      width: 100%;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .btn-primary:hover {
+      background: #1765cc;
+    }
+    .btn-primary:disabled {
+      background: #dadce0;
+      cursor: not-allowed;
+    }
+    .status-msg {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+      margin-bottom: 12px;
+      word-break: break-word;
+    }
+    .status-msg.success {
+      background: #e6f4ea;
+      color: #137333;
+      border: 1px solid #ceead6;
+      display: block;
+    }
+    .status-msg.error {
+      background: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #fad2cf;
+      display: block;
+    }
+    .status-msg.info {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border: 1px solid #d2e3fc;
+      display: block;
+    }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      width: 100%;
+      max-width: 320px;
+    }
+    .modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #d93025;
+      margin-bottom: 8px;
+    }
+    .modal-body {
+      font-size: 12px;
+      color: #3c4043;
+      line-height: 1.4;
+      margin-bottom: 16px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      background: #f1f3f4;
+      padding: 3px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: #5f6368;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .tab-btn.active {
+      background: #ffffff;
+      color: #1a73e8;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      font-weight: 700;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .user-card {
+      background: #f8fafd;
+      border: 1px solid #d2e3fc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+    .user-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .user-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #1a73e8;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .user-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #202124;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-email {
+      font-size: 11px;
+      color: #5f6368;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding-top: 6px;
+      border-top: 1px solid #e8eaed;
+    }
+    .chk-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+    .chk-label {
+      color: #5f6368;
+      font-weight: 500;
+    }
+    .chk-badge {
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .chk-badge.ok {
+      background: #e6f4ea;
+      color: #137333;
+    }
+    .chk-badge.warn {
+      background: #fef7e0;
+      color: #b06000;
+    }
+    .chk-badge.info {
+      background: #e8f0fe;
+      color: #1a73e8;
+    }
+    .period-pill-group {
+      display: inline-flex;
+      background: #e8eaed;
+      border-radius: 12px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .period-pill {
+      border: none;
+      background: transparent;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      color: #5f6368;
+      transition: all 0.15s ease;
+    }
+    .period-pill.active {
+      background: #1a73e8;
+      color: #ffffff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .weekend-row {
+      background: #f1f3f4;
+      border-left: 3px solid #5f6368;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Presence & Leaves</h2>
+    <p>Declare weekly baselines or submit leave records.</p>
+  </div>
+
+  <div id="statusAlert" class="status-msg"></div>
+
+  <div id="userStatusCard" class="user-card" style="display: none;">
+    <div class="user-card-header">
+      <div class="user-avatar" id="userCardAvatar">U</div>
+      <div class="user-info">
+        <div class="user-name" id="userCardName">Active User</div>
+        <div class="user-email" id="userCardEmail">user@example.com</div>
+      </div>
+    </div>
+    <div class="checklist">
+      <div class="chk-item">
+        <span class="chk-label">Routine Baseline</span>
+        <span class="chk-badge" id="chkRoutineBadge">Checking...</span>
+      </div>
+      <div class="chk-item">
+        <span class="chk-label">Profile Fields</span>
+        <span class="chk-badge" id="chkProfileBadge">Checking...</span>
+      </div>
+      <div class="chk-item">
+        <span class="chk-label">Today Status</span>
+        <span class="chk-badge" id="chkTodayBadge">Checking...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="memberSelect">Team Member</label>
+    <select id="memberSelect" onchange="onMemberChanged()">
+      <option value="">Loading members...</option>
+    </select>
+  </div>
+
+  <div class="tab-bar">
+    <button id="tabBtnBaseline" class="tab-btn active" type="button" onclick="switchTab('baseline')">Routine Baseline</button>
+    <button id="tabBtnLeave" class="tab-btn" type="button" onclick="switchTab('leave')">Submit Leave</button>
+  </div>
+
+  <!-- TAB 1: BASELINE -->
+  <div id="tabBaseline" class="tab-content active">
+    <div class="form-group">
+      <label for="startDate">Effective Start Date</label>
+      <input type="date" id="startDate">
+    </div>
+
+    <div class="form-group">
+      <label for="endDate">Effective End Date (Optional)</label>
+      <input type="date" id="endDate">
+    </div>
+
+    <div id="overlapModal" class="modal-backdrop">
+      <div class="modal-card">
+        <div class="modal-title">Baseline Overlap Detected</div>
+        <div id="overlapMessage" class="modal-body"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-chip" onclick="cancelOverlap()">Cancel</button>
+          <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="confirmOverlapAdjust()">Set End Date & Save</button>
+        </div>
+      </div>
+    </div>
+
+    <label>Quick Presets</label>
+    <div class="presets">
+      <button class="btn-chip" type="button" onclick="applyPreset('all-office')">All Office</button>
+      <button class="btn-chip" type="button" onclick="applyPreset('all-remote')">All Remote</button>
+      <button class="btn-chip" type="button" onclick="applyPreset('hybrid')">Hybrid (Mon/Fri Remote)</button>
+    </div>
+
+    <label>Weekly Schedule</label>
+    <div class="days-card" id="weekContainer"></div>
+    <div style="margin-top: 6px; margin-bottom: 12px; text-align: center;">
+      <button id="addWeekendBtn" type="button" class="btn-chip" onclick="toggleWeekendDays()">+ Weekend Days</button>
+    </div>
+
+    <div class="actions">
+      <button id="saveBtn" class="btn-primary" type="button" onclick="saveBaseline()">Save Baseline</button>
+    </div>
+  </div>
+
+  <!-- TAB 2: LEAVE -->
+  <div id="tabLeave" class="tab-content">
+    <div class="form-group">
+      <label for="leaveType">Leave Type</label>
+      <select id="leaveType">
+        <option value="Vacation">Vacation</option>
+        <option value="Sick Leave">Sick Leave</option>
+        <option value="Maternity/Paternity">Maternity/Paternity</option>
+        <option value="Unpaid Leave">Unpaid Leave</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <label for="leaveStartDate" style="margin-bottom: 0;">Start Date</label>
+        <div class="period-pill-group">
+          <button type="button" class="period-pill active" id="btnStartAM" onclick="setLeavePeriod('start', 'AM')">AM</button>
+          <button type="button" class="period-pill" id="btnStartPM" onclick="setLeavePeriod('start', 'PM')">PM</button>
+        </div>
+      </div>
+      <input type="date" id="leaveStartDate">
+    </div>
+
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <label for="leaveEndDate" style="margin-bottom: 0;">End Date</label>
+        <div class="period-pill-group">
+          <button type="button" class="period-pill" id="btnEndAM" onclick="setLeavePeriod('end', 'AM')">AM</button>
+          <button type="button" class="period-pill active" id="btnEndPM" onclick="setLeavePeriod('end', 'PM')">PM</button>
+        </div>
+      </div>
+      <input type="date" id="leaveEndDate">
+    </div>
+
+    <div class="form-group">
+      <label for="leaveStatus">Status</label>
+      <select id="leaveStatus">
+        <option value="Approved" selected>Approved</option>
+        <option value="Requested">Requested</option>
+      </select>
+    </div>
+
+    <label>Leave Quick Ranges</label>
+    <div class="presets">
+      <button class="btn-chip" type="button" onclick="applyLeavePreset('today')">Today Only</button>
+      <button class="btn-chip" type="button" onclick="applyLeavePreset('this-week')">Current Week</button>
+      <button class="btn-chip" type="button" onclick="applyLeavePreset('next-week')">Next Week</button>
+    </div>
+
+    <div class="actions">
+      <button id="submitLeaveBtn" class="btn-primary" type="button" onclick="submitLeave()">Submit Leave</button>
+    </div>
+  </div>
+
+  <script>
+    var locationOptions = [
+      "Main Office",
+      "Remote",
+      "Downtown Office",
+      "Branch Office",
+      "Client Site",
+      "Off"
+    ];
+
+    var weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    var weekendDays = ["Saturday", "Sunday"];
+    var showWeekends = false;
+
+    var leaveStartPeriod = 'AM';
+    var leaveEndPeriod = 'PM';
+
+    function setLeavePeriod(type, period) {
+      if (type === 'start') {
+        leaveStartPeriod = period;
+        var btnAM = document.getElementById('btnStartAM');
+        var btnPM = document.getElementById('btnStartPM');
+        if (btnAM && btnPM) {
+          btnAM.classList.toggle('active', period === 'AM');
+          btnPM.classList.toggle('active', period === 'PM');
+        }
+      } else {
+        leaveEndPeriod = period;
+        var btnAM = document.getElementById('btnEndAM');
+        var btnPM = document.getElementById('btnEndPM');
+        if (btnAM && btnPM) {
+          btnAM.classList.toggle('active', period === 'AM');
+          btnPM.classList.toggle('active', period === 'PM');
+        }
+      }
+    }
+
+    function toggleWeekendDays() {
+      showWeekends = !showWeekends;
+      var btn = document.getElementById('addWeekendBtn');
+      if (btn) {
+        btn.textContent = showWeekends ? '- Hide Weekend Days' : '+ Weekend Days';
+      }
+      buildWeekdayGrid();
+    }
+
+    function initForm() {
+      var today = new Date().toISOString().split('T')[0];
+      document.getElementById('startDate').value = today;
+      document.getElementById('leaveStartDate').value = today;
+      document.getElementById('leaveEndDate').value = today;
+
+      buildWeekdayGrid();
+
+      google.script.run
+        .withSuccessHandler(onDataLoaded)
+        .withFailureHandler(onError)
+        .getSidebarInitialData();
+    }
+
+    function buildWeekdayGrid() {
+      var container = document.getElementById('weekContainer');
+      var currentVals = {};
+      var allDays = weekDays.concat(weekendDays);
+      allDays.forEach(function(day) {
+        var am = document.getElementById(day + '_am');
+        var pm = document.getElementById(day + '_pm');
+        if (am) currentVals[day + '_am'] = am.value;
+        if (pm) currentVals[day + '_pm'] = pm.value;
+      });
+
+      container.innerHTML = '';
+      var daysToRender = showWeekends ? weekDays.concat(weekendDays) : weekDays;
+
+      daysToRender.forEach(function(day) {
+        var isWeekend = (day === 'Saturday' || day === 'Sunday');
+        var dayDiv = document.createElement('div');
+        dayDiv.className = isWeekend ? 'day-row weekend-row' : 'day-row';
+
+        var title = document.createElement('div');
+        title.className = 'day-title';
+        title.textContent = isWeekend ? (day + ' (Weekend)') : day;
+        dayDiv.appendChild(title);
+
+        var grid = document.createElement('div');
+        grid.className = 'period-grid';
+
+        // AM
+        var amCol = document.createElement('div');
+        amCol.className = 'period-col';
+        var amLabel = document.createElement('span');
+        amLabel.className = 'period-label';
+        amLabel.textContent = 'AM';
+        var amSelect = document.createElement('select');
+        amSelect.id = day + '_am';
+        populateSelectOptions(amSelect);
+        if (currentVals[day + '_am']) {
+          amSelect.value = currentVals[day + '_am'];
+        } else if (isWeekend) {
+          amSelect.value = 'Off';
+        }
+        amCol.appendChild(amLabel);
+        amCol.appendChild(amSelect);
+
+        // PM
+        var pmCol = document.createElement('div');
+        pmCol.className = 'period-col';
+        var pmLabel = document.createElement('span');
+        pmLabel.className = 'period-label';
+        pmLabel.textContent = 'PM';
+        var pmSelect = document.createElement('select');
+        pmSelect.id = day + '_pm';
+        populateSelectOptions(pmSelect);
+        if (currentVals[day + '_pm']) {
+          pmSelect.value = currentVals[day + '_pm'];
+        } else if (isWeekend) {
+          pmSelect.value = 'Off';
+        }
+        pmCol.appendChild(pmLabel);
+        pmCol.appendChild(pmSelect);
+
+        grid.appendChild(amCol);
+        grid.appendChild(pmCol);
+        dayDiv.appendChild(grid);
+        container.appendChild(dayDiv);
+      });
+    }
+
+    function populateSelectOptions(selectElem) {
+      selectElem.innerHTML = '';
+      locationOptions.forEach(function(opt) {
+        var optElem = document.createElement('option');
+        optElem.value = opt;
+        optElem.textContent = opt;
+        selectElem.appendChild(optElem);
+      });
+    }
+
+    function onDataLoaded(data) {
+      if (data.locationOptions && data.locationOptions.length > 0) {
+        locationOptions = data.locationOptions;
+        buildWeekdayGrid();
+      }
+
+      if (data.leaveTypes && data.leaveTypes.length > 0) {
+        var ltSelect = document.getElementById('leaveType');
+        ltSelect.innerHTML = '';
+        data.leaveTypes.forEach(function(lt) {
+          var opt = document.createElement('option');
+          opt.value = lt;
+          opt.textContent = lt;
+          ltSelect.appendChild(opt);
+        });
+      }
+
+      if (data.leaveStatuses && data.leaveStatuses.length > 0) {
+        var lsSelect = document.getElementById('leaveStatus');
+        lsSelect.innerHTML = '';
+        data.leaveStatuses.forEach(function(st) {
+          var opt = document.createElement('option');
+          opt.value = st;
+          opt.textContent = st;
+          if (st === 'Approved') opt.selected = true;
+          lsSelect.appendChild(opt);
+        });
+      }
+
+      if (data.userChecklist) {
+        var card = document.getElementById('userStatusCard');
+        card.style.display = 'block';
+
+        var initial = (data.userChecklist.name || data.userChecklist.email || 'U').charAt(0).toUpperCase();
+        document.getElementById('userCardAvatar').textContent = initial;
+        document.getElementById('userCardName').textContent = data.userChecklist.name;
+        document.getElementById('userCardEmail').textContent = data.userChecklist.email;
+
+        // Routine Baseline status
+        var rBadge = document.getElementById('chkRoutineBadge');
+        if (data.userChecklist.hasBaseline) {
+          rBadge.textContent = 'Configured (' + data.userChecklist.baselinesCount + ' rows)';
+          rBadge.className = 'chk-badge ok';
+        } else {
+          rBadge.textContent = 'Missing - Set Below';
+          rBadge.className = 'chk-badge warn';
+        }
+
+        // Profile Fields status
+        var pBadge = document.getElementById('chkProfileBadge');
+        if (data.userChecklist.missingFields && data.userChecklist.missingFields.length > 0) {
+          pBadge.textContent = 'Missing ' + data.userChecklist.missingFields.join(', ');
+          pBadge.className = 'chk-badge warn';
+        } else if (data.userChecklist.memberFound) {
+          pBadge.textContent = 'Complete';
+          pBadge.className = 'chk-badge ok';
+        } else {
+          pBadge.textContent = 'Not in tbl_members';
+          pBadge.className = 'chk-badge warn';
+        }
+
+        // Today Presence status
+        var tBadge = document.getElementById('chkTodayBadge');
+        var tp = data.userChecklist.todayPresence || 'Not Logged';
+        tBadge.textContent = tp;
+        if (tp === 'Not Logged') {
+          tBadge.className = 'chk-badge warn';
+        } else if (tp === 'Weekend') {
+          tBadge.className = 'chk-badge info';
+        } else {
+          tBadge.className = 'chk-badge ok';
+        }
+      }
+
+      var select = document.getElementById('memberSelect');
+      select.innerHTML = '';
+
+      if (!data.members || data.members.length === 0) {
+        var opt = document.createElement('option');
+        opt.value = "";
+        opt.textContent = "-- No members found in tbl_members --";
+        select.appendChild(opt);
+        showStatus('Please add at least one member row in tbl_members first.', 'info');
+        return;
+      }
+
+      var matchedMember = null;
+      data.members.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = String(m.member);
+        opt.textContent = m.displayName || m.member;
+        select.appendChild(opt);
+
+        if (data.activeUserEmail) {
+          var userEmailLower = data.activeUserEmail.toLowerCase();
+          if (m.email && m.email.toLowerCase() === userEmailLower) {
+            matchedMember = m.member;
+          } else if (m.member && m.member.toLowerCase().indexOf(userEmailLower) !== -1) {
+            matchedMember = m.member;
+          }
+        }
+      });
+
+      // Fallback match using checklist matched member name
+      if (!matchedMember && data.userChecklist && data.userChecklist.name) {
+        data.members.forEach(function(m) {
+          if (m.member && m.member.toLowerCase() === data.userChecklist.name.toLowerCase()) {
+            matchedMember = m.member;
+          }
+        });
+      }
+
+      // Prefer logged-in user if found, otherwise auto-select the first member
+      if (matchedMember) {
+        select.value = String(matchedMember);
+      } else if (data.members.length > 0) {
+        select.value = String(data.members[0].member);
+      }
+
+      onMemberChanged();
+    }
+
+    function onMemberChanged() {
+      var select = document.getElementById('memberSelect');
+      var member = select.value;
+      if (!member) return;
+
+      hideStatus();
+      google.script.run
+        .withSuccessHandler(function(existing) {
+          if (existing && existing.days) {
+            if (existing.days['Saturday'] || existing.days['Sunday']) {
+              showWeekends = true;
+              var btn = document.getElementById('addWeekendBtn');
+              if (btn) btn.textContent = '- Hide Weekend Days';
+              buildWeekdayGrid();
+            }
+            var daysToCheck = showWeekends ? weekDays.concat(weekendDays) : weekDays;
+            daysToCheck.forEach(function(day) {
+              if (existing.days[day]) {
+                var am = existing.days[day].location_am;
+                var pm = existing.days[day].location_pm;
+                var elAm = document.getElementById(day + '_am');
+                var elPm = document.getElementById(day + '_pm');
+                if (elAm && am) elAm.value = am;
+                if (elPm && pm) elPm.value = pm;
+              }
+            });
+            if (existing.startDate) {
+              document.getElementById('startDate').value = existing.startDate;
+            }
+            if (existing.endDate) {
+              document.getElementById('endDate').value = existing.endDate;
+            } else {
+              document.getElementById('endDate').value = '';
+            }
+          }
+        })
+        .withFailureHandler(onError)
+        .getMemberBaselines(member);
+    }
+
+    function applyPreset(presetType) {
+      weekDays.forEach(function(day) {
+        var am = document.getElementById(day + '_am');
+        var pm = document.getElementById(day + '_pm');
+        if (presetType === 'all-office') {
+          am.value = 'Main Office';
+          pm.value = 'Main Office';
+        } else if (presetType === 'all-remote') {
+          am.value = 'Remote';
+          pm.value = 'Remote';
+        } else if (presetType === 'hybrid') {
+          if (day === 'Monday' || day === 'Friday') {
+            am.value = 'Remote';
+            pm.value = 'Remote';
+          } else {
+            am.value = 'Main Office';
+            pm.value = 'Main Office';
+          }
+        }
+      });
+    }
+
+    var pendingPayload = null;
+
+    function saveBaseline(adjustPrevious) {
+      var select = document.getElementById('memberSelect');
+      var member = select ? select.value : "";
+
+      if (!member) {
+        showStatus('Please select a team member from the dropdown.', 'error');
+        return;
+      }
+
+      var startDate = document.getElementById('startDate').value;
+      var endDate = document.getElementById('endDate').value;
+      var daysData = {};
+
+      var activeDays = showWeekends ? weekDays.concat(weekendDays) : weekDays;
+      activeDays.forEach(function(day) {
+        var elAm = document.getElementById(day + '_am');
+        var elPm = document.getElementById(day + '_pm');
+        if (elAm && elPm) {
+          daysData[day] = {
+            location_am: elAm.value,
+            location_pm: elPm.value
+          };
+        }
+      });
+
+      var saveBtn = document.getElementById('saveBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner"></span>Saving...';
+      hideStatus();
+
+      var payload = {
+        member: member,
+        startDate: startDate,
+        endDate: endDate,
+        days: daysData,
+        adjustPreviousEnd: adjustPrevious === true
+      };
+      pendingPayload = payload;
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = 'Save Baseline';
+          if (res && res.overlap) {
+            showOverlapModal(res.message);
+            return;
+          }
+          var msg = (res && res.overlapAdjusted)
+            ? 'New presence baseline saved and previous baseline end date updated!'
+            : 'Presence baseline successfully saved!';
+          showStatus(msg, 'success');
+        })
+        .withFailureHandler(function(err) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = 'Save Baseline';
+          onError(err);
+        })
+        .saveMemberBaselines(payload);
+    }
+
+    function showOverlapModal(msg) {
+      document.getElementById('overlapMessage').textContent = msg;
+      document.getElementById('overlapModal').style.display = 'flex';
+    }
+
+    function cancelOverlap() {
+      document.getElementById('overlapModal').style.display = 'none';
+      pendingPayload = null;
+    }
+
+    function confirmOverlapAdjust() {
+      document.getElementById('overlapModal').style.display = 'none';
+      if (pendingPayload) {
+        saveBaseline(true);
+      }
+    }
+
+    function showStatus(msg, type) {
+      var box = document.getElementById('statusAlert');
+      box.textContent = msg;
+      box.className = 'status-msg ' + type;
+    }
+
+    function hideStatus() {
+      var box = document.getElementById('statusAlert');
+      box.style.display = 'none';
+      box.className = 'status-msg';
+    }
+
+    function onError(err) {
+      var msg = (err && err.message) ? err.message : String(err);
+      showStatus('Error: ' + msg, 'error');
+    }
+
+    function switchTab(tabId) {
+      hideStatus();
+      if (tabId === 'baseline') {
+        document.getElementById('tabBtnBaseline').classList.add('active');
+        document.getElementById('tabBtnLeave').classList.remove('active');
+        document.getElementById('tabBaseline').classList.add('active');
+        document.getElementById('tabLeave').classList.remove('active');
+      } else {
+        document.getElementById('tabBtnLeave').classList.add('active');
+        document.getElementById('tabBtnBaseline').classList.remove('active');
+        document.getElementById('tabLeave').classList.add('active');
+        document.getElementById('tabBaseline').classList.remove('active');
+      }
+    }
+
+    function applyLeavePreset(type) {
+      var now = new Date();
+      var todayStr = now.toISOString().split('T')[0];
+      if (type === 'today') {
+        document.getElementById('leaveStartDate').value = todayStr;
+        document.getElementById('leaveEndDate').value = todayStr;
+      } else if (type === 'this-week') {
+        var currentDay = now.getDay();
+        var distToMon = currentDay === 0 ? -6 : 1 - currentDay;
+        var mon = new Date(now);
+        mon.setDate(now.getDate() + distToMon);
+        var fri = new Date(mon);
+        fri.setDate(mon.getDate() + 4);
+        document.getElementById('leaveStartDate').value = mon.toISOString().split('T')[0];
+        document.getElementById('leaveEndDate').value = fri.toISOString().split('T')[0];
+      } else if (type === 'next-week') {
+        var currentDay = now.getDay();
+        var distToNextMon = currentDay === 0 ? 1 : 8 - currentDay;
+        var nextMon = new Date(now);
+        nextMon.setDate(now.getDate() + distToNextMon);
+        var nextFri = new Date(nextMon);
+        nextFri.setDate(nextMon.getDate() + 4);
+        document.getElementById('leaveStartDate').value = nextMon.toISOString().split('T')[0];
+        document.getElementById('leaveEndDate').value = nextFri.toISOString().split('T')[0];
+      }
+    }
+
+    function submitLeave() {
+      var select = document.getElementById('memberSelect');
+      var member = select ? select.value : "";
+      if (!member) {
+        showStatus('Please select a team member from the dropdown.', 'error');
+        return;
+      }
+
+      var leaveType = document.getElementById('leaveType').value;
+      var startDate = document.getElementById('leaveStartDate').value;
+      var endDate = document.getElementById('leaveEndDate').value;
+      var status = document.getElementById('leaveStatus').value;
+
+      if (!startDate || !endDate) {
+        showStatus('Please specify both start date and end date.', 'error');
+        return;
+      }
+
+      if (new Date(startDate) > new Date(endDate)) {
+        showStatus('Start date cannot be after end date.', 'error');
+        return;
+      }
+
+      var btn = document.getElementById('submitLeaveBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Submitting...';
+      hideStatus();
+
+      var payload = {
+        member: member,
+        leaveType: leaveType,
+        startDate: startDate,
+        startPeriod: leaveStartPeriod || 'AM',
+        endDate: endDate,
+        endPeriod: leaveEndPeriod || 'PM',
+        status: status
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = 'Submit Leave';
+          if (res && res.success) {
+            showStatus('Leave recorded in tbl_leaves and presence updated!', 'success');
+          } else {
+            showStatus(res ? res.message : 'Failed to record leave.', 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = 'Submit Leave';
+          onError(err);
+        })
+        .submitMemberLeave(payload);
+    }
+
+    window.onload = initForm;
+  </script>
+</body>
+</html>

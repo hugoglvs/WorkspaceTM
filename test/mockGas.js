@@ -1,0 +1,857 @@
+/**
+ * Mock Google Apps Script environment for local unit testing
+ */
+
+function createMockRange(sheet, startRow, startCol, numRows, numCols) {
+  return {
+    sheet: sheet,
+    startRow: startRow,
+    startCol: startCol,
+    numRows: numRows,
+    numCols: numCols,
+    values: [],
+    fontFamily: null,
+    fontSize: null,
+    fontWeight: null,
+    background: null,
+    fontColor: null,
+    horizontalAlignment: null,
+    dataValidation: null,
+    getSheet: function() { return this.sheet; },
+    getRow: function() { return this.startRow; },
+    getColumn: function() { return this.startCol; },
+    getLastRow: function() { return this.startRow + this.numRows - 1; },
+    getLastColumn: function() { return this.startCol + this.numCols - 1; },
+
+    setValue: function(val) {
+      if (!this.sheet.grid[startRow]) this.sheet.grid[startRow] = {};
+      this.sheet.grid[startRow][startCol] = val;
+      this.values = [[val]];
+      return this;
+    },
+    clearContent: function() {
+      for (var r = 0; r < numRows; r++) {
+        var rowIdx = startRow + r;
+        if (this.sheet.grid[rowIdx]) {
+          for (var c = 0; c < numCols; c++) {
+            delete this.sheet.grid[rowIdx][startCol + c];
+          }
+        }
+      }
+      this.values = [];
+      return this;
+    },
+    setValues: function(valArray) {
+      this.values = valArray;
+      for (var r = 0; r < valArray.length; r++) {
+        var rowIdx = startRow + r;
+        if (!this.sheet.grid[rowIdx]) this.sheet.grid[rowIdx] = {};
+        for (var c = 0; c < valArray[r].length; c++) {
+          this.sheet.grid[rowIdx][startCol + c] = valArray[r][c];
+        }
+      }
+      return this;
+    },
+    getValue: function() {
+      var vals = this.getValues();
+      return (vals.length > 0 && vals[0].length > 0) ? vals[0][0] : "";
+    },
+    copyTo: function(destinationRange) {
+      var vals = this.getValues();
+      destinationRange.setValues(vals);
+      return destinationRange;
+    },
+    getValues: function() {
+      var result = [];
+      for (var r = 0; r < numRows; r++) {
+        var row = [];
+        var rowIdx = startRow + r;
+        for (var c = 0; c < numCols; c++) {
+          var colIdx = startCol + c;
+          var val = (this.sheet.grid[rowIdx] && this.sheet.grid[rowIdx][colIdx] !== undefined)
+            ? this.sheet.grid[rowIdx][colIdx]
+            : "";
+          row.push(val);
+        }
+        result.push(row);
+      }
+      return result;
+    },
+    getRichTextValue: function() {
+      var rtv = this.getRichTextValues();
+      return (rtv.length > 0 && rtv[0].length > 0) ? rtv[0][0] : null;
+    },
+    getRichTextValues: function() {
+      function makeCell(rawVal) {
+        var link = "";
+        if (rawVal && typeof rawVal === "object") {
+          if (rawVal.linkUrl) link = rawVal.linkUrl;
+          else if (typeof rawVal.getEmail === "function") link = "mailto:" + rawVal.getEmail();
+          else if (rawVal.email) link = "mailto:" + rawVal.email;
+        } else if (typeof rawVal === "string" && rawVal.indexOf("@") !== -1 && rawVal.indexOf(" ") === -1) {
+          link = "mailto:" + rawVal;
+        }
+        return {
+          getText: function() {
+            return (typeof rawVal === "object" && typeof rawVal.getName === "function") ? rawVal.getName() : String(rawVal || "");
+          },
+          getLinkUrl: function() { return link; },
+          getRuns: function() {
+            return link ? [{ getLinkUrl: function() { return link; } }] : [];
+          }
+        };
+      }
+
+      var result = [];
+      for (var r = 0; r < numRows; r++) {
+        var row = [];
+        var rowIdx = startRow + r;
+        for (var c = 0; c < numCols; c++) {
+          var colIdx = startCol + c;
+          var raw = (this.sheet.grid[rowIdx] && this.sheet.grid[rowIdx][colIdx] !== undefined)
+            ? this.sheet.grid[rowIdx][colIdx]
+            : "";
+          row.push(makeCell(raw));
+        }
+        result.push(row);
+      }
+      return result;
+    },
+    setNumberFormat: function(fmt) {
+      this.numberFormat = fmt;
+      return this;
+    },
+    setNumberFormats: function(formats) {
+      this.numberFormats = formats;
+      return this;
+    },
+    setFontFamily: function(font) {
+      this.fontFamily = font;
+      return this;
+    },
+    setFontSize: function(size) {
+      this.fontSize = size;
+      return this;
+    },
+    setFontWeight: function(weight) {
+      this.fontWeight = weight;
+      return this;
+    },
+    setBackground: function(bg) {
+      this.background = bg;
+      return this;
+    },
+    getBackground: function() {
+      return this.background || "";
+    },
+    setFontColor: function(color) {
+      this.fontColor = color;
+      return this;
+    },
+    getFontColor: function() {
+      return this.fontColor || "";
+    },
+    getFontWeight: function() {
+      return this.fontWeight || "normal";
+    },
+    setHorizontalAlignment: function(align) {
+      this.horizontalAlignment = align;
+      return this;
+    },
+    setVerticalAlignment: function(align) {
+      this.verticalAlignment = align;
+      return this;
+    },
+    merge: function() {
+      this.merged = true;
+      return this;
+    },
+    setDataValidation: function(rule) {
+      this.dataValidation = rule;
+      return this;
+    },
+    protect: function() {
+      var protection = {
+        description: "",
+        warningOnly: false,
+        domainEdit: false,
+        editors: [],
+        range: this,
+        setDescription: function(d) { this.description = d; return this; },
+        getDescription: function() { return this.description; },
+        setWarningOnly: function(w) { this.warningOnly = w; return this; },
+        isWarningOnly: function() { return this.warningOnly; },
+        getEditors: function() { return this.editors.slice(); },
+        addEditor: function(emailOrUser) {
+          var email = (typeof emailOrUser === 'object' && emailOrUser.getEmail) ? emailOrUser.getEmail() : String(emailOrUser);
+          this.editors.push({ getEmail: function() { return email; } });
+          return this;
+        },
+        addEditors: function(emails) {
+          for (var i = 0; i < emails.length; i++) this.addEditor(emails[i]);
+          return this;
+        },
+        removeEditors: function(usersToRemove) {
+          var emailsToRemove = {};
+          for (var i = 0; i < usersToRemove.length; i++) {
+            var em = (typeof usersToRemove[i] === 'object' && usersToRemove[i].getEmail) ? usersToRemove[i].getEmail() : String(usersToRemove[i]);
+            emailsToRemove[em.toLowerCase()] = true;
+          }
+          this.editors = this.editors.filter(function(ed) {
+            return !emailsToRemove[ed.getEmail().toLowerCase()];
+          });
+          return this;
+        },
+        removeEditor: function(userToRemove) {
+          return this.removeEditors([userToRemove]);
+        },
+        canDomainEdit: function() { return this.domainEdit; },
+        setDomainEdit: function(allow) { this.domainEdit = allow; return this; },
+        remove: function() {
+          var idx = this.range.sheet.protections.indexOf(this);
+          if (idx !== -1) this.range.sheet.protections.splice(idx, 1);
+        }
+      };
+      this.sheet.protections.push(protection);
+      return protection;
+    },
+    getBandings: function() {
+      return this.bandings || [];
+    },
+    applyRowBanding: function(theme, showHeader, showFooter) {
+      var banding = {
+        theme: theme,
+        showHeader: showHeader,
+        showFooter: showFooter,
+        removed: false,
+        remove: function() { this.removed = true; }
+      };
+      if (!this.bandings) this.bandings = [];
+      this.bandings.push(banding);
+      return banding;
+    }
+  };
+}
+
+function createMockSheet(name, parent) {
+  return {
+    name: name,
+    parent: parent || null,
+    frozenRows: 0,
+    maxRows: 100,
+    maxCols: 26,
+    ranges: {},
+    grid: {},
+    columnWidths: {},
+    protections: [],
+
+    sheetId: Math.floor(Math.random() * 100000),
+    getName: function() { return this.name; },
+    getSheetId: function() { return this.sheetId; },
+    getParent: function() {
+      return this.parent || (typeof SpreadsheetApp !== "undefined" && SpreadsheetApp.getActiveSpreadsheet ? SpreadsheetApp.getActiveSpreadsheet() : null);
+    },
+    getFrozenRows: function() { return this.frozenRows; },
+    setFrozenRows: function(rows) { this.frozenRows = rows; },
+    getMaxRows: function() { return this.maxRows; },
+    getMaxColumns: function() { return this.maxCols; },
+    insertColumnsAfter: function(after, count) { this.maxCols += count; },
+    deleteColumns: function(col, count) { this.maxCols -= count; },
+    setColumnWidth: function(col, width) { this.columnWidths[col] = width; },
+    getBandings: function() { return []; },
+    getProtections: function(type) { return this.protections.slice(); },
+    hiddenRows: {},
+    hideRows: function(rowIndex, numRows) {
+      numRows = numRows || 1;
+      for (var r = 0; r < numRows; r++) {
+        this.hiddenRows[rowIndex + r] = true;
+      }
+    },
+    showRows: function(rowIndex, numRows) {
+      numRows = numRows || 1;
+      for (var r = 0; r < numRows; r++) {
+        delete this.hiddenRows[rowIndex + r];
+      }
+    },
+    isRowHiddenByUser: function(rowIndex) {
+      return !!this.hiddenRows[rowIndex];
+    },
+
+    lastRow: 0,
+    getLastColumn: function() {
+      var maxC = 0;
+      for (var r in this.grid) {
+        var rowObj = this.grid[r];
+        for (var c in rowObj) {
+          var colNum = parseInt(c, 10);
+          if (rowObj[c] !== "" && rowObj[c] !== null && rowObj[c] !== undefined) {
+            if (colNum > maxC) maxC = colNum;
+          }
+        }
+      }
+      return maxC;
+    },
+    getLastRow: function() {
+      var maxR = 0;
+      for (var r in this.grid) {
+        var rowNum = parseInt(r, 10);
+        if (rowNum > maxR) {
+          // Check if at least one cell in row has content
+          var rowObj = this.grid[r];
+          var hasContent = false;
+          for (var c in rowObj) {
+            if (rowObj[c] !== "" && rowObj[c] !== null && rowObj[c] !== undefined) {
+              hasContent = true;
+              break;
+            }
+          }
+          if (hasContent) maxR = rowNum;
+        }
+      }
+      return maxR;
+    },
+    deleteRow: function(rowIndex) {
+      delete this.grid[rowIndex];
+      // Shift rows up
+      var newGrid = {};
+      for (var r in this.grid) {
+        var rowNum = parseInt(r, 10);
+        if (rowNum < rowIndex) {
+          newGrid[rowNum] = this.grid[rowNum];
+        } else if (rowNum > rowIndex) {
+          newGrid[rowNum - 1] = this.grid[rowNum];
+        }
+      }
+      this.grid = newGrid;
+    },
+    getRange: function(row, col, numRows, numCols) {
+      numRows = numRows || 1;
+      numCols = numCols || 1;
+      var key = row + ":" + col + ":" + numRows + ":" + numCols;
+      if (!this.ranges[key]) {
+        this.ranges[key] = createMockRange(this, row, col, numRows, numCols);
+      }
+      return this.ranges[key];
+    },
+    conditionalFormatRules: [],
+    getConditionalFormatRules: function() { return this.conditionalFormatRules; },
+    setConditionalFormatRules: function(rules) { this.conditionalFormatRules = rules; }
+  };
+}
+
+function createMockSpreadsheet() {
+  var namedRanges = {};
+  var ss = {
+    id: "mock-spreadsheet-12345",
+    sheets: [],
+    namedRanges: namedRanges,
+    lastToast: null,
+    toast: function(msg, title, timeout) {
+      this.lastToast = { msg: msg, title: title };
+    },
+
+    getId: function() { return this.id; },
+    getOwner: function() {
+      return {
+        getEmail: function() { return "owner@example.com"; }
+      };
+    },
+    getSheets: function() { return this.sheets.slice(); },
+    getSheetByName: function(name) {
+      for (var i = 0; i < this.sheets.length; i++) {
+        if (this.sheets[i].getName() === name) return this.sheets[i];
+      }
+      return null;
+    },
+    insertSheet: function(name) {
+      var s = createMockSheet(name, this);
+      this.sheets.push(s);
+      return s;
+    },
+    deleteSheet: function(sheet) {
+      var idx = this.sheets.indexOf(sheet);
+      if (idx !== -1) {
+        this.sheets.splice(idx, 1);
+      }
+    },
+    setNamedRange: function(name, range) {
+      this.namedRanges[name] = range;
+    },
+    getRangeByName: function(name) {
+      return this.namedRanges[name] || null;
+    },
+    removeNamedRange: function(name) {
+      delete this.namedRanges[name];
+    }
+  };
+  ss.sheets.push(createMockSheet("Sheet1", ss));
+  return ss;
+}
+
+function setupGasGlobals(mockSpreadsheet) {
+  var docProps = {};
+  var batchUpdateCalls = [];
+
+  var mockUi = {
+    shownSidebar: null,
+    menu: null,
+    createMenu: function(name) {
+      var items = [];
+      this.menu = {
+        name: name,
+        items: items,
+        addItem: function(caption, fn) { items.push({ caption: caption, fn: fn }); return this; },
+        addSeparator: function() { items.push({ separator: true }); return this; },
+        addToUi: function() { return this; }
+      };
+      return this.menu;
+    },
+    showSidebar: function(htmlOutput) {
+      this.shownSidebar = htmlOutput;
+    },
+    lastAlert: null,
+    alertResponse: null,
+    alert: function(title, msg, buttons) {
+      this.lastAlert = { title: title, msg: msg, buttons: buttons };
+      if (this.alertResponse) return this.alertResponse;
+      if (buttons === this.ButtonSet.YES_NO) return this.Button.NO;
+      return "OK";
+    },
+    lastPrompt: null,
+    promptResponse: null,
+    prompt: function(title, msg, buttons) {
+      this.lastPrompt = { title: title, msg: msg, buttons: buttons };
+      if (this.promptResponse) return this.promptResponse;
+      return {
+        getSelectedButton: function() { return "OK"; },
+        getResponseText: function() { return ""; }
+      };
+    },
+    Button: { OK: "OK", CANCEL: "CANCEL", YES: "YES", NO: "NO", CLOSE: "CLOSE" },
+    ButtonSet: { OK: "OK", OK_CANCEL: "OK_CANCEL", YES_NO: "YES_NO" }
+  };
+
+  global.SpreadsheetApp = {
+    getActiveSpreadsheet: function() { return mockSpreadsheet; },
+    getUi: function() { return mockUi; },
+    BandingTheme: { LIGHT_GREY: "LIGHT_GREY" },
+    ProtectionType: { RANGE: "RANGE", SHEET: "SHEET" },
+    newConditionalFormatRule: function() {
+      var rule = {
+        formula: null,
+        bg: null,
+        color: null,
+        bold: false,
+        ranges: [],
+        whenFormulaSatisfied: function(f) { this.formula = f; return this; },
+        whenTextEqualTo: function(text) { this.textEqualTo = text; return this; },
+        whenTextContains: function(text) { this.textContains = text; return this; },
+        setBackground: function(bg) { this.bg = bg; return this; },
+        setFontColor: function(c) { this.color = c; return this; },
+        setBold: function(b) { this.bold = b; return this; },
+        setRanges: function(r) { this.ranges = r; return this; },
+        build: function() { return this; }
+      };
+      return rule;
+    },
+    newDataValidation: function() {
+      var rule = {
+        allowedValues: [],
+        showDropdown: false,
+        allowInvalid: true,
+        requireValueInList: function(values, showDropdown) {
+          this.allowedValues = values;
+          this.showDropdown = showDropdown;
+          return this;
+        },
+        setAllowInvalid: function(allow) {
+          this.allowInvalid = allow;
+          return this;
+        },
+        build: function() { return this; }
+      };
+      return rule;
+    }
+  };
+
+  global.HtmlService = {
+    createHtmlOutputFromFile: function(filename) {
+      return {
+        filename: filename,
+        title: "",
+        width: 300,
+        setTitle: function(t) { this.title = t; return this; },
+        setWidth: function(w) { this.width = w; return this; }
+      };
+    }
+  };
+
+  global.Session = {
+    getActiveUser: function() {
+      return {
+        getEmail: function() { return "alice@example.com"; }
+      };
+    },
+    getEffectiveUser: function() {
+      return {
+        getEmail: function() { return "owner@example.com"; }
+      };
+    }
+  };
+
+  global.Logger = {
+    logs: [],
+    log: function(msg) {
+      if (!this.logs) this.logs = [];
+      this.logs.push(String(msg));
+    },
+    getLogs: function() { return this.logs || []; },
+    clear: function() { this.logs = []; }
+  };
+
+  global.Sheets = {
+    batchUpdateCalls: batchUpdateCalls,
+    Spreadsheets: {
+      batchUpdate: function(resource, spreadsheetId) {
+        batchUpdateCalls.push({ resource: resource, spreadsheetId: spreadsheetId });
+        if (resource && resource.requests) {
+          for (var i = 0; i < resource.requests.length; i++) {
+            var req = resource.requests[i];
+            if (req.copyPaste) {
+              var cp = req.copyPaste;
+              var srcSheet = null;
+              var dstSheet = null;
+              for (var s = 0; s < mockSpreadsheet.sheets.length; s++) {
+                if (mockSpreadsheet.sheets[s].getSheetId() === cp.source.sheetId) srcSheet = mockSpreadsheet.sheets[s];
+                if (mockSpreadsheet.sheets[s].getSheetId() === cp.destination.sheetId) dstSheet = mockSpreadsheet.sheets[s];
+              }
+              if (srcSheet && dstSheet) {
+                var sRow = cp.source.startRowIndex + 1;
+                var sCol = cp.source.startColumnIndex + 1;
+                var dRow = cp.destination.startRowIndex + 1;
+                var dCol = cp.destination.startColumnIndex + 1;
+                var val = (srcSheet.grid[sRow] && srcSheet.grid[sRow][sCol] !== undefined) ? srcSheet.grid[sRow][sCol] : "";
+                if (!dstSheet.grid[dRow]) dstSheet.grid[dRow] = {};
+                dstSheet.grid[dRow][dCol] = val;
+              }
+            } else if (req.updateCells && req.updateCells.rows) {
+              var uc = req.updateCells;
+              var targetSheet = null;
+              for (var ts = 0; ts < mockSpreadsheet.sheets.length; ts++) {
+                if (mockSpreadsheet.sheets[ts].getSheetId() === uc.range.sheetId) targetSheet = mockSpreadsheet.sheets[ts];
+              }
+              if (targetSheet && uc.rows[0] && uc.rows[0].values && uc.rows[0].values[0]) {
+                var cellObj = uc.rows[0].values[0];
+                var cellVal = (cellObj.chipRuns && cellObj.chipRuns[0] && cellObj.chipRuns[0].chip && cellObj.chipRuns[0].chip.personProperties)
+                  ? cellObj.chipRuns[0].chip.personProperties.email
+                  : (cellObj.userEnteredValue ? cellObj.userEnteredValue.stringValue : "");
+                var rIdx = uc.range.startRowIndex + 1;
+                var cIdx = uc.range.startColumnIndex + 1;
+                if (!targetSheet.grid[rIdx]) targetSheet.grid[rIdx] = {};
+                targetSheet.grid[rIdx][cIdx] = cellVal;
+              }
+            }
+          }
+        }
+        return { replies: [{ addTable: { table: {} } }] };
+      },
+      get: function(spreadsheetId, options) {
+        var ranges = (options && options.ranges) ? options.ranges : [];
+        var resultSheets = [];
+        for (var i = 0; i < ranges.length; i++) {
+          var rStr = ranges[i];
+          var parts = rStr.split("!");
+          var sheetName = parts[0];
+          var a1 = parts[1] || "";
+          var sheet = null;
+          for (var s = 0; s < mockSpreadsheet.sheets.length; s++) {
+            if (mockSpreadsheet.sheets[s].getName() === sheetName) {
+              sheet = mockSpreadsheet.sheets[s];
+              break;
+            }
+          }
+          var rowData = [];
+          if (sheet) {
+            var match = a1.match(/([A-Z]+)(\d+):([A-Z]+)(\d*)/);
+            var startRow = match ? parseInt(match[2], 10) : 2;
+            var endRow = (match && match[4]) ? parseInt(match[4], 10) : Math.max(sheet.getLastRow(), startRow);
+            for (var r = startRow; r <= endRow; r++) {
+              var val = (sheet.grid[r] && sheet.grid[r][1] !== undefined) ? sheet.grid[r][1] : "";
+              var cellObj = {
+                formattedValue: (typeof val === "object" && val.name) ? val.name : String(val),
+                chipRuns: []
+              };
+              if (val && typeof val === "object" && val.personProperties) {
+                cellObj.chipRuns.push({
+                  startIndex: 0,
+                  endIndex: cellObj.formattedValue.length,
+                  chip: { personProperties: val.personProperties }
+                });
+              } else if (val && typeof val === "object" && val.chipRuns) {
+                cellObj.chipRuns = val.chipRuns;
+              } else if (typeof val === "string" && val.indexOf("@") !== -1) {
+                cellObj.chipRuns.push({
+                  startIndex: 0,
+                  endIndex: val.length,
+                  chip: { personProperties: { email: val, name: val } }
+                });
+              }
+              rowData.push({ values: [cellObj] });
+            }
+          }
+          resultSheets.push({ data: [{ rowData: rowData }] });
+        }
+        return { sheets: resultSheets };
+      }
+    }
+  };
+
+  var userProps = {};
+  var userCache = {};
+
+  global.PropertiesService = {
+    getDocumentProperties: function() {
+      return {
+        getProperty: function(key) { return docProps[key] || null; },
+        setProperty: function(key, val) { docProps[key] = String(val); },
+        deleteProperty: function(key) { delete docProps[key]; },
+        getProperties: function() { return Object.assign({}, docProps); }
+      };
+    },
+    getUserProperties: function() {
+      return {
+        getProperty: function(key) { return userProps[key] || null; },
+        setProperty: function(key, val) { userProps[key] = String(val); },
+        deleteProperty: function(key) { delete userProps[key]; },
+        getProperties: function() { return Object.assign({}, userProps); }
+      };
+    }
+  };
+
+  global.CacheService = {
+    getUserCache: function() {
+      return {
+        get: function(key) { return userCache[key] || null; },
+        put: function(key, val, ttl) { userCache[key] = String(val); },
+        remove: function(key) { delete userCache[key]; }
+      };
+    }
+  };
+
+  var mockTasklists = [{ id: "@default", title: "My Tasks" }];
+  var mockTasksStore = { "@default": [] };
+
+  global.Tasks = {
+    Tasklists: {
+      list: function() {
+        return { items: mockTasklists.slice() };
+      },
+      get: function(tasklistId) {
+        for (var i = 0; i < mockTasklists.length; i++) {
+          if (mockTasklists[i].id === tasklistId) return mockTasklists[i];
+        }
+        return { id: tasklistId, title: "Custom Tasklist" };
+      },
+      insert: function(resource) {
+        var id = "tl_" + Math.random().toString(36).substring(2, 9);
+        var created = Object.assign({ id: id }, resource);
+        mockTasklists.push(created);
+        mockTasksStore[id] = [];
+        return created;
+      }
+    },
+    Tasks: {
+      list: function(tasklistId, optionalArgs) {
+        var list = mockTasksStore[tasklistId] || [];
+        return { items: list.slice() };
+      },
+      get: function(tasklistId, taskId) {
+        var list = mockTasksStore[tasklistId] || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === taskId) return list[i];
+        }
+        throw new Error("Task not found: " + taskId);
+      },
+      insert: function(taskResource, tasklistId) {
+        var listId = tasklistId || "@default";
+        if (!mockTasksStore[listId]) mockTasksStore[listId] = [];
+        var id = "gtask_" + Math.random().toString(36).substring(2, 9);
+        var created = Object.assign({
+          id: id,
+          status: "needsAction",
+          title: "",
+          updated: new Date().toISOString()
+        }, taskResource);
+        mockTasksStore[listId].push(created);
+        return created;
+      },
+      patch: function(taskResource, tasklistId, taskId) {
+        var listId = tasklistId || "@default";
+        var list = mockTasksStore[listId] || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === taskId) {
+            Object.assign(list[i], taskResource, { updated: new Date().toISOString() });
+            return list[i];
+          }
+        }
+        throw new Error("Task not found to patch: " + taskId);
+      },
+      update: function(taskResource, tasklistId, taskId) {
+        return this.patch(taskResource, tasklistId, taskId);
+      },
+      remove: function(tasklistId, taskId) {
+        var listId = tasklistId || "@default";
+        var list = mockTasksStore[listId] || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === taskId) {
+            list.splice(i, 1);
+            return;
+          }
+        }
+      },
+      delete: function(tasklistId, taskId) {
+        return this.remove(tasklistId, taskId);
+      }
+    }
+  };
+
+  var mockSentEmails = [];
+  global.MailApp = {
+    sendEmail: function(opt1, opt2, opt3) {
+      if (typeof opt1 === "object") {
+        mockSentEmails.push(opt1);
+      } else {
+        mockSentEmails.push({ to: opt1, subject: opt2, body: opt3 });
+      }
+    },
+    getSentEmails: function() { return mockSentEmails.slice(); },
+    clearSentEmails: function() { mockSentEmails = []; }
+  };
+
+  var mockTriggers = [];
+  global.ScriptApp = {
+    getProjectTriggers: function() { return mockTriggers.slice(); },
+    deleteTrigger: function(trigger) {
+      var idx = mockTriggers.indexOf(trigger);
+      if (idx !== -1) mockTriggers.splice(idx, 1);
+    },
+    newTrigger: function(handlerFunction) {
+      var trig = {
+        handler: handlerFunction,
+        getHandlerFunction: function() { return this.handler; },
+        forSpreadsheet: function(ss) { return this; },
+        onEdit: function() { return this; },
+        timeBased: function() { return this; },
+        everyDays: function(days) { return this; },
+        atHour: function(hour) { return this; },
+        create: function() {
+          mockTriggers.push(this);
+          return this;
+        }
+      };
+      return trig;
+    }
+  };
+
+  var mockCalendars = {};
+  function createMockCalendar(calId, calName) {
+    var eventsStore = {};
+    return {
+      id: calId,
+      name: calName,
+      getId: function() { return this.id; },
+      getName: function() { return this.name; },
+      createAllDayEvent: function(title, date, options) {
+        options = options || {};
+        var evtId = "cal_evt_" + Math.random().toString(36).substring(2, 9);
+        var guestsList = [];
+        if (options.guests) {
+          var emails = String(options.guests).split(",");
+          for (var i = 0; i < emails.length; i++) {
+            (function(guestEmail) {
+              var em = String(guestEmail || "").trim();
+              if (em) guestsList.push({ getEmail: function() { return em; } });
+            })(emails[i]);
+          }
+        }
+        var evt = {
+          id: evtId,
+          title: title,
+          date: date,
+          endDate: (options && options.endTime) ? options.endTime : null,
+          isAllDay: options && options.isAllDay !== undefined ? options.isAllDay : true,
+          location: options.location || "",
+          description: options.description || "",
+          guests: guestsList,
+          getId: function() { return this.id; },
+          getTitle: function() { return this.title; },
+          setTitle: function(t) { this.title = t; return this; },
+          getLocation: function() { return this.location; },
+          setLocation: function(l) { this.location = l; return this; },
+          getAllDayStartDate: function() { return this.date; },
+          setAllDayDate: function(d) { this.date = d; this.isAllDay = true; return this; },
+          getStartTime: function() { return this.date; },
+          getEndTime: function() { return this.endDate || this.date; },
+          setTime: function(start, end) { this.date = start; this.endDate = end; this.isAllDay = false; return this; },
+          isAllDayEvent: function() { return this.isAllDay; },
+          getDescription: function() { return this.description; },
+          setDescription: function(d) { this.description = d; return this; },
+          getGuestList: function() { return this.guests.slice(); },
+          addGuest: function(email) {
+            this.guests.push({ getEmail: function() { return email; } });
+            return this;
+          },
+          deleteEvent: function() {
+            delete eventsStore[this.id];
+          }
+        };
+        eventsStore[evtId] = evt;
+        return evt;
+      },
+      createEvent: function(title, startTime, endTime, options) {
+        options = Object.assign({}, options || {}, { isAllDay: false, endTime: endTime });
+        var created = this.createAllDayEvent(title, startTime, options);
+        created.isAllDay = false;
+        created.endDate = endTime;
+        return created;
+      },
+      getEventById: function(evtId) {
+        return eventsStore[evtId] || null;
+      },
+      getEvents: function() {
+        var res = [];
+        for (var k in eventsStore) res.push(eventsStore[k]);
+        return res;
+      }
+    };
+  }
+
+  var defaultCal = createMockCalendar("primary", "Team Calendar");
+  mockCalendars["primary"] = defaultCal;
+
+  global.CalendarApp = {
+    getDefaultCalendar: function() { return defaultCal; },
+    getCalendarById: function(id) {
+      var activeEmail = (typeof Session !== "undefined" && Session.getActiveUser) ? Session.getActiveUser().getEmail() : "";
+      if (!id || id === "primary" || id === "@default" || (activeEmail && id.toLowerCase() === activeEmail.toLowerCase())) {
+        return defaultCal;
+      }
+      if (!mockCalendars[id]) {
+        mockCalendars[id] = createMockCalendar(id, "Custom Calendar " + id);
+      }
+      return mockCalendars[id];
+    },
+    createCalendar: function(name) {
+      var id = "cal_" + Math.random().toString(36).substring(2, 9);
+      var c = createMockCalendar(id, name);
+      mockCalendars[id] = c;
+      return c;
+    }
+  };
+}
+
+module.exports = {
+  createMockSpreadsheet: createMockSpreadsheet,
+  setupGasGlobals: setupGasGlobals,
+  get MailApp() { return global.MailApp; }
+};

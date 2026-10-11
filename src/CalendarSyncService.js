@@ -75,7 +75,7 @@ function getEventColumnMap(eventsSheet) {
     else if (norm === "duration" || norm === "eventduration" || norm === "length" || norm === "minutes") found.duration = c + 1;
     else if (norm === "location" || norm === "place" || norm === "venue") found.location = c + 1;
     else if (norm === "organizer" || norm === "eventorganizer" || norm === "lead" || norm === "owner" || norm === "host") found.organizer = c + 1;
-    else if (norm === "googlecalendareventid" || norm === "calendareventid" || norm === "geventid" || norm === "googleeventid") found.googleCalendarEventId = c + 1;
+    else if (norm === "googlecalendareventid" || norm === "googlecalendarid" || norm === "calendareventid" || norm === "geventid" || norm === "googleeventid") found.googleCalendarEventId = c + 1;
   }
 
   if (!hasAnyHeader) return defaultMap;
@@ -229,7 +229,7 @@ function getOrganizerEmail(rawOrganizer, richOrganizer, ss) {
       if (extracted) return extracted.toLowerCase();
     }
     if (ss) {
-      var membersSheet = ss.getSheetByName("tbl_members");
+      var membersSheet = getTable(ss, "members");
       if (membersSheet && membersSheet.getLastRow() > 1) {
         var mRows = membersSheet.getRange(2, 1, membersSheet.getLastRow() - 1, Math.max(membersSheet.getLastColumn(), 2)).getValues();
         for (var m = 0; m < mRows.length; m++) {
@@ -293,7 +293,7 @@ function getOrganizerCalendar(organizerEmail, ss) {
 function getActiveTeamMemberEmails(ss) {
   var emails = [];
   if (!ss) return emails;
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var membersSheet = getTable(ss, "members");
   if (!membersSheet || membersSheet.getLastRow() <= 1) return emails;
 
   var lastRow = membersSheet.getLastRow();
@@ -500,16 +500,16 @@ function syncGoogleCalendar(targetSpreadsheet, options) {
   if (!ss) return { success: false, message: "No active spreadsheet available" };
   options = options || {};
 
-  var eventsSheet = ss.getSheetByName("tbl_events");
+  var eventsSheet = getTable(ss, "events");
   if (!eventsSheet) {
-    return { success: false, message: "Sheet 'tbl_events' not found" };
+    return { success: false, message: "Sheet 'Events' not found" };
   }
 
   var lastRow = eventsSheet.getLastRow();
   if (lastRow <= 1) {
     return {
       success: true,
-      message: "tbl_events is empty. No events to synchronize.",
+      message: "Events is empty. No events to synchronize.",
       createdCount: 0,
       updatedCount: 0,
       totalEvents: 0
@@ -662,7 +662,7 @@ function syncCalendar(targetSpreadsheet) {
 function handleEventEdit(e) {
   if (!e || !e.range) return null;
   var sheet = e.range.getSheet();
-  if (!sheet || sheet.getName() !== "tbl_events") return null;
+  if (!sheet || tableKeyOfSheet(sheet) !== "events") return null;
 
   var editedRow = e.range.getRow();
   var editedCol = e.range.getColumn();

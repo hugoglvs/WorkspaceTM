@@ -80,7 +80,7 @@ function isWeekendDay(d) {
  * @return {Object<string, Array<{startDate: Date, endDate: Date, status: string, leaveType: string}>>}
  */
 function readCoverageLeaves(ss) {
-  var sheet = ss.getSheetByName("tbl_leaves");
+  var sheet = getTable(ss, "leaves");
   var byMember = {};
   if (!sheet || sheet.getMaxRows() < 2) return byMember;
   var colMap = (typeof getLeaveColumnMap === "function")
@@ -111,7 +111,7 @@ function readCoverageLeaves(ss) {
  * @return {Object<string, Array<{row: number, primary: string, backup: string, startDate: (Date|null), endDate: (Date|null)}>>}
  */
 function readBackupAssignments(ss) {
-  var sheet = ss.getSheetByName("tbl_backups");
+  var sheet = getTable(ss, "backups");
   var byProject = {};
   if (!sheet || sheet.getMaxRows() < 2) return byProject;
   var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 1000) - 1, 8);
@@ -145,8 +145,8 @@ function readBackupAssignments(ss) {
  */
 function syncProjectBackups(ss, todayDate) {
   var res = { idsCreated: 0, rowsAdded: 0, rowsEnded: 0 };
-  var projectsSheet = ss.getSheetByName("tbl_projects");
-  var backupsSheet = ss.getSheetByName("tbl_backups");
+  var projectsSheet = getTable(ss, "projects");
+  var backupsSheet = getTable(ss, "backups");
   if (!projectsSheet || !backupsSheet || projectsSheet.getMaxRows() < 2) return res;
 
   var pRange = projectsSheet.getRange(2, 1, Math.min(projectsSheet.getMaxRows(), 500) - 1, 7);
@@ -205,10 +205,10 @@ function syncProjectBackups(ss, todayDate) {
 function checkProjectBackupConflicts(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
-  var projectsSheet = ss.getSheetByName("tbl_projects");
-  var tasksSheet = ss.getSheetByName("tbl_tasks");
-  var membersSheet = ss.getSheetByName("tbl_members");
-  if (!projectsSheet) return { success: false, message: "Sheet 'tbl_projects' not found." };
+  var projectsSheet = getTable(ss, "projects");
+  var tasksSheet = getTable(ss, "tasks");
+  var membersSheet = getTable(ss, "members");
+  if (!projectsSheet) return { success: false, message: "Sheet 'Projects' not found." };
 
   var opt = options || {};
   var sendNotifications = opt.sendNotifications !== false;
@@ -382,7 +382,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
             "Project Lead: " + project.lead + "\n" +
             "Permanent backup: " + (project.backup || "none") + "\n" +
             "Uncovered: " + startStr + " to " + endStr + "\n\n" +
-            "Add an interim backup for these dates (tbl_backups), or adjust the leaves."
+            "Add an interim backup for these dates in the hidden Backups tab, or adjust the leaves."
         });
         emailSent = true;
       } catch (eMail) { Logger.log("Backup coverage email note: " + eMail); }
@@ -396,7 +396,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
         tasksSheet.getRange(tRow, 1, 1, 8).setValues([[
           "task_" + Math.random().toString(36).substring(2, 9), project.id, assignee,
           "Organize interim backup for project " + project.name,
-          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates in tbl_backups.",
+          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates in the hidden Backups tab (right-click the tab bar → Unhide).",
           startStr, "Todo", ""
         ]]);
         var assigneeRoster = membersRoster[String(assignee).toLowerCase()];
@@ -476,11 +476,11 @@ function assignProjectBackup(payload, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
-  var backupsSheet = ss.getSheetByName("tbl_backups");
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var backupsSheet = getTable(ss, "backups");
+  var membersSheet = getTable(ss, "members");
 
   if (!backupsSheet) {
-    return { success: false, message: "Sheet 'tbl_backups' not found. Please run init() first." };
+    return { success: false, message: "Sheet 'Backups' not found. Run Initialize / Upgrade first." };
   }
 
   var backupId = "bkp_" + Math.random().toString(36).substring(2, 9);

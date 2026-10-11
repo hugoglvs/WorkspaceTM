@@ -60,9 +60,9 @@ function syncMembersAndTenures(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
-  var membersSheet = ss.getSheetByName("tbl_members");
-  var tenuresSheet = ss.getSheetByName("tbl_tenures");
-  var tasksSheet = ss.getSheetByName("tbl_tasks");
+  var membersSheet = getTable(ss, "members");
+  var tenuresSheet = getTable(ss, "tenures");
+  var tasksSheet = getTable(ss, "tasks");
 
   if (!membersSheet || !tenuresSheet) {
     return { success: false, message: "Required sheets not found" };
@@ -111,12 +111,12 @@ function syncMembersAndTenures(targetSpreadsheet) {
   for (var mh = 0; mh < mHeaders.length; mh++) {
     var mhName = String(mHeaders[mh] || "").trim().toLowerCase();
     if (mhName === "member") mColMember = mh + 1;
-    else if (mhName === "accenture_email") mColAccentureEmail = mh + 1;
-    else if (mhName === "phone_number") mColPhone = mh + 1;
-    else if (mhName === "current_role") mColRole = mh + 1;
-    else if (mhName === "current_department") mColDept = mh + 1;
-    else if (mhName === "tenure_status") mColStatus = mh + 1;
-    else if (mhName === "today_presence") mColPresence = mh + 1;
+    else if (mhName === "accenture_email" || mhName === "accenture email") mColAccentureEmail = mh + 1;
+    else if (mhName === "phone_number" || mhName === "phone") mColPhone = mh + 1;
+    else if (mhName === "current_role" || mhName === "role") mColRole = mh + 1;
+    else if (mhName === "current_department" || mhName === "department") mColDept = mh + 1;
+    else if (mhName === "tenure_status" || mhName === "status") mColStatus = mh + 1;
+    else if (mhName === "today_presence" || mhName === "today") mColPresence = mh + 1;
   }
 
   // -------------------------------------------------------------
@@ -135,15 +135,16 @@ function syncMembersAndTenures(targetSpreadsheet) {
     var tkLastCol = Math.max(typeof tasksSheet.getLastColumn === "function" ? (tasksSheet.getLastColumn() || 0) : 0, 8);
     var tkHeaders = tasksSheet.getRange(1, 1, 1, tkLastCol).getValues()[0];
     for (var tkh = 0; tkh < tkHeaders.length; tkh++) {
-      var tkhName = String(tkHeaders[tkh] || "").trim().toLowerCase();
-      if (tkhName === "task_id") tkColId = tkh + 1;
-      else if (tkhName === "project_id") tkColProj = tkh + 1;
-      else if (tkhName === "assigned_member") tkColMember = tkh + 1;
+      // Normalised so technical keys ("due_date") and readable labels ("Due date") both match
+      var tkhName = String(tkHeaders[tkh] || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (tkhName === "taskid" || tkhName === "id") tkColId = tkh + 1;
+      else if (tkhName === "projectid") tkColProj = tkh + 1;
+      else if (tkhName === "assignedmember" || tkhName === "assignedto") tkColMember = tkh + 1;
       else if (tkhName === "title") tkColTitle = tkh + 1;
       else if (tkhName === "description") tkColDesc = tkh + 1;
-      else if (tkhName === "due_date") tkColDue = tkh + 1;
+      else if (tkhName === "duedate") tkColDue = tkh + 1;
       else if (tkhName === "status") tkColStatus = tkh + 1;
-      else if (tkhName === "google_task_id") tkColGTask = tkh + 1;
+      else if (tkhName === "googletaskid") tkColGTask = tkh + 1;
     }
   }
 
@@ -168,7 +169,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
 
       // Check required fields for this tenure row (end_date is nullable)
       if (typeof validateRow === "function") {
-        var vRowRes = validateRow("tbl_tenures", tValues[t], tHeaders);
+        var vRowRes = validateRow("tenures", tValues[t], tHeaders);
         if (!vRowRes.valid) {
           validationWarnings.push({
             row: t + 2,
@@ -386,7 +387,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
         );
         if (tkColDesc > 0 && tkColDesc <= tasksSheet.getLastColumn()) {
           tasksSheet.getRange(targetTaskRow, tkColDesc).setValue(
-            "Please enter your Accenture email address and phone number in the Team Directory sheet (tbl_members)."
+            "Please enter your Accenture email address and phone number in the Members tab (Project Management → Members & Contracts → Contact details)."
           );
         }
         tasksSheet.getRange(targetTaskRow, tkColDue).setValue(dueDateStr);
@@ -645,8 +646,8 @@ function parseDateValue(val) {
 function syncBaselinesPeopleChips(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return 0;
-  var membersSheet = ss.getSheetByName("tbl_members");
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
+  var membersSheet = getTable(ss, "members");
+  var baselinesSheet = getTable(ss, "baselines");
   if (!membersSheet || !baselinesSheet || typeof copyCellChip !== "function") return 0;
 
   var mMax = Math.min(membersSheet.getMaxRows(), 300);

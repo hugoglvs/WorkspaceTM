@@ -24,7 +24,7 @@ function freshInit(targetSpreadsheet) {
     if (!SCHEMA_SPEC.hasOwnProperty(tableKey)) continue;
 
     var config = SCHEMA_SPEC[tableKey];
-    var sheet = ss.getSheetByName(config.sheetName);
+    var sheet = getTable(ss, tableKey);
     var isNew = false;
 
     if (!sheet) {
@@ -45,7 +45,7 @@ function freshInit(targetSpreadsheet) {
 
     // 1. Write Header Row
     var headerRange = sheet.getRange(1, 1, 1, colCount);
-    headerRange.setValues([config.columns]);
+    headerRange.setValues([schemaHeaderRow(config)]);
     sheet.setFrozenRows(1);
 
     // 2. Set Typography across data area (12px Google Sans)
@@ -66,12 +66,14 @@ function freshInit(targetSpreadsheet) {
       config.columns,
       config.columnTypes,
       config.validations,
-      Math.min(rowCount, 25)
+      Math.min(rowCount, 25),
+      schemaHeaderRow(config)
     );
 
 
     // 6. Register Named Range for table
-    var namedRangeName = config.sheetName + "_table";
+    // Named ranges cannot contain spaces: keep the stable technical name
+    var namedRangeName = (config.legacyName || tableKey) + "_table";
     var existingNamedRange = ss.getRangeByName(namedRangeName);
     if (existingNamedRange) {
       ss.removeNamedRange(namedRangeName);
@@ -107,7 +109,7 @@ function freshInit(targetSpreadsheet) {
     var firstSheet = initialSheets[0];
     var firstName = firstSheet.getName();
     var firstIsEmpty = !firstSheet.getLastRow() || !firstSheet.getLastColumn();
-    if (!SCHEMA_SPEC.hasOwnProperty(firstName) && createdSheets.length > 0 && firstIsEmpty) {
+    if (!tableKeyOfName(firstName) && createdSheets.length > 0 && firstIsEmpty) {
       try {
         ss.deleteSheet(firstSheet);
       } catch (e) {

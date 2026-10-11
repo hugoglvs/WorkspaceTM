@@ -611,7 +611,7 @@ function setupGasGlobals(mockSpreadsheet) {
         for (var i = 0; i < ranges.length; i++) {
           var rStr = ranges[i];
           var parts = rStr.split("!");
-          var sheetName = parts[0];
+          var sheetName = parts[0].replace(/^'(.*)'$/, '$1').replace(/''/g, "'");
           var a1 = parts[1] || "";
           var sheet = null;
           for (var s = 0; s < mockSpreadsheet.sheets.length; s++) {

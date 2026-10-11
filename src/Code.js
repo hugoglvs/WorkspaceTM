@@ -20,7 +20,17 @@ function init(targetSpreadsheet) {
 function setupOrUpgrade(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var curVer = getSchemaVersion();
+
+  // Readable tab names (ADR 0039): rename former technical tabs before tables are checked
+  var renamedTabs = [];
+  try {
+    renamedTabs = renameLegacySheets(ss);
+  } catch (errRename) {
+    Logger.log("setupOrUpgrade rename note: " + errRename);
+  }
+
   var res = freshInit(ss);
+  res.renamedTabs = renamedTabs;
 
   // One-time restore of the reverted merged presence table (ADR 0036)
   try {
@@ -43,7 +53,14 @@ function setupOrUpgrade(targetSpreadsheet) {
     Logger.log("setupOrUpgrade initial sync note: " + errSync);
   }
 
-  // Members see Members, Weekly Matrix, Projects, Tasks and Events (ADR 0036)
+  // Remember each tab's ID so the team can rename tabs safely (ADR 0039)
+  try {
+    registerTableIds(ss);
+  } catch (errIds) {
+    Logger.log("setupOrUpgrade table IDs note: " + errIds);
+  }
+
+  // Members see Members, Weekly Presence, Projects, Tasks and Events (ADR 0036)
   try {
     res.layout = applyWorkspaceLayout(ss);
   } catch (errLayout) {
@@ -422,15 +439,15 @@ function installedTaskEditHandler(e) {
 function handleInstalledEdit(e) {
   var sheet = e.range.getSheet();
   if (!sheet) return null;
-  var sheetName = sheet.getName();
-  if (sheetName === "tbl_tasks") {
+  var tableKey = tableKeyOfSheet(sheet);
+  if (tableKey === "tasks") {
     if (typeof TaskSyncService !== "undefined" && typeof TaskSyncService.handleTaskEdit === "function") {
       return TaskSyncService.handleTaskEdit(e);
     }
     if (typeof handleTaskEdit === "function") {
       return handleTaskEdit(e);
     }
-  } else if (sheetName === "tbl_events") {
+  } else if (tableKey === "events") {
     if (typeof CalendarSyncService !== "undefined" && typeof CalendarSyncService.handleEventEdit === "function") {
       return CalendarSyncService.handleEventEdit(e);
     }
@@ -683,7 +700,7 @@ function onOpen(e, skipMenu) {
         .addItem("Compile Daily Presence Logs", "compilePresence")
         .addItem("Compile Presence Logs (Migration / Undefined Start Date)", "compilePresenceMigration")
         .addItem("Refresh Weekly Matrix View", "refreshWeeklyMatrix")
-        .addItem("Refresh KPI Data for Looker (fact_presence)", "refreshKpis")
+        .addItem("Refresh KPI Data for Looker", "refreshKpis")
         .addItem("Check Project Backup Conflicts", "checkBackupConflicts")
         .addItem("Sync Google Tasks", "syncTasks")
         .addItem("Sync Calendar Events", "syncCalendarEvents")
@@ -759,10 +776,11 @@ function onEdit(e) {
 function handleSheetEdit(e) {
   var sheet = e.range.getSheet();
   var sheetName = sheet.getName();
+  var tableKey = tableKeyOfSheet(sheet);
   var editedRow = e.range.getRow();
 
   // Handle in-sheet presence declaration in view_weekly_matrix
-  if (sheetName === "view_weekly_matrix") {
+  if (tableKey === "weeklyMatrix") {
     if (typeof handleWeeklyMatrixEdit === "function") {
       try {
         handleWeeklyMatrixEdit(e);
@@ -774,7 +792,7 @@ function handleSheetEdit(e) {
   }
 
   // Handle task row creation / editing in tbl_tasks immediately so task_id, status, and formatting are applied first!
-  if (sheetName === "tbl_tasks" && editedRow > 1) {
+  if (tableKey === "tasks" && editedRow > 1) {
     var taskEditHandler = (typeof handleTaskEdit === "function")
       ? handleTaskEdit
       : (typeof TaskSyncService !== "undefined" && typeof TaskSyncService.handleTaskEdit === "function")
@@ -790,7 +808,7 @@ function handleSheetEdit(e) {
   }
 
   // Handle event row creation / editing in tbl_events immediately so event_id, calendar sync, and formatting are applied
-  if (sheetName === "tbl_events" && editedRow > 1) {
+  if (tableKey === "events" && editedRow > 1) {
     var eventEditHandler = (typeof handleEventEdit === "function")
       ? handleEventEdit
       : (typeof CalendarSyncService !== "undefined" && typeof CalendarSyncService.handleEventEdit === "function")
@@ -806,14 +824,15 @@ function handleSheetEdit(e) {
   }
 
   // Validate edited row if within an operational table
-  if (editedRow > 1 && typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[sheetName] && typeof validateRow === "function") {
-    var numCols = Math.max(typeof sheet.getLastColumn === "function" ? (sheet.getLastColumn() || 0) : 0, SCHEMA_SPEC[sheetName].columns.length);
+  if (editedRow > 1 && typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[tableKey] && typeof validateRow === "function") {
+    var numCols = Math.max(typeof sheet.getLastColumn === "function" ? (sheet.getLastColumn() || 0) : 0, SCHEMA_SPEC[tableKey].columns.length);
     var rowVals = sheet.getRange(editedRow, 1, 1, numCols).getValues()[0];
-    var vRes = validateRow(sheetName, rowVals);
+    var vRes = validateRow(tableKey, rowVals);
     if (vRes.populated && !vRes.valid) {
       try {
+        var missingLabels = vRes.missingColumns.map(function(c) { return schemaColumnLabel(SCHEMA_SPEC[tableKey], c); });
         SpreadsheetApp.getActiveSpreadsheet().toast(
-          "Missing required column(s): " + vRes.missingColumns.join(", ") + " in " + sheetName + " (Row " + editedRow + ").",
+          "Missing required column(s): " + missingLabels.join(", ") + " in " + sheetName + " (Row " + editedRow + ").",
           "Required Field Missing",
           5
         );
@@ -822,8 +841,8 @@ function handleSheetEdit(e) {
   }
 
   // Check if edited cell falls into an actively protected range
-  if (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[sheetName]) {
-    var tblConfig = SCHEMA_SPEC[sheetName];
+  if (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[tableKey]) {
+    var tblConfig = SCHEMA_SPEC[tableKey];
     var editedCol = e.range.getColumn();
     var colName = (tblConfig.columns && editedCol <= tblConfig.columns.length) ? tblConfig.columns[editedCol - 1] : "";
 
@@ -845,7 +864,7 @@ function handleSheetEdit(e) {
   }
 
   // A new name in Members without a contract: open the Members & Contracts sidebar (ADR 0037)
-  if (sheetName === "tbl_members" && typeof promptContractForNewMember === "function") {
+  if (tableKey === "members" && typeof promptContractForNewMember === "function") {
     try {
       promptContractForNewMember(e);
     } catch (errPrompt) {
@@ -853,7 +872,7 @@ function handleSheetEdit(e) {
     }
   }
 
-  if (sheetName === "tbl_members" || sheetName === "tbl_tenures") {
+  if (tableKey === "members" || tableKey === "tenures") {
     try {
       var syncTargetSs = (sheet.getParent && typeof sheet.getParent === "function") ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet();
       var syncFn = (typeof syncMembersAndTenures === "function")
@@ -869,7 +888,7 @@ function handleSheetEdit(e) {
   }
 
   // A project without a backup: ask for one (ADR 0038)
-  if (sheetName === "tbl_projects" && typeof promptProjectBackup === "function") {
+  if (tableKey === "projects" && typeof promptProjectBackup === "function") {
     try {
       promptProjectBackup(e);
     } catch (errBk) {
@@ -878,7 +897,7 @@ function handleSheetEdit(e) {
   }
 
   // Real-time simultaneous absence conflict re-evaluation
-  if (sheetName === "tbl_projects" || sheetName === "tbl_leaves" || sheetName === "tbl_backups") {
+  if (tableKey === "projects" || tableKey === "leaves" || tableKey === "backups") {
     if (typeof checkProjectBackupConflicts === "function") {
       try {
         checkProjectBackupConflicts(SpreadsheetApp.getActiveSpreadsheet());

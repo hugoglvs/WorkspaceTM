@@ -185,11 +185,11 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet available" };
 
-  var membersSheet = ss.getSheetByName("tbl_members");
-  var logSheet = ss.getSheetByName("tbl_presence_log");
+  var membersSheet = getTable(ss, "members");
+  var logSheet = getTable(ss, "presenceLog");
 
   if (!membersSheet) {
-    return { success: false, message: "Sheet 'tbl_members' not found" };
+    return { success: false, message: "Sheet 'Members' not found" };
   }
 
   // 1. Extract active members
@@ -222,7 +222,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
   }
 
   if (activeMembers.length === 0) {
-    return { success: false, message: "No active members found in tbl_members" };
+    return { success: false, message: "No active members found in Members" };
   }
 
   // 2. Read existing daily records from tbl_presence_log
@@ -302,9 +302,9 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
   }
 
   // 4. Locate or create view_weekly_matrix tab
-  var viewSheet = ss.getSheetByName("view_weekly_matrix");
+  var viewSheet = getTable(ss, "weeklyMatrix");
   if (!viewSheet) {
-    viewSheet = ss.insertSheet("view_weekly_matrix");
+    viewSheet = ss.insertSheet(tableSheetName("weeklyMatrix"));
   }
 
   // Unhide all rows first so stale hidden states are cleared
@@ -535,7 +535,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
 
   return {
     success: true,
-    sheetName: "view_weekly_matrix",
+    sheetName: viewSheet.getName(),
     rowsRendered: numDataRows,
     membersCount: numMembers,
     totalWeeks: weekGroups.length,
@@ -554,7 +554,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
 function handleWeeklyMatrixEdit(e) {
   if (!e || !e.range) return null;
   var sheet = e.range.getSheet();
-  if (!sheet || sheet.getName() !== "view_weekly_matrix") return null;
+  if (!sheet || tableKeyOfSheet(sheet) !== "weeklyMatrix") return null;
 
   var editedRow = e.range.getRow();
   var editedCol = e.range.getColumn();
@@ -587,7 +587,7 @@ function handleWeeklyMatrixEdit(e) {
   var newValue = String(e.range.getValue() || "").trim();
 
   // 3. Update or Insert in tbl_presence_log
-  var logSheet = ss.getSheetByName("tbl_presence_log");
+  var logSheet = getTable(ss, "presenceLog");
   if (!logSheet) return null;
 
   var logLastRow = logSheet.getLastRow();
@@ -639,7 +639,7 @@ function handleWeeklyMatrixEdit(e) {
     logSheet.getRange(targetRow, 2).setValue(dateIso);
 
     // Copy member People Chip from tbl_members
-    var membersSheet = ss.getSheetByName("tbl_members");
+    var membersSheet = getTable(ss, "members");
     var chipCopied = false;
     if (membersSheet && typeof copyCellChip === "function") {
       var mMax = Math.min(membersSheet.getMaxRows(), 200);
@@ -671,7 +671,7 @@ function handleWeeklyMatrixEdit(e) {
   // 4. Update today_presence in tbl_members if date is today
   var todayIso = formatMatrixDateIso(new Date());
   if (dateIso === todayIso) {
-    var membersSheet2 = ss.getSheetByName("tbl_members");
+    var membersSheet2 = getTable(ss, "members");
     if (membersSheet2) {
       var mMax2 = Math.min(membersSheet2.getMaxRows(), 200);
       var mRange2 = membersSheet2.getRange(2, 1, mMax2 - 1, 7);

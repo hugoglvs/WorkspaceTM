@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -59,36 +62,36 @@ test('restorePresenceTablesFromRanges: moves merged ranges back into baselines a
   var res = restorePresenceTablesFromRanges(mockSpreadsheet);
 
   assert.strictEqual(res.restoredCount, 3);
-  assert.deepStrictEqual(rows(mockSpreadsheet, 'tbl_presence_baselines', 7), [
+  assert.deepStrictEqual(rows(mockSpreadsheet, 'Routines', 7), [
     ['base_tm8krbd', 'Hugo Gonçalves', '2026-09-02', '2026-10-09', 'Monday', 'Remote', 'Remote'],
     ['base_egk5kvt', 'Hugo Gonçalves', '2026-10-09', '2026-10-16', 'Monday', 'Remote', 'Remote']
   ]);
-  assert.deepStrictEqual(rows(mockSpreadsheet, 'tbl_leaves', 8), [
+  assert.deepStrictEqual(rows(mockSpreadsheet, 'Leaves', 8), [
     ['leave_q45eloj', 'Hugo Gonçalves', '2026-10-01', 'AM', '2026-10-05', 'PM', 'Vacation', 'Requested']
   ]);
   assert.strictEqual(mockSpreadsheet.getSheetByName('tbl_presence_ranges'), null);
-  assert.ok(mockSpreadsheet.getSheetByName('archive_tbl_presence_ranges').isSheetHidden());
+  assert.ok(mockSpreadsheet.getSheetByName('Archive – Presence Ranges').isSheetHidden());
 
   assert.strictEqual(restorePresenceTablesFromRanges(mockSpreadsheet).restoredCount, 0, 'idempotent');
 });
 
 test('restorePresenceTablesFromRanges: never duplicates a row whose ID already exists', () => {
   freshInit(mockSpreadsheet);
-  mockSpreadsheet.getSheetByName('tbl_presence_baselines').getRange(2, 1, 1, 7).setValues([
+  mockSpreadsheet.getSheetByName('Routines').getRange(2, 1, 1, 7).setValues([
     ['base_tm8krbd', 'Hugo Gonçalves', '2026-09-02', '', 'Monday', 'Remote', 'Remote']
   ]);
   addMergedRangesTable(mockSpreadsheet);
 
   restorePresenceTablesFromRanges(mockSpreadsheet);
 
-  var ids = rows(mockSpreadsheet, 'tbl_presence_baselines', 7).map(r => r[0]);
+  var ids = rows(mockSpreadsheet, 'Routines', 7).map(r => r[0]);
   assert.deepStrictEqual(ids, ['base_tm8krbd', 'base_egk5kvt']);
 });
 
 test('setupOrUpgrade: shows only Members, Weekly Matrix, Projects, Tasks and Events', () => {
   mockSpreadsheet.insertSheet('calc_kpis');
   freshInit(mockSpreadsheet);
-  mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+  mockSpreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([
     ['Hugo Gonçalves', '', '', 'Data Analyst', 'FAL ME', 'Active', '']
   ]);
   addMergedRangesTable(mockSpreadsheet);
@@ -97,10 +100,10 @@ test('setupOrUpgrade: shows only Members, Weekly Matrix, Projects, Tasks and Eve
   code.setupOrUpgrade(mockSpreadsheet);
 
   var visible = mockSpreadsheet.getSheets().filter(s => !s.isSheetHidden()).map(s => s.getName()).sort();
-  assert.deepStrictEqual(visible, ['tbl_events', 'tbl_members', 'tbl_projects', 'tbl_tasks', 'view_weekly_matrix']);
+  assert.deepStrictEqual(visible, ['Events', 'Members', 'Projects', 'Tasks', 'Weekly Presence']);
   assert.strictEqual(mockSpreadsheet.getSheetByName('calc_kpis'), null, 'calc_kpis deleted');
   assert.strictEqual(mockSpreadsheet.getSheetByName('Sheet1'), null, 'empty Sheet1 deleted');
-  assert.strictEqual(rows(mockSpreadsheet, 'tbl_presence_baselines', 7).length, 2, 'merged data restored');
+  assert.strictEqual(rows(mockSpreadsheet, 'Routines', 7).length, 2, 'merged data restored');
 });
 
 test('setupOrUpgrade: keeps a Sheet1 that has content', () => {
@@ -113,7 +116,7 @@ test('setupOrUpgrade: keeps a Sheet1 that has content', () => {
 
 test('freshInit: recreates a table whose name is still held by an archived tab', () => {
   freshInit(mockSpreadsheet);
-  mockSpreadsheet.getSheetByName('tbl_leaves').setName('archive_tbl_leaves');
+  mockSpreadsheet.getSheetByName('Leaves').setName('Archive – Leaves');
 
   assert.doesNotThrow(() => freshInit(mockSpreadsheet));
 
@@ -122,13 +125,26 @@ test('freshInit: recreates a table whose name is still held by an archived tab',
     var sheet = mockSpreadsheet.getSheets().find(s => s.getSheetId() === t.sheetId);
     bySheet[sheet.getName()] = t.name;
   });
-  assert.strictEqual(bySheet['tbl_leaves'], 'tbl_leaves', 'new table takes the canonical name');
-  assert.notStrictEqual(bySheet['archive_tbl_leaves'], 'tbl_leaves', 'archived table was renamed out of the way');
+  assert.strictEqual(bySheet['Leaves'], 'Leaves', 'new table takes the canonical name');
+  assert.notStrictEqual(bySheet['Archive – Leaves'], 'Leaves', 'archived table was renamed out of the way');
 });
 
+function makeLegacyWorkbook(spreadsheet) {
+  // The live sheet before ADR 0039: technical tab names and technical table names
+  freshInit(spreadsheet);
+  Object.keys(TABLE_REGISTRY).forEach(function(key) {
+    var sheet = spreadsheet.getSheetByName(TABLE_REGISTRY[key].sheetName);
+    if (!sheet) return;
+    sheet.setName(TABLE_REGISTRY[key].legacyName);
+    Sheets.Spreadsheets.tables.filter(t => t.sheetId === sheet.getSheetId()).forEach(t => { t.name = TABLE_REGISTRY[key].legacyName; });
+    if (SCHEMA_SPEC[key]) sheet.getRange(1, 1, 1, SCHEMA_SPEC[key].columns.length).setValues([SCHEMA_SPEC[key].columns]);
+  });
+  PropertiesService.getDocumentProperties().getProperties && Object.keys(PropertiesService.getDocumentProperties().getProperties())
+    .filter(k => k.indexOf('SHEET_ID_') === 0).forEach(k => PropertiesService.getDocumentProperties().deleteProperty(k));
+}
+
 test('setupOrUpgrade: recovers the half-upgraded "[NEW] ACN" state of 2026-10-12', () => {
-  // State before the merge, then merged (ADR 0035), then a failed upgrade
-  freshInit(mockSpreadsheet);
+  makeLegacyWorkbook(mockSpreadsheet);
   mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
     ['Hugo Gonçalves', '', '', 'Data Analyst', 'FAL ME', 'Active', '']
   ]);
@@ -141,23 +157,44 @@ test('setupOrUpgrade: recovers the half-upgraded "[NEW] ACN" state of 2026-10-12
   var res = code.setupOrUpgrade(mockSpreadsheet);
 
   assert.strictEqual(res.success, true);
-  assert.strictEqual(rows(mockSpreadsheet, 'tbl_presence_baselines', 7).length, 2);
-  assert.strictEqual(rows(mockSpreadsheet, 'tbl_leaves', 8).length, 1);
+  assert.strictEqual(rows(mockSpreadsheet, 'Routines', 7).length, 2);
+  assert.strictEqual(rows(mockSpreadsheet, 'Leaves', 8).length, 1);
   assert.strictEqual(mockSpreadsheet.getSheetByName('tbl_presence_ranges'), null);
-  ['archive_tbl_presence_baselines', 'archive_tbl_leaves', 'archive_tbl_presence_ranges', 'tbl_presence_baselines', 'tbl_leaves']
+  ['Archive – Routines', 'Archive – Leaves', 'Archive – Presence Ranges', 'Routines', 'Leaves']
     .forEach(n => assert.ok(mockSpreadsheet.getSheetByName(n).isSheetHidden(), n + ' hidden'));
+});
+
+test('setupOrUpgrade: gives the live workbook readable tab, table and header names, keeping data', () => {
+  makeLegacyWorkbook(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+    ['Hugo Gonçalves', 'hugo@accenture.com', '', 'Data Analyst', 'FAL ME', 'Active', '']
+  ]);
+
+  code.setupOrUpgrade(mockSpreadsheet);
+
+  var names = mockSpreadsheet.getSheets().map(s => s.getName());
+  ['Members', 'Contracts', 'Routines', 'Leaves', 'Presence Log', 'Projects', 'Tasks', 'Events', 'Backups']
+    .forEach(n => assert.ok(names.includes(n), n + ' tab'));
+  assert.ok(!names.some(n => n.indexOf('tbl_') === 0), 'no technical tab left');
+  var tableNames = Sheets.Spreadsheets.tables.map(t => t.name);
+  ['Members', 'Projects', 'Tasks', 'Events', 'Presence Log'].forEach(n => assert.ok(tableNames.includes(n), n + ' table'));
+  var members = mockSpreadsheet.getSheetByName('Members');
+  assert.deepStrictEqual(members.getRange(1, 1, 1, 7).getValues()[0],
+    ['Member', 'Accenture email', 'Phone', 'Role', 'Department', 'Status', 'Today']);
+  assert.strictEqual(members.getRange(2, 2).getValue(), 'hugo@accenture.com', 'data kept');
+  assert.deepStrictEqual(mockSpreadsheet.getSheetByName('Contracts').getRange(1, 1, 1, 2).getValues()[0], ['member', 'role'], 'hidden tables keep technical headers');
 });
 
 test('freshInit: widens an existing table when the schema gains a column', () => {
   freshInit(mockSpreadsheet);
-  var projects = mockSpreadsheet.getSheetByName('tbl_projects');
-  var table = Sheets.Spreadsheets.tables.find(t => t.name === 'tbl_projects');
+  var projects = mockSpreadsheet.getSheetByName('Projects');
+  var table = Sheets.Spreadsheets.tables.find(t => t.name === 'Projects');
   table.range = Object.assign({}, table.range, { endColumnIndex: 7 }); // as created before active_responsible existed
 
   freshInit(mockSpreadsheet);
 
-  assert.strictEqual(Sheets.Spreadsheets.tables.find(t => t.name === 'tbl_projects').range.endColumnIndex, 8);
-  assert.strictEqual(projects.getRange(1, 8).getValue(), 'active_responsible');
+  assert.strictEqual(Sheets.Spreadsheets.tables.find(t => t.name === 'Projects').range.endColumnIndex, 8);
+  assert.strictEqual(projects.getRange(1, 8).getValue(), 'In charge today');
 });
 
 test('setupOrUpgrade: removes the retired Active Responsibles view', () => {

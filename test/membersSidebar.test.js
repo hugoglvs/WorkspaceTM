@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -35,17 +38,17 @@ const code = require('../src/Code');
 function seed(tenureRows) {
   freshInit(mockSpreadsheet);
   if (tenureRows.length) {
-    mockSpreadsheet.getSheetByName('tbl_tenures').getRange(2, 1, tenureRows.length, 7).setValues(tenureRows);
+    mockSpreadsheet.getSheetByName('Contracts').getRange(2, 1, tenureRows.length, 7).setValues(tenureRows);
   }
   syncEngine.syncMembersAndTenures(mockSpreadsheet);
 }
 
 function tenures() {
-  return mockSpreadsheet.getSheetByName('tbl_tenures').getRange(2, 1, 20, 7).getValues().filter(r => r[0]);
+  return mockSpreadsheet.getSheetByName('Contracts').getRange(2, 1, 20, 7).getValues().filter(r => r[0]);
 }
 
 function memberRow(name) {
-  return mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 20, 7).getValues().find(r => r[0] === name);
+  return mockSpreadsheet.getSheetByName('Members').getRange(2, 1, 20, 7).getValues().find(r => r[0] === name);
 }
 
 const HUGO = ['Hugo Gonçalves', 'Data Analyst', 'FAL ME', '2025-09-02', '', 'Permanent', 100];
@@ -139,7 +142,7 @@ test('saveMemberProfile: updates email and phone', () => {
 
 test('onEdit: typing a new name in Members opens the sidebar pre-filled for that person', () => {
   seed([HUGO]);
-  var cell = mockSpreadsheet.getSheetByName('tbl_members').getRange(3, 1);
+  var cell = mockSpreadsheet.getSheetByName('Members').getRange(3, 1);
   cell.setValue('Ines Martin');
 
   code.onEdit({ range: cell, value: 'Ines Martin', source: mockSpreadsheet });
@@ -153,7 +156,7 @@ test('onEdit: typing a new name in Members opens the sidebar pre-filled for that
 test('onEdit: when the sidebar cannot open, a toast points to the menu instead', () => {
   seed([HUGO]);
   SpreadsheetApp.getUi().showSidebar = function() { throw new Error('You do not have permission to call Ui.showSidebar'); };
-  var cell = mockSpreadsheet.getSheetByName('tbl_members').getRange(3, 1);
+  var cell = mockSpreadsheet.getSheetByName('Members').getRange(3, 1);
   cell.setValue('Ines Martin');
 
   code.onEdit({ range: cell, value: 'Ines Martin', source: mockSpreadsheet });
@@ -163,7 +166,7 @@ test('onEdit: when the sidebar cannot open, a toast points to the menu instead',
 
 test('onEdit: editing an existing Member with a Tenure does not open anything', () => {
   seed([HUGO]);
-  var cell = mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 3);
+  var cell = mockSpreadsheet.getSheetByName('Members').getRange(2, 3);
   cell.setValue('0102');
 
   code.onEdit({ range: cell, value: '0102', source: mockSpreadsheet });

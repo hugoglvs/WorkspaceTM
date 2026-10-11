@@ -122,6 +122,10 @@ _Avoid_: KPI export, Report data
 A Tenure's share of full time. `fte_rate` accepts a fraction (`0.8`) or a percentage (`80`); both mean 80 %.
 _Avoid_: Allocation, Workload
 
+**Table Registry**:
+The list in `src/Tables.js` mapping each table's stable key (`members`, `tenures`…) to its readable tab name ("Members", "Contracts"…) and its former technical name. Tabs are found by their stored sheet ID, so renaming a tab is safe.
+_Avoid_: Sheet map, Tab config
+
 **Required Column**:
 A table column that must contain a valid, non-blank value for any active or populated row (e.g. `member`, `role`, `start_date` in `tbl_tenures`).
 _Avoid_: Mandatory field, Not null column

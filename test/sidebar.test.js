@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -36,7 +39,7 @@ global.compilePresenceLogs = compilePresenceLogs;
 test('Sidebar initial data should extract members from tbl_members', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   // Seed sample members in Column 1 (member / People chip)
   membersSheet.getRange(2, 1, 2, 1).setValues([
     ['alice@example.com'],
@@ -95,7 +98,7 @@ test('showBaselineSidebar and onOpen should create UI sidebar and menus without 
 
 test('Sidebar should write baselines directly starting at row 2 with People Chip identity', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // Seed member in column 1 (People chip identity)
   membersSheet.getRange(2, 1, 1, 1).setValues([
@@ -122,7 +125,7 @@ test('Sidebar should write baselines directly starting at row 2 with People Chip
   assert.strictEqual(saveRes.success, true);
 
   // Verify rows are written starting at row 2 in tbl_presence_baselines
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
   var writtenValues = baselinesSheet.getRange(2, 1, 5, 7).getValues();
   assert.strictEqual(writtenValues.length, 5);
   assert.strictEqual(writtenValues[0][1], 'charlie@peanuts.com'); // member column
@@ -143,7 +146,7 @@ test('checkBaselineDateOverlap: should detect overlaps between ranges including 
 
 test('saveMemberBaselines: should not override previous baseline, should detect overlap and adjust end date upon confirmation', () => {
   freshInit(mockSpreadsheet);
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
 
   // 1. Save Initial Baseline for Alice (open-ended starting 2026-01-01)
   var res1 = sidebar.saveMemberBaselines({
@@ -245,9 +248,9 @@ test('submitMemberLeave: should validate inputs and reject invalid date ranges',
 
 test('submitMemberLeave: should append leave row to tbl_leaves and compile presence logs', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var leavesSheet = mockSpreadsheet.getSheetByName('Leaves');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -282,7 +285,7 @@ test('submitMemberLeave: should append leave row to tbl_leaves and compile prese
 
 test('checkActiveUserStatus: should detect missing baseline and incomplete profile', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // Alice is in tbl_members with missing role and department, and NO baseline routine
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -305,7 +308,7 @@ test('checkActiveUserStatus: should detect missing baseline and incomplete profi
 
 test('checkActiveUserStatus: should report clean status when member is fully configured', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@example.com', 'alice@example.com', '+33123456789', 'Lead', 'Delivery', 'Active', 'Main Office']
@@ -338,7 +341,7 @@ test('checkActiveUserStatus: should report clean status when member is fully con
 
 test('getSidebarInitialData: should include userChecklist for active user', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@example.com', 'alice@example.com', '', 'Developer', 'Engineering', 'Active', 'Remote']
   ]);
@@ -375,7 +378,7 @@ test('isUserMemberMatch: should match People chip with mailto link, chip object,
 
 test('checkActiveUserStatus: should match member with display name People chip when accenture_email is blank', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // Change Session user to hugo.goncalves@accenture.com
   var originalSession = global.Session;
@@ -403,7 +406,7 @@ test('checkActiveUserStatus: should match member with display name People chip w
 
 test('onOpen should log active user and members emails to Logger.log', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['alice@example.com', '', '', 'Lead', 'Engineering', 'Active', 'Main Office'],
     ['bob@example.com', '', '', 'Engineer', 'Engineering', 'Active', 'Remote']
@@ -424,7 +427,7 @@ test('onOpen should log active user and members emails to Logger.log', () => {
 
 test('debugUserIdentity should display UI alert dialog with audit logs', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@example.com', '', '', 'Lead', 'Engineering', 'Active', 'Main Office']
   ]);
@@ -438,7 +441,7 @@ test('debugUserIdentity should display UI alert dialog with audit logs', () => {
   assert.ok(lastAlert);
   assert.strictEqual(lastAlert.title, 'User & Member Identity Diagnostics');
   assert.ok(lastAlert.msg.includes('Active User'));
-  assert.ok(lastAlert.msg.includes('tbl_members'));
+  assert.ok(lastAlert.msg.includes('Members'));
 });
 
 test('auditUserAndMembersIdentity should handle empty Session user email gracefully', () => {
@@ -488,7 +491,7 @@ test('explainUserMemberMatch should match hugoglvs42@gmail.com with Hugo Gonçal
 
 test('fetchMemberChipEmails should extract email from chipRuns metadata', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   // Row 2 is chip object with personProperties
   membersSheet.grid[2] = {
     1: {
@@ -497,13 +500,13 @@ test('fetchMemberChipEmails should extract email from chipRuns metadata', () => 
     }
   };
 
-  var emails = sidebar.fetchMemberChipEmails(mockSpreadsheet.getId(), 'tbl_members', 2, 1);
+  var emails = sidebar.fetchMemberChipEmails(mockSpreadsheet.getId(), 'Members', 2, 1);
   assert.strictEqual(emails[2], 'hugoglvs42@gmail.com');
 });
 
 test('checkActiveUserStatus should match active user hugoglvs42@gmail.com with Hugo Gonçalves in tbl_members', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Hugo Gonçalves', '', '', 'Lead', 'Delivery', 'Active', 'Remote']
   ]);
@@ -527,8 +530,8 @@ test('checkActiveUserStatus should match active user hugoglvs42@gmail.com with H
 
 test('syncBaselinesPeopleChips: should copy People Chips from tbl_members to tbl_presence_baselines', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
 
   // Member in tbl_members with display name
   membersSheet.getRange(2, 1, 1, 7).setValues([

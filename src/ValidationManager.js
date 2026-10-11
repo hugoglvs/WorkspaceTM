@@ -32,8 +32,25 @@ function isRowPopulated(rowValues) {
  * @param {Array} [headers] - Array of column header names (defaults to schema).
  * @return {Object} { valid: boolean, populated: boolean, missingColumns: Array<string> }
  */
+/**
+ * SCHEMA_SPEC key for a registry key, readable tab name or former technical name.
+ * @param {string} name
+ * @return {string|null}
+ */
+function schemaKeyFor(name) {
+  if (typeof SCHEMA_SPEC === "undefined") return null;
+  if (SCHEMA_SPEC[name]) return name;
+  var key = (typeof tableKeyOfName === "function") ? tableKeyOfName(name) : null;
+  return (key && SCHEMA_SPEC[key]) ? key : null;
+}
+
+function schemaFor(name) {
+  var key = schemaKeyFor(name);
+  return key ? SCHEMA_SPEC[key] : null;
+}
+
 function validateRow(sheetName, rowValues, headers) {
-  var config = (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[sheetName]) ? SCHEMA_SPEC[sheetName] : null;
+  var config = schemaFor(sheetName);
   if (!config) {
     return { valid: true, populated: isRowPopulated(rowValues), missingColumns: [] };
   }
@@ -91,8 +108,8 @@ function validateTable(sheetName, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { sheetName: sheetName, error: "No active spreadsheet" };
 
-  var sheet = ss.getSheetByName(sheetName);
-  var config = (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[sheetName]) ? SCHEMA_SPEC[sheetName] : null;
+  var sheet = getTable(ss, schemaKeyFor(sheetName) || sheetName);
+  var config = schemaFor(sheetName);
 
   if (!sheet || !config) {
     return { sheetName: sheetName, error: "Sheet or schema configuration not found" };
@@ -203,8 +220,8 @@ function highlightInvalidCells(sheetName, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return 0;
 
-  var sheet = ss.getSheetByName(sheetName);
-  var config = (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[sheetName]) ? SCHEMA_SPEC[sheetName] : null;
+  var sheet = getTable(ss, schemaKeyFor(sheetName) || sheetName);
+  var config = schemaFor(sheetName);
   if (!sheet || !config) return 0;
 
   var lastRow = sheet.getLastRow();

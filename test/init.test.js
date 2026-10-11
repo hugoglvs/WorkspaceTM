@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 // Set up globals before requiring source modules
 const mockSpreadsheet = createMockSpreadsheet();
@@ -31,15 +34,15 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
   assert.strictEqual(result.schemaVersion, 1);
 
   const expectedSheets = [
-    'tbl_members',
-    'tbl_tenures',
-    'tbl_presence_baselines',
-    'tbl_leaves',
-    'tbl_presence_log',
-    'tbl_projects',
-    'tbl_tasks',
-    'tbl_events',
-    'tbl_backups'
+    'Members',
+    'Contracts',
+    'Routines',
+    'Leaves',
+    'Presence Log',
+    'Projects',
+    'Tasks',
+    'Events',
+    'Backups'
   ];
 
   assert.deepStrictEqual(result.sheetsCreated, expectedSheets);
@@ -50,11 +53,11 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
     assert.ok(sheet, `Sheet ${sheetName} must exist`);
     assert.strictEqual(sheet.getFrozenRows(), 1, `Sheet ${sheetName} must have Row 1 frozen`);
 
-    const config = schema.SCHEMA_SPEC[sheetName];
+    const config = schema.SCHEMA_SPEC[tableKeyOfName(sheetName)];
     const headerRange = sheet.getRange(1, 1, 1, config.columns.length);
 
-    // Verify header text and typography
-    assert.deepStrictEqual(headerRange.values, [config.columns]);
+    // Verify header text (readable labels where defined) and typography
+    assert.deepStrictEqual(headerRange.values, [schema.schemaHeaderRow(config)]);
     assert.strictEqual(sheet.getRange(1, 1, sheet.getMaxRows(), config.columns.length).fontFamily, 'Google Sans');
     assert.strictEqual(sheet.getRange(1, 1, sheet.getMaxRows(), config.columns.length).fontSize, 12);
   }
@@ -73,14 +76,16 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
     assert.strictEqual(tableReq.range.startRowIndex, 0);
     assert.strictEqual(tableReq.range.startColumnIndex, 0);
     assert.ok(Array.isArray(tableReq.columnProperties), 'Must have columnProperties array');
-    assert.strictEqual(tableReq.columnProperties.length, schema.SCHEMA_SPEC[expectedSheets[i]].columns.length);
+    const spec = schema.SCHEMA_SPEC[tableKeyOfName(expectedSheets[i])];
+    assert.strictEqual(tableReq.columnProperties.length, spec.columns.length);
 
-    // Verify that PEOPLE, DATE, DROPDOWN, NUMERIC types are cast in columnProperties
-    const spec = schema.SCHEMA_SPEC[expectedSheets[i]];
+    // Verify that PEOPLE, DATE, DROPDOWN, NUMERIC types are cast in columnProperties,
+    // and that table column names use the readable header labels
     for (let p = 0; p < tableReq.columnProperties.length; p++) {
       const colProp = tableReq.columnProperties[p];
-      const expectedType = spec.columnTypes[colProp.columnName];
-      assert.strictEqual(colProp.columnType, expectedType, `Column ${colProp.columnName} must have type ${expectedType}`);
+      const key = spec.columns[colProp.columnIndex];
+      assert.strictEqual(colProp.columnName, schema.schemaColumnLabel(spec, key));
+      assert.strictEqual(colProp.columnType, spec.columnTypes[key], `Column ${key} must have type ${spec.columnTypes[key]}`);
     }
   }
 });

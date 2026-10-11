@@ -51,7 +51,7 @@ function msReadRows(sheet, numCols) {
 
 function msTenuresOf(ss, memberName) {
   var key = String(memberName || "").trim().toLowerCase();
-  return msReadRows(ss.getSheetByName("tbl_tenures"), 7).filter(function(t) { return t.key === key; });
+  return msReadRows(getTable(ss, "tenures"), 7).filter(function(t) { return t.key === key; });
 }
 
 function msContractTypes() {
@@ -79,7 +79,7 @@ function msSync(ss) {
  */
 function getMembersSidebarData(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var tenureRows = msReadRows(ss.getSheetByName("tbl_tenures"), 7);
+  var tenureRows = msReadRows(getTable(ss, "tenures"), 7);
   var roles = {}, departments = {};
   var byMember = {};
 
@@ -95,7 +95,7 @@ function getMembersSidebarData(targetSpreadsheet) {
     (byMember[t.key] = byMember[t.key] || []).push(tenure);
   });
 
-  var members = msReadRows(ss.getSheetByName("tbl_members"), 7).map(function(m) {
+  var members = msReadRows(getTable(ss, "members"), 7).map(function(m) {
     var list = (byMember[m.key] || []).sort(function(a, b) { return a.startDate < b.startDate ? -1 : 1; });
     return {
       name: m.name,
@@ -150,8 +150,8 @@ function saveMemberTenure(payload, targetSpreadsheet) {
     return { success: false, message: "The end date cannot be before the start date." };
   }
 
-  var tenuresSheet = ss.getSheetByName("tbl_tenures");
-  if (!tenuresSheet) return { success: false, message: "tbl_tenures not found. Run Initialize / Upgrade first." };
+  var tenuresSheet = getTable(ss, "tenures");
+  if (!tenuresSheet) return { success: false, message: "The Contracts tab was not found. Run Initialize / Upgrade first." };
 
   var existing = msTenuresOf(ss, member);
   for (var i = 0; i < existing.length; i++) {
@@ -198,7 +198,7 @@ function saveMemberTenure(payload, targetSpreadsheet) {
   var targetRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tenuresSheet) : tenuresSheet.getLastRow() + 1;
   tenuresSheet.getRange(targetRow, 1, 1, 7).setValues([[member, role, department, startDate, endDate, contractType, fte]]);
 
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var membersSheet = getTable(ss, "members");
   var memberRow = msReadRows(membersSheet, 7).filter(function(m) { return m.key === member.toLowerCase(); })[0];
   if (memberRow && typeof copyCellChip === "function") {
     try { copyCellChip(membersSheet, memberRow.row, 1, tenuresSheet, targetRow, 1, member, ss.getId ? ss.getId() : ""); } catch (eChip) {}
@@ -236,7 +236,7 @@ function endMemberTenure(payload, targetSpreadsheet) {
   var match = msTenuresOf(ss, p.member).filter(function(t) { return msIsoDate(t.values[3]) === startDate; })[0];
   if (!match) return { success: false, message: "No contract found for " + p.member + " starting " + startDate + "." };
 
-  ss.getSheetByName("tbl_tenures").getRange(match.row, TENURE_COLS.end_date).setValue(endDate);
+  getTable(ss, "tenures").getRange(match.row, TENURE_COLS.end_date).setValue(endDate);
   msSync(ss);
   return { success: true, message: "Contract end date set to " + endDate + "." };
 }
@@ -252,7 +252,7 @@ function saveMemberProfile(payload, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var p = payload || {};
   var key = String(p.member || "").trim().toLowerCase();
-  var sheet = ss.getSheetByName("tbl_members");
+  var sheet = getTable(ss, "members");
   var row = msReadRows(sheet, 7).filter(function(m) { return m.key === key; })[0];
   if (!row) return { success: false, message: "Member not found in the directory." };
   if (p.email !== undefined) sheet.getRange(row.row, MEMBER_COLS.email).setValue(String(p.email || "").trim());

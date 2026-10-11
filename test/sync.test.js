@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -33,9 +36,9 @@ const { onEdit } = require('../src/Code');
 
 test('syncMembersAndTenures should populate tbl_members from tbl_tenures and create onboarding task', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Seed tenure directly for a new member (Columns: member, role, department, start_date, end_date, contract_type, fte_rate)
   tenuresSheet.getRange(2, 1, 1, 7).setValues([[
@@ -74,8 +77,8 @@ test('syncMembersAndTenures should populate tbl_members from tbl_tenures and cre
 
 test('syncMembersAndTenures should update role and tenure_status for existing members', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Seed member in tbl_members
   membersSheet.getRange(2, 1, 1, 7).setValues([[
@@ -113,21 +116,21 @@ test('syncMembersAndTenures should update role and tenure_status for existing me
 
 test('applyProtections should lock read-only columns in tbl_members and unlock contact columns', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   var protections = membersSheet.getProtections();
   // Protected columns: member (col 1), current_role (col 4), current_department (col 5), tenure_status (col 6), today_presence (col 7)
   assert.strictEqual(protections.length, 5);
 
   var descriptions = protections.map(p => p.getDescription());
-  assert.ok(descriptions.includes('tbl_members_member_protected'));
-  assert.ok(descriptions.includes('tbl_members_current_role_protected'));
-  assert.ok(descriptions.includes('tbl_members_current_department_protected'));
-  assert.ok(descriptions.includes('tbl_members_tenure_status_protected'));
-  assert.ok(descriptions.includes('tbl_members_today_presence_protected'));
+  assert.ok(descriptions.includes('Members_member_protected'));
+  assert.ok(descriptions.includes('Members_current_role_protected'));
+  assert.ok(descriptions.includes('Members_current_department_protected'));
+  assert.ok(descriptions.includes('Members_tenure_status_protected'));
+  assert.ok(descriptions.includes('Members_today_presence_protected'));
   // accenture_email and phone_number must NOT be in descriptions
-  assert.ok(!descriptions.includes('tbl_members_accenture_email_protected'));
-  assert.ok(!descriptions.includes('tbl_members_phone_number_protected'));
+  assert.ok(!descriptions.includes('Members_accenture_email_protected'));
+  assert.ok(!descriptions.includes('Members_phone_number_protected'));
 
   // Ensure strict enforcement (warningOnly is false)
   for (var p = 0; p < protections.length; p++) {
@@ -139,9 +142,9 @@ test('applyProtections should lock read-only columns in tbl_members and unlock c
 
 test('syncMembersAndTenures should append multiple new members sequentially without overwriting row 2', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Add 3 different members into tbl_tenures
   tenuresSheet.getRange(2, 1, 3, 7).setValues([
@@ -173,8 +176,8 @@ test('syncMembersAndTenures should append multiple new members sequentially with
 
 test('onEdit in tbl_tenures automatically adds declared member to tbl_members', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // Declare a new tenure on row 2
   tenuresSheet.getRange(2, 1, 1, 7).setValues([

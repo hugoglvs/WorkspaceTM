@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -68,17 +71,17 @@ test('onOpen: registers the KPI data refresh menu item', () => {
   var ui = SpreadsheetApp.getUi();
   assert.ok(ui.menu);
   var itemCaptions = ui.menu.items.map(function(item) { return item.caption; });
-  assert.ok(itemCaptions.includes('Refresh KPI Data for Looker (fact_presence)'));
+  assert.ok(itemCaptions.includes('Refresh KPI Data for Looker'));
 });
 
 function seedTeam(spreadsheet, tenureRows, logRows) {
   freshInit(spreadsheet);
-  spreadsheet.getSheetByName('tbl_members').getRange(2, 1, tenureRows.length, 7).setValues(
+  spreadsheet.getSheetByName('Members').getRange(2, 1, tenureRows.length, 7).setValues(
     tenureRows.map(t => [t[0], '', '', t[1], t[2], 'Active', ''])
   );
-  spreadsheet.getSheetByName('tbl_tenures').getRange(2, 1, tenureRows.length, 7).setValues(tenureRows);
+  spreadsheet.getSheetByName('Contracts').getRange(2, 1, tenureRows.length, 7).setValues(tenureRows);
   if (logRows.length) {
-    spreadsheet.getSheetByName('tbl_presence_log').getRange(2, 1, logRows.length, 6).setValues(logRows);
+    spreadsheet.getSheetByName('Presence Log').getRange(2, 1, logRows.length, 6).setValues(logRows);
   }
 }
 
@@ -148,7 +151,7 @@ test('refreshKpis: writes the hidden fact_presence sheet with no total rows', ()
 
   code.refreshKpis(mockSpreadsheet);
 
-  var sheet = mockSpreadsheet.getSheetByName('fact_presence');
+  var sheet = mockSpreadsheet.getSheetByName('KPI Data');
   assert.ok(sheet, 'fact_presence exists');
   assert.strictEqual(sheet.isSheetHidden(), true);
   var values = sheet.getRange(1, 1, sheet.getLastRow(), 15).getValues();

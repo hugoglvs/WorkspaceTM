@@ -9,9 +9,24 @@ var FONT_FAMILY = "Google Sans";
 var FONT_SIZE = 12;
 var DATE_FORMAT = "yyyy-mm-dd";
 
+/**
+ * Table schemas keyed by the registry key of src/Tables.js (ADR 0039).
+ * sheetName = readable tab and native table name; legacyName = former technical name.
+ * headers = readable column labels for the visible tables (column keys stay internal).
+ */
 var SCHEMA_SPEC = {
-  tbl_members: {
-    sheetName: "tbl_members",
+  members: {
+    sheetName: "Members",
+    legacyName: "tbl_members",
+    headers: {
+      member: "Member",
+      accenture_email: "Accenture email",
+      phone_number: "Phone",
+      current_role: "Role",
+      current_department: "Department",
+      tenure_status: "Status",
+      today_presence: "Today"
+    },
     columns: ["member", "accenture_email", "phone_number", "current_role", "current_department", "tenure_status", "today_presence"],
     requiredColumns: ["member", "current_role", "current_department", "tenure_status", "today_presence"],
     nullableColumns: ["accenture_email", "phone_number"],
@@ -29,8 +44,9 @@ var SCHEMA_SPEC = {
     },
     validations: {}
   },
-  tbl_tenures: {
-    sheetName: "tbl_tenures",
+  tenures: {
+    sheetName: "Contracts",
+    legacyName: "tbl_tenures",
     columns: ["member", "role", "department", "start_date", "end_date", "contract_type", "fte_rate"],
     requiredColumns: ["member", "role", "department", "start_date", "contract_type", "fte_rate"],
     nullableColumns: ["end_date"],
@@ -50,8 +66,9 @@ var SCHEMA_SPEC = {
       contract_type: ["Permanent", "Contractor", "Apprentice", "Intern"]
     }
   },
-  tbl_presence_baselines: {
-    sheetName: "tbl_presence_baselines",
+  baselines: {
+    sheetName: "Routines",
+    legacyName: "tbl_presence_baselines",
     columns: ["baseline_id", "member", "start_date", "end_date", "day_of_week", "location_am", "location_pm"],
     requiredColumns: ["baseline_id", "member", "start_date", "day_of_week", "location_am", "location_pm"],
     nullableColumns: ["end_date"],
@@ -73,8 +90,9 @@ var SCHEMA_SPEC = {
       location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off"]
     }
   },
-  tbl_leaves: {
-    sheetName: "tbl_leaves",
+  leaves: {
+    sheetName: "Leaves",
+    legacyName: "tbl_leaves",
     columns: ["leave_id", "member", "start_date", "start_period", "end_date", "end_period", "leave_type", "status"],
     requiredColumns: ["leave_id", "member", "start_date", "end_date", "leave_type", "status"],
     nullableColumns: ["start_period", "end_period"],
@@ -98,8 +116,9 @@ var SCHEMA_SPEC = {
       status: ["Requested", "Approved", "Cancelled"]
     }
   },
-  tbl_presence_log: {
-    sheetName: "tbl_presence_log",
+  presenceLog: {
+    sheetName: "Presence Log",
+    legacyName: "tbl_presence_log",
     columns: ["log_id", "date", "member", "location_am", "location_pm", "timestamp"],
     requiredColumns: ["log_id", "date", "member", "location_am", "location_pm", "timestamp"],
     nullableColumns: [],
@@ -119,8 +138,19 @@ var SCHEMA_SPEC = {
       location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off", "Vacation", "Sick Leave", "Holiday"]
     }
   },
-  tbl_projects: {
-    sheetName: "tbl_projects",
+  projects: {
+    sheetName: "Projects",
+    legacyName: "tbl_projects",
+    headers: {
+      project_id: "ID",
+      name: "Project",
+      status: "Status",
+      start_date: "Start",
+      target_date: "Target date",
+      lead_member: "Lead",
+      backup_member: "Backup",
+      active_responsible: "In charge today"
+    },
     columns: ["project_id", "name", "status", "start_date", "target_date", "lead_member", "backup_member", "active_responsible"],
     requiredColumns: ["project_id", "name", "status", "start_date", "lead_member"],
     nullableColumns: ["target_date", "backup_member", "active_responsible"],
@@ -141,8 +171,19 @@ var SCHEMA_SPEC = {
       status: ["Planning", "Active", "On Hold", "Completed"]
     }
   },
-  tbl_tasks: {
-    sheetName: "tbl_tasks",
+  tasks: {
+    sheetName: "Tasks",
+    legacyName: "tbl_tasks",
+    headers: {
+      task_id: "ID",
+      project_id: "Project ID",
+      assigned_member: "Assigned to",
+      title: "Title",
+      description: "Description",
+      due_date: "Due date",
+      status: "Status",
+      google_task_id: "Google Task ID"
+    },
     columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id"],
     requiredColumns: ["task_id", "title", "status"],
     nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id"],
@@ -163,8 +204,18 @@ var SCHEMA_SPEC = {
       status: ["Todo", "In Progress", "Done", "Blocked"]
     }
   },
-  tbl_events: {
-    sheetName: "tbl_events",
+  events: {
+    sheetName: "Events",
+    legacyName: "tbl_events",
+    headers: {
+      event_id: "ID",
+      title: "Title",
+      date: "Date",
+      duration: "Duration",
+      location: "Location",
+      organizer: "Organizer",
+      google_calendar_event_id: "Google Calendar ID"
+    },
     columns: ["event_id", "title", "date", "duration", "location", "organizer", "google_calendar_event_id"],
     requiredColumns: ["event_id", "title", "date"],
     nullableColumns: ["duration", "location", "organizer", "google_calendar_event_id"],
@@ -182,8 +233,9 @@ var SCHEMA_SPEC = {
     },
     validations: {}
   },
-  tbl_backups: {
-    sheetName: "tbl_backups",
+  backups: {
+    sheetName: "Backups",
+    legacyName: "tbl_backups",
     columns: ["backup_id", "project_id", "primary_member", "backup_member", "start_date", "end_date", "status", "notes"],
     requiredColumns: ["backup_id", "project_id", "primary_member", "backup_member", "start_date", "status"],
     nullableColumns: ["end_date", "notes"],
@@ -212,6 +264,25 @@ if (typeof module !== 'undefined' && module.exports) {
     FONT_FAMILY: FONT_FAMILY,
     FONT_SIZE: FONT_SIZE,
     DATE_FORMAT: DATE_FORMAT,
-    SCHEMA_SPEC: SCHEMA_SPEC
+    SCHEMA_SPEC: SCHEMA_SPEC,
+    schemaHeaderRow: schemaHeaderRow,
+    schemaColumnLabel: schemaColumnLabel
   };
+}
+
+/**
+ * Header row for a table: readable labels when defined, otherwise the column keys.
+ *
+ * @param {Object} config A SCHEMA_SPEC entry
+ * @return {string[]}
+ */
+function schemaHeaderRow(config) {
+  return config.columns.map(function(col) {
+    return (config.headers && config.headers[col]) ? config.headers[col] : col;
+  });
+}
+
+/** Readable label of a column (falls back to the key). */
+function schemaColumnLabel(config, col) {
+  return (config && config.headers && config.headers[col]) ? config.headers[col] : col;
 }

@@ -17,14 +17,14 @@ function applyTypography(range) {
  *
  * @param {string} spreadsheetId - The active spreadsheet ID.
  * @param {number} sheetId - The specific sheet/tab ID.
- * @param {string} tableName - The canonical table name (e.g., "tbl_members").
+ * @param {string} tableName - The readable table name, same as its tab (e.g. "Members").
  * @param {string[]} columns - Array of column header names.
  * @param {Object} columnTypes - Map of column name to data type (PEOPLE, DATE, DROPDOWN, NUMERIC, TEXT).
  * @param {Object} [validations] - Map of column name to allowed dropdown options.
  * @param {number} [initialRows=20] - Number of initial rows in the table (including header).
  * @return {boolean}
  */
-function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, columnTypes, validations, initialRows) {
+function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, columnTypes, validations, initialRows, columnLabels) {
   if (typeof Sheets === "undefined" || !Sheets.Spreadsheets) {
     throw new Error(
       "The 'Google Sheets API' advanced service is not enabled in your Apps Script project.\n\n" +
@@ -46,7 +46,7 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
 
     var prop = {
       columnIndex: i,
-      columnName: colName
+      columnName: (columnLabels && columnLabels[i]) ? columnLabels[i] : colName
     };
 
     if (declaredType === "DROPDOWN" && validations && validations[colName]) {
@@ -93,46 +93,44 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
   };
 
   // Table names are unique per spreadsheet and survive tab renames, so an archived tab
-  // (e.g. archive_tbl_leaves) can still hold "tbl_leaves". Check before adding.
+  // can still hold a name. A table already on this tab (any name) is kept, renamed to
+  // tableName and widened if the schema gained columns; another tab's table holding
+  // tableName is renamed out of the way.
   var requests = [request];
-  var existing = findTablesByName(spreadsheetId, tableName);
-  for (var e = 0; e < existing.length; e++) {
-    if (existing[e].sheetId === sheetId) {
-      // Additive migration: widen the table when the schema gained columns
-      var r = existing[e].range;
-      if (r && typeof r.endColumnIndex === "number" && r.endColumnIndex < numCols) {
-        try {
-          Sheets.Spreadsheets.batchUpdate({ requests: [{
-            updateTable: {
-              table: {
-                tableId: existing[e].tableId,
-                range: {
-                  sheetId: sheetId,
-                  startRowIndex: r.startRowIndex || 0,
-                  endRowIndex: r.endRowIndex || numRows,
-                  startColumnIndex: r.startColumnIndex || 0,
-                  endColumnIndex: numCols
-                }
-              },
-              fields: "range"
-            }
-          }] }, spreadsheetId);
-        } catch (eWiden) {
-          Logger.log("Widening table '" + tableName + "' note: " + eWiden);
-        }
-      }
-      Logger.log("Table '" + tableName + "' already exists on its sheet, preserving it.");
-      return true;
+  var all = listSheetTables(spreadsheetId);
+  var own = all.filter(function(t) { return t.sheetId === sheetId; })[0];
+  var updates = [];
+  all.forEach(function(t) {
+    if (t.name === tableName && t.sheetId !== sheetId) {
+      updates.push({ updateTable: { table: { tableId: t.tableId, name: "archived_" + tableName.replace(/\s+/g, "_") + "_" + t.sheetId }, fields: "name" } });
     }
-  }
-  for (var x = 0; x < existing.length; x++) {
-    requests.unshift({
-      updateTable: {
-        table: { tableId: existing[x].tableId, name: "archived_" + tableName + "_" + existing[x].sheetId },
-        fields: "name"
+  });
+  if (own) {
+    var fields = [];
+    var table = { tableId: own.tableId };
+    if (own.name !== tableName) { table.name = tableName; fields.push("name"); }
+    var r = own.range;
+    if (r && typeof r.endColumnIndex === "number" && r.endColumnIndex < numCols) {
+      table.range = {
+        sheetId: sheetId,
+        startRowIndex: r.startRowIndex || 0,
+        endRowIndex: r.endRowIndex || numRows,
+        startColumnIndex: r.startColumnIndex || 0,
+        endColumnIndex: numCols
+      };
+      fields.push("range");
+    }
+    if (fields.length) updates.push({ updateTable: { table: table, fields: fields.join(",") } });
+    if (updates.length) {
+      try {
+        Sheets.Spreadsheets.batchUpdate({ requests: updates }, spreadsheetId);
+      } catch (eUpd) {
+        Logger.log("Updating table '" + tableName + "' note: " + eUpd);
       }
-    });
+    }
+    return true;
   }
+  requests = updates.concat(requests);
 
   try {
     Sheets.Spreadsheets.batchUpdate({ requests: requests }, spreadsheetId);
@@ -149,14 +147,13 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
 }
 
 /**
- * Lists the native tables named tableName across the whole spreadsheet.
- * Returns [] if the lookup fails, so table creation falls back to its old behaviour.
+ * Lists every native table in the spreadsheet. Returns [] if the lookup fails,
+ * so table creation falls back to adding the table.
  *
  * @param {string} spreadsheetId
- * @param {string} tableName
- * @return {Array<{tableId: string, sheetId: number, range: Object}>}
+ * @return {Array<{tableId: string, name: string, sheetId: number, range: Object}>}
  */
-function findTablesByName(spreadsheetId, tableName) {
+function listSheetTables(spreadsheetId) {
   var found = [];
   try {
     var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name,range))" });
@@ -164,11 +161,11 @@ function findTablesByName(spreadsheetId, tableName) {
     for (var i = 0; i < sheets.length; i++) {
       var tables = sheets[i].tables || [];
       for (var t = 0; t < tables.length; t++) {
-        if (tables[t].name === tableName) found.push({ tableId: tables[t].tableId, sheetId: sheets[i].properties.sheetId, range: tables[t].range });
+        found.push({ tableId: tables[t].tableId, name: tables[t].name, sheetId: sheets[i].properties.sheetId, range: tables[t].range });
       }
     }
   } catch (eGet) {
-    Logger.log("findTablesByName note: " + eGet);
+    Logger.log("listSheetTables note: " + eGet);
   }
   return found;
 }

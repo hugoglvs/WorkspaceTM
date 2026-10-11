@@ -3,9 +3,14 @@
  * restore of the short-lived merged presence table (ADR 0035, reverted).
  */
 
-var VISIBLE_WORKSPACE_SHEETS = ["tbl_members", "view_weekly_matrix", "tbl_projects", "tbl_tasks", "tbl_events"];
-var MANAGED_SHEET_PREFIXES = ["tbl_", "view_", "fact_", "calc_", "archive_"];
+var VISIBLE_WORKSPACE_TABLES = ["members", "weeklyMatrix", "projects", "tasks", "events"];
+var MANAGED_SHEET_PREFIXES = ["tbl_", "view_", "fact_", "calc_", "archive_", "Archive – "];
 var RETIRED_SHEETS = ["calc_kpis", "view_active_responsibles"];
+
+function isManagedSheet(sheet) {
+  if (typeof tableKeyOfSheet === "function" && tableKeyOfSheet(sheet)) return true;
+  return isManagedSheetName(sheet.getName());
+}
 
 function isManagedSheetName(name) {
   for (var i = 0; i < MANAGED_SHEET_PREFIXES.length; i++) {
@@ -22,7 +27,7 @@ function isSheetEmpty(sheet) {
 
 /**
  * Shows the five working tabs and hides every other Library-managed sheet
- * (hidden, not locked: anyone can unhide). Deletes retired sheets (calc_kpis)
+ * (registered tables, archives and former technical names; hidden, not locked). Deletes retired sheets (calc_kpis)
  * and an empty default "Sheet1". Tabs the team created themselves are left alone.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
@@ -37,21 +42,24 @@ function applyWorkspaceLayout(ss) {
   }
 
   // Show first, so hiding never leaves the spreadsheet without a visible tab
-  for (var v = 0; v < VISIBLE_WORKSPACE_SHEETS.length; v++) {
-    var keep = ss.getSheetByName(VISIBLE_WORKSPACE_SHEETS[v]);
-    if (keep && keep.isSheetHidden()) { keep.showSheet(); res.shown.push(VISIBLE_WORKSPACE_SHEETS[v]); }
+  var visibleIds = {};
+  for (var v = 0; v < VISIBLE_WORKSPACE_TABLES.length; v++) {
+    var keep = getTable(ss, VISIBLE_WORKSPACE_TABLES[v]);
+    if (!keep) continue;
+    visibleIds[keep.getSheetId()] = true;
+    if (keep.isSheetHidden()) { keep.showSheet(); res.shown.push(keep.getName()); }
   }
 
   var sheets = ss.getSheets();
   for (var s = 0; s < sheets.length; s++) {
     var name = sheets[s].getName();
-    if (VISIBLE_WORKSPACE_SHEETS.indexOf(name) !== -1) continue;
+    if (visibleIds[sheets[s].getSheetId()]) continue;
     if (name === "Sheet1" && isSheetEmpty(sheets[s]) && ss.getSheets().length > 1) {
       ss.deleteSheet(sheets[s]);
       res.deleted.push(name);
       continue;
     }
-    if (isManagedSheetName(name) && !sheets[s].isSheetHidden()) {
+    if (isManagedSheet(sheets[s]) && !sheets[s].isSheetHidden()) {
       try { sheets[s].hideSheet(); res.hidden.push(name); } catch (eHide) {}
     }
   }
@@ -108,11 +116,11 @@ function restorePresenceTablesFromRanges(ss) {
   var res = { restoredCount: 0 };
   var src = ss.getSheetByName("tbl_presence_ranges");
   if (!src) return res;
-  if ((!ss.getSheetByName("tbl_presence_baselines") || !ss.getSheetByName("tbl_leaves")) && typeof freshInit === "function") {
+  if ((!getTable(ss, "baselines") || !getTable(ss, "leaves")) && typeof freshInit === "function") {
     freshInit(ss);
   }
-  var baselines = ss.getSheetByName("tbl_presence_baselines");
-  var leaves = ss.getSheetByName("tbl_leaves");
+  var baselines = getTable(ss, "baselines");
+  var leaves = getTable(ss, "leaves");
 
   var last = (typeof src.getLastRow === "function") ? (src.getLastRow() || 1) : 1;
   if (last >= 2) {
@@ -155,8 +163,8 @@ function restorePresenceTablesFromRanges(ss) {
     res.restoredCount = baseRows.length + leaveRows.length;
   }
 
-  var archiveName = "archive_tbl_presence_ranges", n = 2;
-  while (ss.getSheetByName(archiveName)) archiveName = "archive_tbl_presence_ranges_" + (n++);
+  var archiveName = "Archive – Presence Ranges", n = 2;
+  while (ss.getSheetByName(archiveName)) archiveName = "Archive – Presence Ranges " + (n++);
   src.setName(archiveName);
   try { src.hideSheet(); } catch (eHide) {}
   return res;
@@ -164,7 +172,7 @@ function restorePresenceTablesFromRanges(ss) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    VISIBLE_WORKSPACE_SHEETS: VISIBLE_WORKSPACE_SHEETS,
+    VISIBLE_WORKSPACE_TABLES: VISIBLE_WORKSPACE_TABLES,
     applyWorkspaceLayout: applyWorkspaceLayout,
     restorePresenceTablesFromRanges: restorePresenceTablesFromRanges
   };

@@ -185,7 +185,7 @@ function getTaskColumnMap(tasksSheet) {
       map.taskId = c + 1;
     } else if (norm === "projectid" || norm === "project") {
       map.projectId = c + 1;
-    } else if (norm === "assignedmember" || norm === "member" || norm === "assignee" || norm === "assigned") {
+    } else if (norm === "assignedmember" || norm === "member" || norm === "assignee" || norm === "assigned" || norm === "assignedto") {
       map.assignedMember = c + 1;
     } else if (norm === "title" || norm === "tasktitle" || norm === "name" || norm === "taskname") {
       map.title = c + 1;
@@ -237,16 +237,16 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     };
   }
 
-  var tasksSheet = ss.getSheetByName("tbl_tasks");
+  var tasksSheet = getTable(ss, "tasks");
   if (!tasksSheet) {
-    return { success: false, message: "Sheet 'tbl_tasks' not found" };
+    return { success: false, message: "Sheet 'Tasks' not found" };
   }
 
   var lastRow = tasksSheet.getLastRow();
   if (lastRow <= 1) {
     return {
       success: true,
-      message: "tbl_tasks is empty. No tasks to synchronize.",
+      message: "Tasks is empty. No tasks to synchronize.",
       pushedCount: 0,
       pulledUpdatesCount: 0,
       totalTasks: 0
@@ -264,7 +264,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
 
   var activeMemberNames = [];
   if (activeUserEmail && ss) {
-    var membersSheet = ss.getSheetByName("tbl_members");
+    var membersSheet = getTable(ss, "members");
     if (membersSheet && membersSheet.getMaxRows() > 1) {
       var mRows = membersSheet.getRange(2, 1, Math.min(membersSheet.getMaxRows() - 1, 300), Math.max(membersSheet.getLastColumn(), 7));
       var mVals = mRows.getValues();
@@ -534,8 +534,8 @@ function cleanupMisassignedGoogleTasks(targetSpreadsheet) {
     return { success: false, message: "Google Tasks API not enabled" };
   }
 
-  var tasksSheet = ss.getSheetByName("tbl_tasks");
-  if (!tasksSheet) return { success: false, message: "Sheet 'tbl_tasks' not found" };
+  var tasksSheet = getTable(ss, "tasks");
+  if (!tasksSheet) return { success: false, message: "Sheet 'Tasks' not found" };
 
   var activeUserEmail = "";
   try {
@@ -548,7 +548,7 @@ function cleanupMisassignedGoogleTasks(targetSpreadsheet) {
   }
 
   var activeMemberNames = [];
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var membersSheet = getTable(ss, "members");
   if (membersSheet && membersSheet.getMaxRows() > 1) {
     var mRows = membersSheet.getRange(2, 1, Math.min(membersSheet.getMaxRows() - 1, 300), Math.max(membersSheet.getLastColumn(), 7));
     var mVals = mRows.getValues();
@@ -717,7 +717,7 @@ function createGoogleTaskForTaskRow(tasksSheet, rowIndex) {
     } else {
       isAssignedToActiveUser = false;
       if (ss) {
-        var mSheetCheck = ss.getSheetByName("tbl_members");
+        var mSheetCheck = getTable(ss, "members");
         if (mSheetCheck && mSheetCheck.getLastRow() > 1) {
           var mValsCheck = mSheetCheck.getRange(2, 1, mSheetCheck.getLastRow() - 1, 3).getValues();
           for (var mc = 0; mc < mValsCheck.length; mc++) {
@@ -943,7 +943,7 @@ function handleDoneStatusChange(sheet, editedRow, taskId, rowVals, richMember, c
 function handleTaskEdit(e) {
   if (!e || !e.range) return null;
   var sheet = e.range.getSheet();
-  if (!sheet || sheet.getName() !== "tbl_tasks") return null;
+  if (!sheet || tableKeyOfSheet(sheet) !== "tasks") return null;
 
   var editedRow = e.range.getRow();
   var editedCol = e.range.getColumn();

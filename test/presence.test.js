@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -88,9 +91,9 @@ test('getWeekdaysBetween: should only return Monday to Friday dates excluding we
 
 test('compilePresenceLogs: should expand working days for active members with baseline defaults', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   // 1. Add active member in tbl_members
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -138,9 +141,9 @@ test('compilePresenceLogs: should expand working days for active members with ba
 
 test('compilePresenceLogs: should override baseline locations with approved leave records', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var leavesSheet = mockSpreadsheet.getSheetByName('Leaves');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['bob@accenture.com', 'bob@accenture.com', '+33123456780', 'Dev', 'Delivery', 'Active', 'Not Logged']
@@ -188,8 +191,8 @@ test('compilePresenceLogs: should override baseline locations with approved leav
 
 test('compilePresenceLogs: should be idempotent and preserve existing manual edits', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -217,7 +220,7 @@ test('compilePresenceLogs: should be idempotent and preserve existing manual edi
 
 test('compilePresence: public entry point should toast compilation status', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', '', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
   ]);
@@ -231,8 +234,8 @@ test('compilePresence: public entry point should toast compilation status', () =
 
 test('compilePresenceLogs: should strictly cap compilation at today as ground truth database and reject future dates', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -261,8 +264,8 @@ test('compilePresenceLogs: should strictly cap compilation at today as ground tr
 
 test('compilePresenceLogs: should only compile weekdays and omit weekend logs when run on a weekend', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -291,9 +294,9 @@ test('compilePresenceLogs: should only compile weekdays and omit weekend logs wh
 
 test('findEarliestHistoricalDate: should detect earliest start date across tenures, baselines, leaves, and logs', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var leavesSheet = mockSpreadsheet.getSheetByName('Leaves');
 
   // No dates present yet
   var early1 = findEarliestHistoricalDate(mockSpreadsheet);
@@ -323,10 +326,10 @@ test('findEarliestHistoricalDate: should detect earliest start date across tenur
 
 test('compilePresenceMigration: should compile presence logs starting from earliest detected historical date', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -355,10 +358,10 @@ test('compilePresenceMigration: should compile presence logs starting from earli
 
 test('compilePresenceMigration: should compile presence logs when baseline has undefined/empty start date', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
@@ -385,9 +388,9 @@ test('compilePresenceMigration: should compile presence logs when baseline has u
 
 test('compilePresenceMigration: should prompt user and respect custom entered start date', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']

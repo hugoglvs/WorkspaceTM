@@ -79,7 +79,7 @@ function getLastCreatedRow(sheet, config) {
     for (var r = 0; r < values.length; r++) {
       var rowVals = values[r];
       if (typeof validateRow === "function" && config) {
-        var vRes = validateRow(config.sheetName, rowVals, config.columns);
+        var vRes = validateRow(tableKeyOfName(config.sheetName) || config.sheetName, rowVals, config.columns);
         if (vRes.populated && vRes.valid) {
           lastCreated = r + 2;
         }
@@ -177,7 +177,7 @@ function applyProtections(targetSpreadsheet) {
   for (var tableKey in SCHEMA_SPEC) {
     if (!SCHEMA_SPEC.hasOwnProperty(tableKey)) continue;
     var config = SCHEMA_SPEC[tableKey];
-    var sheet = ss.getSheetByName(config.sheetName);
+    var sheet = getTable(ss, tableKey);
     if (!sheet) continue;
 
     var maxRows = Math.max(sheet.getMaxRows(), 50);
@@ -209,9 +209,9 @@ function applyProtections(targetSpreadsheet) {
 
       var sColIdx = config.columns.indexOf(sColName) + 1;
       if (sColIdx > 0) {
-        var sRows = (config.sheetName === "tbl_members") ? maxRows : (numCreatedRows > 0 ? numCreatedRows : 0);
+        var sRows = (tableKey === "members") ? maxRows : (numCreatedRows > 0 ? numCreatedRows : 0);
         if (sRows > 0) {
-          var sStartRow = (config.sheetName === "tbl_members") ? 1 : 2;
+          var sStartRow = (tableKey === "members") ? 1 : 2;
           var sRange = sheet.getRange(sStartRow, sColIdx, sRows, 1);
           var sProtection = sRange.protect().setDescription(config.sheetName + "_" + sColName + "_protected");
 

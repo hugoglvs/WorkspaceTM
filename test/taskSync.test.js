@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -84,7 +87,7 @@ test('status mapping: translates bidirectionally between sheet and Google Tasks'
 test('syncGoogleTasks: pushes unsynced tasks with allUsers option', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed 2 unsynced tasks (columns: task_id, project_id, assigned_member, title, description, due_date, status, google_task_id)
   tasksSheet.getRange(2, 1, 2, 8).setValues([
     ['TSK-001', 'PRJ-001', 'Alice Smith', 'Implement OAuth flow', 'OAuth 2.0 flow with Google', '2026-06-30', 'Todo', ''],
@@ -116,13 +119,13 @@ test('syncGoogleTasks: strictly isolates push to active user tasks and ignores t
   freshInit(mockSpreadsheet);
 
   // Setup tbl_members so Alice Smith is recognized
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['Alice Smith', '', '', 'Senior Eng', 'Core', 'Active', 'Main Office'],
     ['Bob Jones', '', '', 'Designer', 'UX', 'Active', 'Remote']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Task 1 assigned to Alice (active user), Task 2 assigned to Bob (other member)
   tasksSheet.getRange(2, 1, 2, 8).setValues([
     ['TSK-010', 'PRJ-001', 'Alice Smith', 'Alice specific task', 'Alice task notes', '2026-06-30', 'Todo', ''],
@@ -142,13 +145,13 @@ test('syncGoogleTasks: strictly isolates push to active user tasks and ignores t
 test('cleanupMisassignedGoogleTasks: unlinks and deletes foreign tasks from active user Google Tasks', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['Alice Smith', '', '', 'Senior Eng', 'Core', 'Active', 'Main Office'],
     ['Bob Jones', '', '', 'Designer', 'UX', 'Active', 'Remote']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Alice task with ID, and Bob task erroneously with ID (synced during Alice session)
   tasksSheet.getRange(2, 1, 2, 8).setValues([
     ['TSK-010', 'PRJ-001', 'Alice Smith', 'Alice task', 'Alice notes', '2026-06-30', 'Todo', 'gtask_alice_123'],
@@ -179,7 +182,7 @@ test('cleanupMisassignedGoogleTasks: unlinks and deletes foreign tasks from acti
 test('syncGoogleTasks: pulls completed status from Google Tasks and marks sheet task Done', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-100', 'PRJ-002', 'Alice Smith', 'Design API schema', 'Schema details', '2026-06-01', 'Todo', '']
   ]);
@@ -208,7 +211,7 @@ test('syncGoogleTasks: pulls completed status from Google Tasks and marks sheet 
 test('syncGoogleTasks: patches Google Tasks when sheet status is marked Done', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-200', 'PRJ-003', 'Alice Smith', 'Write integration tests', 'End to end tests', '2026-06-10', 'Todo', '']
   ]);
@@ -230,7 +233,7 @@ test('syncGoogleTasks: patches Google Tasks when sheet status is marked Done', (
 test('syncTasks: public entry point toasts sync summary and handles missing service gracefully', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-300', 'PRJ-004', 'Alice Smith', 'Setup CI pipeline', 'CI YAML pipeline', '2026-07-01', 'Todo', '']
   ]);
@@ -246,12 +249,12 @@ test('automatic task creation onEdit: creates Google Task ID once title is set',
   freshInit(mockSpreadsheet);
 
   // Seed tbl_members with active user Alice
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Simulate user entering a title on row 2 in tbl_tasks
   var titleRange = tasksSheet.getRange(2, 4); // Column 4: title
@@ -288,12 +291,12 @@ test('automatic task creation onEdit: creates Google Task ID once title is set',
 test('automatic task creation with description: includes description in Google Task notes', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // User enters description first, then sets title
   tasksSheet.getRange(2, 5).setValue('Detailed specifications for SSO SAML login integration');
@@ -320,12 +323,12 @@ test('automatic task creation with description: includes description in Google T
 test('editing title/description on existing synced task: patches Google Tasks', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', '', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Create task via onEdit first
   var titleRange = tasksSheet.getRange(2, 4);
@@ -348,13 +351,13 @@ test('editing title/description on existing synced task: patches Google Tasks', 
 test('automatic task creation onEdit: skips foreign members tasks (isolation)', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['Alice Smith', '', '', 'Senior Eng', 'Core', 'Active', 'Main Office'],
     ['Bob Jones', '', '', 'Designer', 'UX', 'Active', 'Remote']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Assign task to Bob Jones before setting title
   tasksSheet.getRange(2, 3).setValue('Bob Jones');
@@ -380,12 +383,12 @@ test('onOpen: registers Sync Google Tasks and Clean Up Foreign Google Tasks in c
 test('automatic task creation onEdit: generates task_id, defaults status, and creates Google Task with task_id title when editing project_id first', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   var projRange = tasksSheet.getRange(2, 2); // Column 2: project_id
   projRange.setValue('PRJ-INFRA');
 
@@ -414,7 +417,7 @@ test('automatic task creation onEdit: generates task_id, defaults status, and cr
 test('automatic task creation onEdit: allows nullable due date and creates Google Task without due date', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   var titleRange = tasksSheet.getRange(2, 4);
   titleRange.setValue('Task with no due date');
 
@@ -437,12 +440,12 @@ test('automatic task creation onEdit: allows nullable due date and creates Googl
 test('automatic task creation onEdit: creates Google Task with task_id title on row init, and editing title replaces it with real title', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // First, user entered project_id and description
   var projRange = tasksSheet.getRange(2, 2);
   projRange.setValue('PRJ-009');
@@ -477,13 +480,13 @@ test('automatic task creation onEdit: creates Google Task with task_id title on 
 test('automatic task creation onEdit: resilient to human-readable headers with spaces and casing', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Replace headers with human readable names
   tasksSheet.getRange(1, 1, 1, 8).setValues([[
     'Task ID', 'Project ID', 'Assigned Member', 'Title', 'Description', 'Due Date', 'Status', 'Google Task ID'
   ]]);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
@@ -503,7 +506,7 @@ test('automatic task creation onEdit: resilient to human-readable headers with s
 test('automatic task creation onEdit: in-sheet task creation succeeds even if Tasks API throws', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Temporarily sabotage Tasks.Tasks.insert to simulate unauthorized simple trigger exception
   var originalInsert = Tasks.Tasks.insert;
@@ -529,12 +532,12 @@ test('automatic task creation onEdit: in-sheet task creation succeeds even if Ta
 test('automatic task creation onEdit: multiple title revisions update Google Task title from task_id to new titles', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Step 1: User fills description first (title is empty)
   var descRange = tasksSheet.getRange(2, 5);
@@ -587,7 +590,7 @@ test('validation: project_id in tasks is not required and passes validation', ()
 test('syncGoogleTasks: updates all fields (title, description/notes, due_date, status) in Google Tasks', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed initial task
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-500', 'PRJ-CORE', 'Alice Smith', 'Initial Name', 'Initial Notes', '2026-06-01', 'Todo', '']
@@ -621,7 +624,7 @@ test('syncGoogleTasks: updates all fields (title, description/notes, due_date, s
 test('changing status from Done: user cancels -> reverts status to Done without creating new task', () => {
   freshInit(mockSpreadsheet);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed a Done task
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-600', 'PRJ-001', 'Alice Smith', 'Complete module A', 'Notes A', '2026-06-01', 'Done', 'gtask_600']
@@ -652,12 +655,12 @@ test('changing status from Done: user cancels -> reverts status to Done without 
 test('changing status from Done: user proceeds -> hides original row, creates follow-up task with incremented task_id and new Google Task', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
 
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   tasksSheet.getRange(2, 1, 1, 8).setValues([
     ['TSK-700', 'PRJ-ALPHA', 'Alice Smith', 'Deliver feature X', 'Detailed spec X', '2026-06-15', 'Done', 'gtask_700']
   ]);

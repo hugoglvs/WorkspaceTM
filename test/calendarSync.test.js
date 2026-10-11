@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -81,7 +84,7 @@ test('parseEventDuration: parses numbers, strings, hours, and handles null for w
 test('getActiveTeamMemberEmails: retrieves active members and filters departed members', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   // Columns: member, accenture_email, phone_number, current_role, current_department, tenure_status, today_presence
   membersSheet.getRange(2, 1, 3, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office'],
@@ -99,7 +102,7 @@ test('getActiveTeamMemberEmails: retrieves active members and filters departed m
 test('syncGoogleCalendar: creates whole day event when duration is null and does not auto-invite', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   // Columns: event_id, title, date, duration, location, organizer, google_calendar_event_id
   eventsSheet.getRange(2, 1, 1, 7).setValues([
     ['EVT-001', 'Q3 Team Social', '2026-09-25', '', 'Rooftop Lounge', 'alice@accenture.com', '']
@@ -126,7 +129,7 @@ test('syncGoogleCalendar: creates whole day event when duration is null and does
 test('syncGoogleCalendar: creates timed event when duration is provided', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   // Columns: event_id, title, date, duration, location, organizer, google_calendar_event_id
   eventsSheet.getRange(2, 1, 1, 7).setValues([
     ['EVT-002', 'Sprint Planning', '2026-10-15 14:00', 60, 'Room 101', 'bob@accenture.com', '']
@@ -152,7 +155,7 @@ test('syncGoogleCalendar: creates timed event when duration is provided', () => 
 test('syncGoogleCalendar: updates existing events when title, date, duration, or location is edited in sheet', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   eventsSheet.getRange(2, 1, 1, 7).setValues([
     ['EVT-100', 'Initial Title', '2026-09-10', '', 'Room A', 'alice@accenture.com', '']
   ]);
@@ -190,7 +193,7 @@ test('syncGoogleCalendar: updates existing events when title, date, duration, or
 test('syncCalendar: public entry point toasts sync summary', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   eventsSheet.getRange(2, 1, 1, 7).setValues([
     ['EVT-200', 'Annual Gala', '2026-12-18', '', 'Grand Ballroom', '', '']
   ]);
@@ -205,7 +208,7 @@ test('syncCalendar: public entry point toasts sync summary', () => {
 test('handleEventEdit: auto-generates event_id and creates Calendar event on live edit', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   // User enters title and date on row 2
   eventsSheet.getRange(2, 2).setValue('Hackathon 2026');
   var dateRange = eventsSheet.getRange(2, 3);
@@ -232,7 +235,7 @@ test('handleEventEdit: auto-generates event_id and creates Calendar event on liv
 test('handleEventEdit: updates existing Calendar event on live title and duration edit', () => {
   freshInit(mockSpreadsheet);
 
-  var eventsSheet = mockSpreadsheet.getSheetByName('tbl_events');
+  var eventsSheet = mockSpreadsheet.getSheetByName('Events');
   // Seed synced event
   eventsSheet.getRange(2, 1, 1, 7).setValues([
     ['EVT-300', 'Sprint Review', '2026-09-30 15:00', 45, 'Online', 'charlie@accenture.com', 'cal_sprint_300']

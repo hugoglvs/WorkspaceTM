@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals, MailApp } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -80,9 +83,9 @@ global.checkBackupConflicts = checkBackupConflicts;
 
 test('Half-day leaves: single day morning (AM) and afternoon (PM) leave resolution', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var leavesSheet = mockSpreadsheet.getSheetByName('Leaves');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Dev', 'Delivery', 'Active', 'Not Logged']
@@ -154,8 +157,8 @@ test('Half-day leaves: single day morning (AM) and afternoon (PM) leave resoluti
 
 test('Half-day leaves: multi-day leave with PM start and AM end', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['bob@accenture.com', 'bob@accenture.com', '', 'Dev', 'Delivery', 'Active', 'Not Logged']
@@ -204,9 +207,9 @@ test('Half-day leaves: multi-day leave with PM start and AM end', () => {
 
 test('Weekend working days: weekend baselines default to Off and compile when configured with working location', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged'],
@@ -258,8 +261,8 @@ test('Weekend working days: weekend baselines default to Off and compile when co
 
 test('Presence logs: direct People Chip writing without text replacement flicker', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
 
   var chipMock = {
     getName: function() { return 'Hugo Gonçalves'; },
@@ -291,10 +294,10 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
   freshInit(mockSpreadsheet);
   global.MailApp.clearSentEmails();
 
-  var projectsSheet = mockSpreadsheet.getSheetByName('tbl_projects');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var projectsSheet = mockSpreadsheet.getSheetByName('Projects');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var leavesSheet = mockSpreadsheet.getSheetByName('Leaves');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Setup members: Alice (Lead), Bob (Backup), Dave (Manager)
   membersSheet.getRange(2, 1, 3, 7).setValues([
@@ -363,9 +366,9 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
 
 test('Project conflict mitigation via tbl_backups: clears alert formatting', () => {
   freshInit(mockSpreadsheet);
-  var projectsSheet = mockSpreadsheet.getSheetByName('tbl_projects');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var backupsSheet = mockSpreadsheet.getSheetByName('tbl_backups');
+  var projectsSheet = mockSpreadsheet.getSheetByName('Projects');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var backupsSheet = mockSpreadsheet.getSheetByName('Backups');
 
   membersSheet.getRange(2, 1, 4, 7).setValues([
     ['Alice', 'alice@accenture.com', '', 'Lead', 'Eng', 'Active', 'Not Logged'],
@@ -431,9 +434,9 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
 
 test('Project conflict task assignment: assigns backup member when lead is already absent', () => {
   freshInit(mockSpreadsheet);
-  var projectsSheet = mockSpreadsheet.getSheetByName('tbl_projects');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
+  var projectsSheet = mockSpreadsheet.getSheetByName('Projects');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   membersSheet.getRange(2, 1, 3, 7).setValues([
     ['Alice', 'alice@accenture.com', '', 'Lead', 'Eng', 'Active', 'Vacation'], // Alice is ALREADY on vacation today

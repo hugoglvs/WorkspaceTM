@@ -154,7 +154,6 @@ function categorizeLocation(location) {
   return "other_office";
 }
 
-var FACT_PRESENCE_SHEET = "fact_presence";
 var FACT_PRESENCE_HEADERS = [
   "date", "month", "iso_week", "weekday", "is_weekend", "member", "department", "role",
   "fte_rate", "period", "location", "category", "worked_days", "leave_days", "capacity_days"
@@ -221,7 +220,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
 
   // Members: department fallback from tbl_members
   var memberDept = {};
-  var mRows = readSheetRows(ss.getSheetByName("tbl_members"), 7, 500);
+  var mRows = readSheetRows(getTable(ss, "members"), 7, 500);
   for (var m = 0; m < mRows.vals.length; m++) {
     var mName = readCellName(mRows.vals, mRows.rich, m, 0);
     if (mName) memberDept[mName.toLowerCase()] = String(mRows.vals[m][4] || "").trim();
@@ -234,7 +233,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
     if (!members[key]) members[key] = { name: name, tenures: [], logs: {} };
     return members[key];
   }
-  var tRows = readSheetRows(ss.getSheetByName("tbl_tenures"), 7, 500);
+  var tRows = readSheetRows(getTable(ss, "tenures"), 7, 500);
   for (var t = 0; t < tRows.vals.length; t++) {
     var tName = readCellName(tRows.vals, tRows.rich, t, 0);
     if (!tName) continue;
@@ -249,7 +248,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
 
   // Presence Log
   var firstDate = null;
-  var lRows = readSheetRows(ss.getSheetByName("tbl_presence_log"), 6, 20000);
+  var lRows = readSheetRows(getTable(ss, "presenceLog"), 6, 20000);
   for (var r = 0; r < lRows.vals.length; r++) {
     var d = parseKpiDate(lRows.vals[r][1]);
     var lName = readCellName(lRows.vals, lRows.rich, r, 2);
@@ -306,7 +305,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
 function renderPresenceFacts(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var facts = buildPresenceFacts(ss, options);
-  var sheet = ss.getSheetByName(FACT_PRESENCE_SHEET) || ss.insertSheet(FACT_PRESENCE_SHEET);
+  var sheet = getTable(ss, "kpiData") || ss.insertSheet(tableSheetName("kpiData"));
   var numCols = FACT_PRESENCE_HEADERS.length;
   var needed = facts.rows.length + 1;
 

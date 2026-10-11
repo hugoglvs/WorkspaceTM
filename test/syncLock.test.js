@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -36,16 +39,16 @@ const code = require('../src/Code');
 
 function typeTaskTitle(spreadsheet, title) {
   freshInit(spreadsheet);
-  spreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+  spreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
-  var titleRange = spreadsheet.getSheetByName('tbl_tasks').getRange(2, 4);
+  var titleRange = spreadsheet.getSheetByName('Tasks').getRange(2, 4);
   titleRange.setValue(title);
   return { range: titleRange, value: title, source: spreadsheet };
 }
 
 function taskRow(spreadsheet) {
-  return spreadsheet.getSheetByName('tbl_tasks').getRange(2, 1, 1, 8).getValues()[0];
+  return spreadsheet.getSheetByName('Tasks').getRange(2, 1, 1, 8).getValues()[0];
 }
 
 test('nightlySyncJob: exits with lock_timeout and runs no step while another sync holds the spreadsheet lock', () => {

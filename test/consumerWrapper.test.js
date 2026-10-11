@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -69,9 +72,9 @@ test('ConsumerWrapper: invokes setupOrUpgrade and initializes tables when librar
 
   var res = consumerWrapper.clientSetupOrUpgrade();
   assert.strictEqual(res.success, true);
-  assert.ok(mockSpreadsheet.getSheetByName('tbl_members'));
-  assert.ok(mockSpreadsheet.getSheetByName('tbl_tasks'));
-  assert.ok(mockSpreadsheet.getSheetByName('tbl_events'));
+  assert.ok(mockSpreadsheet.getSheetByName('Members'));
+  assert.ok(mockSpreadsheet.getSheetByName('Tasks'));
+  assert.ok(mockSpreadsheet.getSheetByName('Events'));
   assert.ok(mockSpreadsheet.lastToast);
   assert.ok(mockSpreadsheet.lastToast.title.includes('Complete'));
 });

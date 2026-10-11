@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -132,7 +135,7 @@ test('validateRow: should pass tbl_members with empty accenture_email and phone_
 
 test('validateTable: should audit populated sheet and flag invalid rows', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Row 2: valid ongoing tenure (end_date empty)
   // Row 3: invalid tenure (missing role and contract_type)
@@ -155,14 +158,14 @@ test('validateAllTables: should summarize health across all tables', () => {
   var res = validateAllTables(mockSpreadsheet);
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.totalIssues, 0);
-  assert.ok(res.tables.tbl_tenures);
-  assert.ok(res.tables.tbl_members);
+  assert.ok(res.tables.tenures);
+  assert.ok(res.tables.members);
 });
 
 test('syncMembersAndTenures: should report validation warnings on invalid tenure rows while supporting null end_date', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // Row 2: Valid ongoing tenure with null end_date -> Active
   // Row 3: Incomplete tenure missing department & contract_type
@@ -186,7 +189,7 @@ test('syncMembersAndTenures: should report validation warnings on invalid tenure
 
 test('onEdit: should trigger toast warning when editing an incomplete row', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Seed an incomplete row (Row 2 missing role & start_date)
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
@@ -212,7 +215,7 @@ test('validateAndReport: should alert when issues exist and toast when all valid
   assert.strictEqual(mockSpreadsheet.lastToast.title, 'Validation Passed');
 
   // Add invalid row
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
     ['broken@accenture.com', '', '', '', '', '', '']
   ]);
@@ -225,7 +228,7 @@ test('validateAndReport: should alert when issues exist and toast when all valid
 
 test('highlightInvalidCells: should color missing required cells with prominent warning background', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Populate row 2 with member and start_date, but missing role, department, contract_type, fte_rate (end_date nullable)
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
@@ -248,7 +251,7 @@ test('highlightInvalidCells: should color missing required cells with prominent 
 
 test('applyRequiredValidationFormatting: should configure prominent alert color and bold font', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
   var rules = tenuresSheet.getConditionalFormatRules();
 
   // Rules applied for each required column in tbl_tenures (6 required columns)
@@ -264,7 +267,7 @@ test('applyRequiredValidationFormatting: should configure prominent alert color 
 
 test('onEdit: should trigger admin warning toast when editing a strictly protected column', () => {
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   // tbl_members Column 4 is 'current_role' (strictly protected)
   var mockEvent = {
@@ -281,7 +284,7 @@ test('onEdit: should trigger admin warning toast when editing a strictly protect
 
 test('onEdit: should trigger warning toast when editing a warning-protected column on a created row', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Populate row 2 as a valid created tenure
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
@@ -303,7 +306,7 @@ test('onEdit: should trigger warning toast when editing a warning-protected colu
 
 test('onEdit: should NOT trigger warning toast when registering a new tenure on an uncreated row', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Populate only row 2
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
@@ -326,7 +329,7 @@ test('onEdit: should NOT trigger warning toast when registering a new tenure on 
 
 test('applyProtections: should only protect created rows in tbl_tenures, leaving empty rows unprotected', () => {
   freshInit(mockSpreadsheet);
-  var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
+  var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
 
   // Populate row 2
   tenuresSheet.getRange(2, 1, 1, 7).setValues([
@@ -347,7 +350,7 @@ test('applyProtections: should only protect created rows in tbl_tenures, leaving
 test('applyProtections: should strictly restrict editors to authorized admins and set warningOnly to false', () => {
   setAuthorizedAdmins(['lead@accenture.com']);
   freshInit(mockSpreadsheet);
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   var protections = membersSheet.getProtections();
 
   assert.ok(protections.length > 0);
@@ -364,7 +367,7 @@ test('applyProtections: should strictly restrict editors to authorized admins an
 test('onEdit: should prompt user with blocking alert asking to snooze notifications for 5 minutes', () => {
   freshInit(mockSpreadsheet);
   clearProtectionWarningSnooze();
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
 
   var ui = SpreadsheetApp.getUi();
   ui.alertResponse = 'YES';

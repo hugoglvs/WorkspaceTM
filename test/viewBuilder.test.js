@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+Object.assign(global, require('../src/Tables'));
+global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
+global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
 let mockSpreadsheet;
 
@@ -50,14 +53,14 @@ test('renderWeeklyMatrixView: should build view_weekly_matrix with merged People
   freshInit(mockSpreadsheet);
 
   // Seed tbl_members with 2 active members (Row 2 Alice, Row 3 Bob)
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 2, 7).setValues([
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Main Office'],
     ['Bob Jones', '', '', 'Designer', 'UX', 'Active', 'Remote']
   ]);
 
   // Seed tbl_presence_log with sample records
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
   logSheet.getRange(2, 1, 3, 5).setValues([
     ['log-1', '2026-01-05', 'Alice Smith', 'Main Office', 'Main Office'],
     ['log-2', '2026-01-05', 'Bob Jones', 'Remote', 'Remote'],
@@ -67,11 +70,11 @@ test('renderWeeklyMatrixView: should build view_weekly_matrix with merged People
   // Render 1 week: Monday 2026-01-05 to Sunday 2026-01-11 (7 days)
   var res = viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-01-11', mockSpreadsheet);
   assert.strictEqual(res.success, true);
-  assert.strictEqual(res.sheetName, 'view_weekly_matrix');
+  assert.strictEqual(res.sheetName, 'Weekly Presence');
   assert.strictEqual(res.rowsRendered, 7); // Mon to Sun = 7 days
   assert.strictEqual(res.membersCount, 2);
 
-  var matrixSheet = mockSpreadsheet.getSheetByName('view_weekly_matrix');
+  var matrixSheet = mockSpreadsheet.getSheetByName('Weekly Presence');
   assert.ok(matrixSheet);
   assert.strictEqual(matrixSheet.getFrozenRows(), 2); // 2 frozen header rows
 
@@ -118,7 +121,7 @@ test('renderWeeklyMatrixView: should build view_weekly_matrix with merged People
 test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Main Office']
   ]);
@@ -128,7 +131,7 @@ test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.totalWeeks, 6);
 
-  var matrixSheet = mockSpreadsheet.getSheetByName('view_weekly_matrix');
+  var matrixSheet = mockSpreadsheet.getSheetByName('Weekly Presence');
   // First 2 weeks (14 days, rows 3 to 16) should be hidden
   assert.strictEqual(matrixSheet.isRowHiddenByUser(3), true, 'Row 3 should be hidden');
   assert.strictEqual(matrixSheet.isRowHiddenByUser(16), true, 'Row 16 should be hidden');
@@ -139,14 +142,14 @@ test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks
 test('handleWeeklyMatrixEdit: should sync in-sheet presence declaration to tbl_presence_log and tbl_members', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Not Logged']
   ]);
 
   // Render matrix view
   viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-01-11', mockSpreadsheet);
-  var matrixSheet = mockSpreadsheet.getSheetByName('view_weekly_matrix');
+  var matrixSheet = mockSpreadsheet.getSheetByName('Weekly Presence');
 
   // User edits cell C3 (Row 3, Col 3 = Monday 2026-01-05 Alice AM) to "Remote"
   var editRange = matrixSheet.getRange(3, 3, 1, 1);
@@ -160,7 +163,7 @@ test('handleWeeklyMatrixEdit: should sync in-sheet presence declaration to tbl_p
   code.onEdit(mockEvent);
 
   // Check tbl_presence_log
-  var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
+  var logSheet = mockSpreadsheet.getSheetByName('Presence Log');
   var logRows = logSheet.getRange(2, 1, 1, 6).getValues();
   assert.strictEqual(logRows.length, 1);
   assert.strictEqual(logRows[0][1], '2026-01-05');
@@ -183,12 +186,12 @@ test('handleWeeklyMatrixEdit: should sync in-sheet presence declaration to tbl_p
 test('compilePresence: should automatically trigger weekly matrix refresh', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Main Office']
   ]);
 
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('Routines');
   baselinesSheet.getRange(2, 1, 1, 7).setValues([
     ['b-1', 'Alice Smith', '2026-01-05', '2026-01-09', 'Monday', 'Main Office', 'Remote']
   ]);
@@ -196,7 +199,7 @@ test('compilePresence: should automatically trigger weekly matrix refresh', () =
   // Public compilePresence entry point
   code.compilePresence();
 
-  var matrixSheet = mockSpreadsheet.getSheetByName('view_weekly_matrix');
+  var matrixSheet = mockSpreadsheet.getSheetByName('Weekly Presence');
   assert.ok(matrixSheet, 'compilePresence should create view_weekly_matrix');
   var headersRow1 = matrixSheet.getRange(1, 1, 1, 4).getValues()[0];
   assert.strictEqual(headersRow1[0], 'Week Number');
@@ -211,7 +214,7 @@ test('compilePresence: should automatically trigger weekly matrix refresh', () =
 test('refreshWeeklyMatrix: should toast update and refresh view', () => {
   freshInit(mockSpreadsheet);
 
-  var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['Charlie Brown', '', '', 'Lead', 'Delivery', 'Active', 'Main Office']
   ]);
@@ -225,16 +228,16 @@ test('refreshWeeklyMatrix: should toast update and refresh view', () => {
 
 test('handleWeeklyMatrixEdit: keeps the edit and suggests the sidebar for routines and leaves', () => {
   freshInit(mockSpreadsheet);
-  mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+  mockSpreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Not Logged']
   ]);
   viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-01-11', mockSpreadsheet);
-  var editRange = mockSpreadsheet.getSheetByName('view_weekly_matrix').getRange(3, 3, 1, 1);
+  var editRange = mockSpreadsheet.getSheetByName('Weekly Presence').getRange(3, 3, 1, 1);
   editRange.setValue('Remote');
 
   code.onEdit({ range: editRange });
 
-  assert.strictEqual(mockSpreadsheet.getSheetByName('tbl_presence_log').getRange(2, 4).getValue(), 'Remote', 'edit saved');
+  assert.strictEqual(mockSpreadsheet.getSheetByName('Presence Log').getRange(2, 4).getValue(), 'Remote', 'edit saved');
   assert.ok(mockSpreadsheet.lastToast, 'a toast is shown');
   assert.ok(mockSpreadsheet.lastToast.msg.includes('Declare Presence & Leaves'), 'it points to the sidebar');
 });

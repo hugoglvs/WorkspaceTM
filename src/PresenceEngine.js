@@ -110,7 +110,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   }
 
   // 1. Check tbl_tenures (Col 4: start_date)
-  var tenuresSheet = ss.getSheetByName("tbl_tenures");
+  var tenuresSheet = getTable(ss, "tenures");
   if (tenuresSheet) {
     var tMax = Math.min(tenuresSheet.getMaxRows(), 500);
     if (tMax > 1) {
@@ -122,7 +122,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   }
 
   // 2. Check tbl_presence_baselines (Col 3: start_date)
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
+  var baselinesSheet = getTable(ss, "baselines");
   if (baselinesSheet) {
     var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
     if (bMax > 1) {
@@ -134,7 +134,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   }
 
   // 3. Check tbl_leaves (Col 3: start_date)
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
+  var leavesSheet = getTable(ss, "leaves");
   if (leavesSheet) {
     var lMax = Math.min(leavesSheet.getMaxRows(), 500);
     if (lMax > 1) {
@@ -146,7 +146,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   }
 
   // 4. Check tbl_presence_log (Col 2: date)
-  var logSheet = ss.getSheetByName("tbl_presence_log");
+  var logSheet = getTable(ss, "presenceLog");
   if (logSheet) {
     var lgMax = Math.min(logSheet.getMaxRows(), 2000);
     if (lgMax > 1) {
@@ -179,13 +179,13 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
-  var membersSheet = ss.getSheetByName("tbl_members");
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
-  var logSheet = ss.getSheetByName("tbl_presence_log");
+  var membersSheet = getTable(ss, "members");
+  var baselinesSheet = getTable(ss, "baselines");
+  var leavesSheet = getTable(ss, "leaves");
+  var logSheet = getTable(ss, "presenceLog");
 
   if (!membersSheet || !logSheet) {
-    return { success: false, message: "Required sheets (tbl_members, tbl_presence_log) not found." };
+    return { success: false, message: "Required tabs (Members, Presence Log) not found." };
   }
 
   // 1. Determine Date Range strictly capped at today's date (ground truth constraint)

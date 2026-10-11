@@ -159,7 +159,7 @@ function fetchMemberChipEmails(spreadsheetId, sheetName, startRow, numRows) {
   }
   try {
     var endRow = startRow + numRows - 1;
-    var a1Range = (sheetName || "tbl_members") + "!A" + startRow + ":A" + endRow;
+    var a1Range = "'" + String(sheetName || "Members").replace(/'/g, "''") + "'!A" + startRow + ":A" + endRow;
     var resp = Sheets.Spreadsheets.get(spreadsheetId, {
       ranges: [a1Range],
       fields: "sheets.data.rowData.values(formattedValue,chipRuns)"
@@ -349,22 +349,22 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
     return { activeEmail: activeEmail, effectiveEmail: effectiveEmail, matchingMember: null, baselinesCount: 0, memberCount: 0, logLines: logs, reportText: logs.join("\n") };
   }
 
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var membersSheet = getTable(ss, "members");
   if (!membersSheet) {
-    logMsg("[tbl_members] Sheet 'tbl_members' NOT FOUND in spreadsheet!");
+    logMsg("[Members] Sheet 'Members' NOT FOUND in spreadsheet!");
     return { activeEmail: activeEmail, effectiveEmail: effectiveEmail, matchingMember: null, baselinesCount: 0, memberCount: 0, logLines: logs, reportText: logs.join("\n") };
   }
 
   var lastRow = membersSheet.getLastRow();
   var maxRows = Math.min(membersSheet.getMaxRows(), 300);
-  logMsg("[tbl_members] Sheet found. Last row: " + lastRow + ", Max rows examined: " + maxRows);
+  logMsg("[Members] Sheet found. Last row: " + lastRow + ", Max rows examined: " + maxRows);
 
   var ssId = "";
   try {
     ssId = (ss && typeof ss.getId === "function") ? ss.getId() : "";
   } catch (eId) {}
 
-  var memberChipEmails = (ssId && maxRows > 1) ? fetchMemberChipEmails(ssId, "tbl_members", 2, maxRows - 1) : {};
+  var memberChipEmails = (ssId && maxRows > 1) ? fetchMemberChipEmails(ssId, getTable(ss, "members").getName(), 2, maxRows - 1) : {};
 
   var matchingMemberRow = null;
   var memberCount = 0;
@@ -420,15 +420,15 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
     }
   }
 
-  logMsg("[tbl_members] Total members examined: " + memberCount + ". Active user match: " + (matchingMemberRow ? "FOUND on row " + matchingMemberRow.row : "NOT FOUND"));
+  logMsg("[Members] Total members examined: " + memberCount + ". Active user match: " + (matchingMemberRow ? "FOUND on row " + matchingMemberRow.row : "NOT FOUND"));
 
   // Baselines check
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
+  var baselinesSheet = getTable(ss, "baselines");
   var baselinesCount = 0;
   if (baselinesSheet && matchingMemberRow) {
     var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
     if (bMax > 1) {
-      var bChipEmails = ssId ? fetchMemberChipEmails(ssId, "tbl_presence_baselines", 2, bMax - 1) : {};
+      var bChipEmails = ssId ? fetchMemberChipEmails(ssId, baselinesSheet.getName(), 2, bMax - 1) : {};
       var bRange = baselinesSheet.getRange(2, 1, bMax - 1, 2);
       var bVals = bRange.getValues();
       var bRich = (typeof bRange.getRichTextValues === "function") ? bRange.getRichTextValues() : [];
@@ -445,10 +445,10 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
       }
     }
   }
-  logMsg("[tbl_presence_baselines] Baselines configured for user: " + baselinesCount);
+  logMsg("[Routines] Baselines configured for user: " + baselinesCount);
 
   // Tasks check in tbl_tasks
-  var tasksSheet = ss.getSheetByName("tbl_tasks");
+  var tasksSheet = getTable(ss, "tasks");
   var userTasksCount = 0;
   var otherTasksCount = 0;
   var misassignedGTasksCount = 0;
@@ -458,7 +458,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
   if (tasksSheet) {
     var tLast = tasksSheet.getLastRow();
     var tMax = Math.min(tasksSheet.getMaxRows(), 500);
-    logMsg("[tbl_tasks] Sheet found. Last row: " + tLast + ", Max rows examined: " + tMax);
+    logMsg("[Tasks] Sheet found. Last row: " + tLast + ", Max rows examined: " + tMax);
 
     if (tMax > 1) {
       var tColMap = (typeof getTaskColumnMap === "function")
@@ -468,21 +468,21 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
             if (tasksSheet) {
               var hdr = tasksSheet.getRange(1, 1, 1, Math.max(tasksSheet.getLastColumn(), 8)).getValues()[0];
               for (var ci = 0; ci < hdr.length; ci++) {
-                var cName = String(hdr[ci] || "").trim().toLowerCase();
-                if (cName === "task_id") m.taskId = ci + 1;
-                else if (cName === "project_id") m.projectId = ci + 1;
-                else if (cName === "assigned_member") m.assignedMember = ci + 1;
+                var cName = String(hdr[ci] || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                if (cName === "taskid" || cName === "id") m.taskId = ci + 1;
+                else if (cName === "projectid") m.projectId = ci + 1;
+                else if (cName === "assignedmember" || cName === "assignedto") m.assignedMember = ci + 1;
                 else if (cName === "title") m.title = ci + 1;
                 else if (cName === "description") m.description = ci + 1;
-                else if (cName === "due_date") m.dueDate = ci + 1;
+                else if (cName === "duedate") m.dueDate = ci + 1;
                 else if (cName === "status") m.status = ci + 1;
-                else if (cName === "google_task_id") m.googleTaskId = ci + 1;
+                else if (cName === "googletaskid") m.googleTaskId = ci + 1;
               }
             }
             return m;
           })();
 
-      var tChipEmails = ssId ? fetchMemberChipEmails(ssId, "tbl_tasks", 2, tMax - 1) : {};
+      var tChipEmails = ssId ? fetchMemberChipEmails(ssId, tasksSheet.getName(), 2, tMax - 1) : {};
       var tRange = tasksSheet.getRange(2, 1, tMax - 1, Math.max(tasksSheet.getLastColumn(), 8));
       var tVals = tRange.getValues();
       var tRich = (typeof tRange.getRichTextValues === "function") ? tRange.getRichTextValues() : [];
@@ -545,9 +545,9 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
         });
       }
     }
-    logMsg("[tbl_tasks] Total tasks examined: " + tasksExamined + ". Assigned to active user: " + userTasksCount + ". Assigned to other members: " + otherTasksCount + (misassignedGTasksCount > 0 ? " | WARNING: " + misassignedGTasksCount + " tasks for other members have Google Task IDs!" : ""));
+    logMsg("[Tasks] Total tasks examined: " + tasksExamined + ". Assigned to active user: " + userTasksCount + ". Assigned to other members: " + otherTasksCount + (misassignedGTasksCount > 0 ? " | WARNING: " + misassignedGTasksCount + " tasks for other members have Google Task IDs!" : ""));
   } else {
-    logMsg("[tbl_tasks] Sheet 'tbl_tasks' NOT FOUND!");
+    logMsg("[Tasks] Sheet 'Tasks' NOT FOUND!");
   }
 
   logMsg("=== [End Audit] ===");
@@ -625,7 +625,7 @@ function checkActiveUserStatus(targetSpreadsheet, showToast) {
   if (!userEmail) {
     warnings.push("Active user email could not be read in onOpen trigger (privacy restriction). Run 'Debug User & Member Identity' from the menu.");
   } else if (!memberFound) {
-    warnings.push("You are not registered in tbl_members yet.");
+    warnings.push("You are not registered in Members yet.");
   } else {
     if (!hasBaseline) {
       warnings.push("Weekly presence routine is not set up.");
@@ -677,7 +677,7 @@ function checkActiveUserStatus(targetSpreadsheet, showToast) {
  */
 function getSidebarInitialData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var membersSheet = ss ? ss.getSheetByName("tbl_members") : null;
+  var membersSheet = ss ? getTable(ss, "members") : null;
   var members = [];
 
   if (membersSheet) {
@@ -687,7 +687,7 @@ function getSidebarInitialData() {
       try {
         ssId = (ss && typeof ss.getId === "function") ? ss.getId() : "";
       } catch (eId) {}
-      var chipEmails = ssId ? fetchMemberChipEmails(ssId, "tbl_members", 2, maxRows - 1) : {};
+      var chipEmails = ssId ? fetchMemberChipEmails(ssId, getTable(ss, "members").getName(), 2, maxRows - 1) : {};
       var mRange = membersSheet.getRange(2, 1, maxRows - 1, 1);
       var data = mRange.getValues();
       var rData = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
@@ -775,7 +775,7 @@ function checkBaselineDateOverlap(s1Str, e1Str, s2Str, e2Str) {
  */
 function getMemberBaselines(memberIdentifier) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss ? ss.getSheetByName("tbl_presence_baselines") : null;
+  var sheet = ss ? getTable(ss, "baselines") : null;
   var result = {
     days: {},
     startDate: "",
@@ -858,10 +858,10 @@ function saveMemberBaselines(payload) {
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("tbl_presence_baselines");
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var sheet = getTable(ss, "baselines");
+  var membersSheet = getTable(ss, "members");
   if (!sheet) {
-    throw new Error("Sheet tbl_presence_baselines not found. Please run init() first.");
+    throw new Error("The Routines tab was not found. Run Initialize / Upgrade first.");
   }
 
   var targetMember = String(member).trim();
@@ -1123,11 +1123,11 @@ function submitMemberLeave(payload, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
-  var membersSheet = ss.getSheetByName("tbl_members");
+  var leavesSheet = getTable(ss, "leaves");
+  var membersSheet = getTable(ss, "members");
 
   if (!leavesSheet) {
-    return { success: false, message: "tbl_leaves sheet not found." };
+    return { success: false, message: "The Leaves tab was not found. Run Initialize / Upgrade first." };
   }
 
   var targetMember = String(payload.member).trim();

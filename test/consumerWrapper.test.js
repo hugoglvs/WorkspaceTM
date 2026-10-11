@@ -26,7 +26,7 @@ const { freshInit } = require('../src/Init');
 global.freshInit = freshInit;
 
 const code = require('../src/Code');
-const consumerWrapper = require('../src/ConsumerWrapper');
+const consumerWrapper = require('../consumer/Code');
 
 test('ConsumerWrapper: onOpen creates minimal streamlined Project Management menu', () => {
   consumerWrapper.onOpen();

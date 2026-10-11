@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Google Workspace Project Management System** is architected as a centralized **Google Apps Script Library (`WorkspacePM`)**. Instead of copying thousands of lines of code into every spreadsheet, individual team spreadsheets include only a thin client wrapper (`ConsumerWrapper.gs`) that references the versioned library.
+The **Google Workspace Project Management System** is architected as a centralized **Google Apps Script Library (`WorkspacePM`)**. Instead of copying thousands of lines of code into every spreadsheet, individual team spreadsheets include only a thin client wrapper (`consumer/Code.js` in the repo, `Code.gs` in Apps Script) that references the versioned library.
 
 This design ensures:
 - **Centralized Bug Fixes & Features:** Updating the library automatically benefits all teams without touching spreadsheet code.

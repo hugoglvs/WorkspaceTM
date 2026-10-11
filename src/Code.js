@@ -22,6 +22,13 @@ function setupOrUpgrade(targetSpreadsheet) {
   var curVer = getSchemaVersion();
   var res = freshInit(ss);
 
+  // One-time move of legacy baselines / leaves into tbl_presence_ranges (ADR 0035)
+  try {
+    res.presenceMigration = migrateLegacyPresenceTables(ss);
+  } catch (errMig) {
+    Logger.log("setupOrUpgrade presence migration note: " + errMig);
+  }
+
   // Automatically install real-time edit trigger and nightly 2:00 AM sync trigger
   try {
     res.triggers = installAllTriggers(ss);
@@ -34,6 +41,13 @@ function setupOrUpgrade(targetSpreadsheet) {
     res.initialSync = nightlySyncJob(ss);
   } catch (errSync) {
     Logger.log("setupOrUpgrade initial sync note: " + errSync);
+  }
+
+  // Members only see the Weekly Matrix View for presence; the data stays one unhide away
+  try {
+    res.hiddenSheets = hidePresenceDataSheets(ss);
+  } catch (errHide) {
+    Logger.log("setupOrUpgrade hide note: " + errHide);
   }
 
   if (ss && typeof ss.toast === "function") {
@@ -622,6 +636,16 @@ function nightlySyncJob(targetSpreadsheet) {
  * @param {Object} res Status report to fill
  */
 function runNightlySyncSteps(ss, res) {
+  // 0. Finish the legacy presence migration on sheets that were not upgraded by hand
+  try {
+    if (typeof migrateLegacyPresenceTables === "function") {
+      res.steps.presenceMigration = migrateLegacyPresenceTables(ss);
+    }
+  } catch (e0) {
+    Logger.log("[nightlySyncJob] Presence migration note: " + e0);
+    res.steps.presenceMigration = { error: String(e0) };
+  }
+
 
   // 1. Sync Directory & Tenures
   try {
@@ -879,7 +903,7 @@ function handleSheetEdit(e) {
   }
 
   // Real-time simultaneous absence conflict re-evaluation
-  if (sheetName === "tbl_projects" || sheetName === "tbl_leaves" || sheetName === "tbl_backups") {
+  if (sheetName === "tbl_projects" || sheetName === "tbl_presence_ranges" || sheetName === "tbl_backups") {
     if (typeof checkProjectBackupConflicts === "function") {
       try {
         checkProjectBackupConflicts(SpreadsheetApp.getActiveSpreadsheet());

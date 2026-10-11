@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { seedBaselines, seedLeaves } = require('./presenceFixtures');
+Object.assign(global, require('../src/PresenceRanges'));
 
 let mockSpreadsheet;
 
@@ -121,13 +123,14 @@ test('Sidebar should write baselines directly starting at row 2 with People Chip
 
   assert.strictEqual(saveRes.success, true);
 
-  // Verify rows are written starting at row 2 in tbl_presence_baselines
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var writtenValues = baselinesSheet.getRange(2, 1, 5, 7).getValues();
+  // Verify Baseline rows are written starting at row 2 in tbl_presence_ranges
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  var writtenValues = baselinesSheet.getRange(2, 1, 5, 11).getValues();
   assert.strictEqual(writtenValues.length, 5);
   assert.strictEqual(writtenValues[0][1], 'charlie@peanuts.com'); // member column
-  assert.strictEqual(writtenValues[0][4], 'Monday');
-  assert.strictEqual(writtenValues[4][4], 'Friday');
+  assert.strictEqual(writtenValues[0][2], 'Baseline'); // range_type
+  assert.strictEqual(writtenValues[0][7], 'Monday'); // day_of_week
+  assert.strictEqual(writtenValues[4][7], 'Friday');
 });
 
 test('checkBaselineDateOverlap: should detect overlaps between ranges including open-ended ranges', () => {
@@ -143,7 +146,7 @@ test('checkBaselineDateOverlap: should detect overlaps between ranges including 
 
 test('saveMemberBaselines: should not override previous baseline, should detect overlap and adjust end date upon confirmation', () => {
   freshInit(mockSpreadsheet);
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
 
   // 1. Save Initial Baseline for Alice (open-ended starting 2026-01-01)
   var res1 = sidebar.saveMemberBaselines({
@@ -196,22 +199,23 @@ test('saveMemberBaselines: should not override previous baseline, should detect 
   assert.strictEqual(res3.success, true);
   assert.strictEqual(res3.overlapAdjusted, true);
 
-  // 4. Verify tbl_presence_baselines now has 10 total rows (previous baseline NOT deleted!)
-  var allRows = baselinesSheet.getRange(2, 1, 10, 7).getValues();
+  // 4. Verify tbl_presence_ranges now has 10 Baseline rows (previous baseline NOT deleted!)
+  // Columns: range_id(0), member(1), range_type(2), start_date(3), start_period(4), end_date(5), end_period(6), day_of_week(7), location_am(8), location_pm(9), status(10)
+  var allRows = baselinesSheet.getRange(2, 1, 10, 11).getValues();
   assert.strictEqual(allRows.length, 10);
 
   // First 5 rows (original baseline) now have end_date set to 2026-06-01!
   for (var r = 0; r < 5; r++) {
-    assert.strictEqual(allRows[r][2], '2026-01-01'); // start_date
-    assert.strictEqual(allRows[r][3], '2026-06-01'); // end_date updated!
-    assert.strictEqual(allRows[r][5], 'Main Office');
+    assert.strictEqual(allRows[r][3], '2026-01-01'); // start_date
+    assert.strictEqual(allRows[r][5], '2026-06-01'); // end_date updated!
+    assert.strictEqual(allRows[r][8], 'Main Office');
   }
 
   // Next 5 rows (new baseline) start on 2026-06-01!
   for (var nr = 5; nr < 10; nr++) {
-    assert.strictEqual(allRows[nr][2], '2026-06-01'); // start_date
-    assert.strictEqual(allRows[nr][3], ''); // end_date open
-    assert.strictEqual(allRows[nr][5], 'Remote');
+    assert.strictEqual(allRows[nr][3], '2026-06-01'); // start_date
+    assert.strictEqual(allRows[nr][5], ''); // end_date open
+    assert.strictEqual(allRows[nr][8], 'Remote');
   }
 
   // 5. getMemberBaselines returns the latest active baseline (Remote)
@@ -243,10 +247,10 @@ test('submitMemberLeave: should validate inputs and reject invalid date ranges',
   assert.ok(res2.message.includes('Start date cannot be after end date'));
 });
 
-test('submitMemberLeave: should append leave row to tbl_leaves and compile presence logs', () => {
+test('submitMemberLeave: should append a Leave range to tbl_presence_ranges and compile presence logs', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -268,16 +272,12 @@ test('submitMemberLeave: should append leave row to tbl_leaves and compile prese
   assert.strictEqual(res.status, 'Approved');
   assert.strictEqual(res.compiled, true);
 
-  // Verify row in tbl_leaves (8 columns: leave_id, member, start_date, start_period, end_date, end_period, leave_type, status)
-  var leaveRow = leavesSheet.getRange(2, 1, 1, 8).getValues()[0];
+  // Verify the Leave range in tbl_presence_ranges (leave type stored as the AM/PM location)
+  var leaveRow = leavesSheet.getRange(2, 1, 1, 11).getValues()[0];
   assert.ok(String(leaveRow[0]).startsWith('leave_'));
-  assert.strictEqual(leaveRow[1], 'alice@accenture.com');
-  assert.strictEqual(leaveRow[2], '2026-06-01');
-  assert.strictEqual(leaveRow[3], 'AM');
-  assert.strictEqual(leaveRow[4], '2026-06-03');
-  assert.strictEqual(leaveRow[5], 'PM');
-  assert.strictEqual(leaveRow[6], 'Sick Leave');
-  assert.strictEqual(leaveRow[7], 'Approved');
+  assert.deepStrictEqual(leaveRow.slice(1), [
+    'alice@accenture.com', 'Leave', '2026-06-01', 'AM', '2026-06-03', 'PM', 'All', 'Sick Leave', 'Sick Leave', 'Approved'
+  ]);
 });
 
 test('checkActiveUserStatus: should detect missing baseline and incomplete profile', () => {
@@ -528,7 +528,7 @@ test('checkActiveUserStatus should match active user hugoglvs42@gmail.com with H
 test('syncBaselinesPeopleChips: should copy People Chips from tbl_members to tbl_presence_baselines', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
 
   // Member in tbl_members with display name
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -536,7 +536,7 @@ test('syncBaselinesPeopleChips: should copy People Chips from tbl_members to tbl
   ]);
 
   // Baselines entered with email or plain text
-  baselinesSheet.getRange(2, 1, 5, 7).setValues([
+  seedBaselines(mockSpreadsheet, [
     ['b1', 'hugoglvs42@gmail.com', '2026-01-05', '', 'Monday', 'Remote', 'Remote'],
     ['b2', 'hugoglvs42@gmail.com', '2026-01-05', '', 'Tuesday', 'Main Office', 'Main Office'],
     ['b3', 'hugoglvs42@gmail.com', '2026-01-05', '', 'Wednesday', 'Main Office', 'Main Office'],

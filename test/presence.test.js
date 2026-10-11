@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { seedBaselines, seedLeaves } = require('./presenceFixtures');
+Object.assign(global, require('../src/PresenceRanges'));
 
 let mockSpreadsheet;
 
@@ -89,7 +91,7 @@ test('getWeekdaysBetween: should only return Monday to Friday dates excluding we
 test('compilePresenceLogs: should expand working days for active members with baseline defaults', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   // 1. Add active member in tbl_members
@@ -139,7 +141,7 @@ test('compilePresenceLogs: should expand working days for active members with ba
 test('compilePresenceLogs: should override baseline locations with approved leave records', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -161,7 +163,7 @@ test('compilePresenceLogs: should override baseline locations with approved leav
 
   // Approved Vacation on Wednesday June 3 to Thursday June 4
   // Pending Sick Leave on Friday June 5 (should NOT override because not Approved)
-  leavesSheet.getRange(2, 1, 2, 6).setValues([
+  seedLeaves(mockSpreadsheet, [
     ['leave_01', 'bob@accenture.com', '2026-06-03', '2026-06-04', 'Vacation', 'Approved'],
     ['leave_02', 'bob@accenture.com', '2026-06-05', '2026-06-05', 'Sick Leave', 'Requested']
   ]);
@@ -292,8 +294,8 @@ test('compilePresenceLogs: should only compile weekdays and omit weekend logs wh
 test('findEarliestHistoricalDate: should detect earliest start date across tenures, baselines, leaves, and logs', () => {
   freshInit(mockSpreadsheet);
   var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
 
   // No dates present yet
   var early1 = findEarliestHistoricalDate(mockSpreadsheet);
@@ -307,14 +309,14 @@ test('findEarliestHistoricalDate: should detect earliest start date across tenur
   assert.strictEqual(formatDateIso(early2), '2025-09-01');
 
   // Add baseline with earlier date 2025-03-01
-  baselinesSheet.getRange(2, 1, 1, 7).setValues([
+  seedBaselines(mockSpreadsheet, [
     ['b-1', 'alice@accenture.com', '2025-03-01', '', 'All', 'Main Office', 'Main Office']
   ]);
   var early3 = findEarliestHistoricalDate(mockSpreadsheet);
   assert.strictEqual(formatDateIso(early3), '2025-03-01');
 
   // Add leave with even earlier date 2025-01-15
-  leavesSheet.getRange(2, 1, 1, 6).setValues([
+  seedLeaves(mockSpreadsheet, [
     ['lv-1', 'alice@accenture.com', '2025-01-15', '2025-01-20', 'Vacation', 'Approved']
   ]);
   var early4 = findEarliestHistoricalDate(mockSpreadsheet);
@@ -325,7 +327,7 @@ test('compilePresenceMigration: should compile presence logs starting from earli
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
   var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -338,7 +340,7 @@ test('compilePresenceMigration: should compile presence logs starting from earli
   ]);
 
   // Baseline from 2026-01-05
-  baselinesSheet.getRange(2, 1, 1, 7).setValues([
+  seedBaselines(mockSpreadsheet, [
     ['b-1', 'alice@accenture.com', '2026-01-05', '', 'All', 'Remote', 'Remote']
   ]);
 
@@ -357,7 +359,7 @@ test('compilePresenceMigration: should compile presence logs when baseline has u
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
   var tenuresSheet = mockSpreadsheet.getSheetByName('tbl_tenures');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -365,7 +367,7 @@ test('compilePresenceMigration: should compile presence logs when baseline has u
   ]);
 
   // Baseline has NO start date (empty string / undefined in sheet)
-  baselinesSheet.getRange(2, 1, 1, 7).setValues([
+  seedBaselines(mockSpreadsheet, [
     ['b-1', 'alice@accenture.com', '', '', 'All', 'Main Office', 'Remote']
   ]);
 
@@ -386,13 +388,13 @@ test('compilePresenceMigration: should compile presence logs when baseline has u
 test('compilePresenceMigration: should prompt user and respect custom entered start date', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
   ]);
-  baselinesSheet.getRange(2, 1, 1, 7).setValues([
+  seedBaselines(mockSpreadsheet, [
     ['b-1', 'alice@accenture.com', '', '', 'All', 'Downtown Office', 'Downtown Office']
   ]);
 

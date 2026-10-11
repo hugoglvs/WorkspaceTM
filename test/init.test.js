@@ -33,8 +33,7 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
   const expectedSheets = [
     'tbl_members',
     'tbl_tenures',
-    'tbl_presence_baselines',
-    'tbl_leaves',
+    'tbl_presence_ranges',
     'tbl_presence_log',
     'tbl_projects',
     'tbl_tasks',

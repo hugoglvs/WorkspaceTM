@@ -247,6 +247,7 @@ function createMockSheet(name, parent) {
 
     sheetId: Math.floor(Math.random() * 100000),
     getName: function() { return this.name; },
+    setName: function(n) { this.name = n; return this; },
     getSheetId: function() { return this.sheetId; },
     getParent: function() {
       return this.parent || (typeof SpreadsheetApp !== "undefined" && SpreadsheetApp.getActiveSpreadsheet ? SpreadsheetApp.getActiveSpreadsheet() : null);

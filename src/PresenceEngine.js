@@ -2,7 +2,7 @@
  * Project Management Workspace - Presence Engine
  * Ticket 03: Baseline & Leave Range Compiler to Daily Presence Log
  *
- * Expands declarative baselines (tbl_presence_baselines) and approved leaves (tbl_leaves)
+ * Expands declarative Baselines and approved Leaves (tbl_presence_ranges)
  * into concrete, queryable daily records in tbl_presence_log for working days (Mon-Fri).
  * Preserves existing ad-hoc manual adjustments (idempotent compilation).
  */
@@ -66,7 +66,7 @@ function getAllDaysBetween(startDate, endDate) {
 }
 
 /**
- * Scans tbl_tenures, tbl_presence_baselines, tbl_leaves, and tbl_presence_log
+ * Scans tbl_tenures, tbl_presence_ranges, and tbl_presence_log
  * to discover the earliest recorded date for data migration and historical compilation.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
@@ -121,27 +121,11 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
     }
   }
 
-  // 2. Check tbl_presence_baselines (Col 3: start_date)
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
-  if (baselinesSheet) {
-    var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
-    if (bMax > 1) {
-      var bVals = baselinesSheet.getRange(2, 3, bMax - 1, 1).getValues();
-      for (var b = 0; b < bVals.length; b++) {
-        checkDate(bVals[b][0]);
-      }
-    }
-  }
-
-  // 3. Check tbl_leaves (Col 3: start_date)
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
-  if (leavesSheet) {
-    var lMax = Math.min(leavesSheet.getMaxRows(), 500);
-    if (lMax > 1) {
-      var lVals = leavesSheet.getRange(2, 3, lMax - 1, 1).getValues();
-      for (var l = 0; l < lVals.length; l++) {
-        checkDate(lVals[l][0]);
-      }
+  // 2. Check tbl_presence_ranges (Baselines and Leaves) start dates
+  if (typeof readPresenceRanges === "function") {
+    var ranges = readPresenceRanges(ss);
+    for (var pr = 0; pr < ranges.length; pr++) {
+      if (ranges[pr].startDate) checkDate(ranges[pr].startDate);
     }
   }
 
@@ -162,7 +146,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
 
 /**
  * Compiles presence logs for a given date range across all active members.
- * Reads tbl_presence_baselines and tbl_leaves, and writes into tbl_presence_log.
+ * Reads tbl_presence_ranges (Baselines and Leaves), and writes into tbl_presence_log.
  * Preserves existing rows with manual edits. Updates tbl_members.today_presence.
  *
  * NOTE: tbl_presence_log serves as the ground-truth database for actual recorded presences.
@@ -180,8 +164,6 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
   var membersSheet = ss.getSheetByName("tbl_members");
-  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
   var logSheet = ss.getSheetByName("tbl_presence_log");
 
   if (!membersSheet || !logSheet) {
@@ -259,85 +241,9 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     return { success: true, createdCount: 0, preservedCount: 0, message: "No active members found." };
   }
 
-  // 3. Read Baselines from tbl_presence_baselines
-  // Columns: baseline_id(1), member(2), start_date(3), end_date(4), day_of_week(5), location_am(6), location_pm(7)
-  var baselinesByMember = {};
-  if (baselinesSheet) {
-    var bMaxRows = Math.min(baselinesSheet.getMaxRows(), 500);
-    if (bMaxRows > 1) {
-      var bValues = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7).getValues();
-      for (var b = 0; b < bValues.length; b++) {
-        var bMember = typeof extractCellValue === "function" ? extractCellValue(bValues[b][1]) : String(bValues[b][1] || "").trim();
-        if (!bMember) continue;
-
-        var bKey = bMember.toLowerCase();
-        if (!baselinesByMember[bKey]) baselinesByMember[bKey] = [];
-
-        var sDate = bValues[b][2] ? new Date(bValues[b][2]) : null;
-        var eDate = bValues[b][3] ? new Date(bValues[b][3]) : null;
-        if (sDate) sDate.setHours(0, 0, 0, 0);
-        if (eDate) eDate.setHours(0, 0, 0, 0);
-
-        var dow = typeof extractCellValue === "function" ? extractCellValue(bValues[b][4]) : String(bValues[b][4] || "").trim();
-        var locAm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][5]) : String(bValues[b][5] || "").trim();
-        var locPm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][6]) : String(bValues[b][6] || "").trim();
-
-        baselinesByMember[bKey].push({
-          startDate: sDate,
-          endDate: eDate,
-          dayOfWeek: dow,
-          locationAm: locAm || "Main Office",
-          locationPm: locPm || "Main Office"
-        });
-      }
-    }
-  }
-
-  // 4. Read Leaves from tbl_leaves
-  // Supports both modern 8-column (with start_period & end_period) and legacy 6-column schemas
-  var leavesByMember = {};
-  if (leavesSheet) {
-    var lColMap = (typeof getLeaveColumnMap === "function")
-      ? getLeaveColumnMap(leavesSheet)
-      : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
-    var lMaxRows = Math.min(leavesSheet.getMaxRows(), 500);
-    if (lMaxRows > 1) {
-      var lValues = leavesSheet.getRange(2, 1, lMaxRows - 1, Math.max(leavesSheet.getLastColumn(), 6)).getValues();
-      for (var l = 0; l < lValues.length; l++) {
-        var lMember = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.member - 1]) : String(lValues[l][lColMap.member - 1] || "").trim();
-        if (!lMember) continue;
-
-        var lStatus = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.status - 1]) : String(lValues[l][lColMap.status - 1] || "").trim();
-        // Only factor Approved leaves
-        if (lStatus && lStatus.toLowerCase() !== "approved") continue;
-
-        var lKey = lMember.toLowerCase();
-        if (!leavesByMember[lKey]) leavesByMember[lKey] = [];
-
-        var lStart = lValues[l][lColMap.start_date - 1] ? new Date(lValues[l][lColMap.start_date - 1]) : null;
-        var lEnd = lValues[l][lColMap.end_date - 1] ? new Date(lValues[l][lColMap.end_date - 1]) : null;
-        if (lStart) lStart.setHours(0, 0, 0, 0);
-        if (lEnd) lEnd.setHours(0, 0, 0, 0);
-
-        var lStartPeriod = (lColMap.start_period > 0 && lValues[l][lColMap.start_period - 1])
-          ? String(lValues[l][lColMap.start_period - 1]).toUpperCase().trim()
-          : "AM";
-        var lEndPeriod = (lColMap.end_period > 0 && lValues[l][lColMap.end_period - 1])
-          ? String(lValues[l][lColMap.end_period - 1]).toUpperCase().trim()
-          : "PM";
-
-        var lType = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.leave_type - 1]) : String(lValues[l][lColMap.leave_type - 1] || "").trim();
-
-        leavesByMember[lKey].push({
-          startDate: lStart,
-          startPeriod: lStartPeriod,
-          endDate: lEnd,
-          endPeriod: lEndPeriod,
-          leaveType: lType || "Vacation"
-        });
-      }
-    }
-  }
+  // 3-4. Read Baselines and approved Leaves from tbl_presence_ranges (ADR 0035)
+  var baselinesByMember = readBaselinesByMember(ss);
+  var leavesByMember = readApprovedLeavesByMember(ss);
 
   // 5. Read Existing tbl_presence_log to Ensure Idempotence and Preserve Manual Edits
   // Columns: log_id(1), date(2), member(3), location_am(4), location_pm(5), timestamp(6)

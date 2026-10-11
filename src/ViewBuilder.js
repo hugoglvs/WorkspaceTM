@@ -739,7 +739,6 @@ function renderActiveResponsiblesDashboard(targetSpreadsheet, asOfDateParam) {
 
   var projectsSheet = ss.getSheetByName("tbl_projects");
   var membersSheet = ss.getSheetByName("tbl_members");
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
 
   if (!projectsSheet) {
     return { success: false, message: "Sheet 'tbl_projects' not found" };
@@ -789,38 +788,14 @@ function renderActiveResponsiblesDashboard(targetSpreadsheet, asOfDateParam) {
     }
   }
 
-  // 2. Read Active Approved Leaves for Today
+  // 2. Read approved Leaves covering today (tbl_presence_ranges, ADR 0035)
   var leavesMap = {};
-  if (leavesSheet) {
-    var lMax = Math.min(leavesSheet.getMaxRows(), 500);
-    if (lMax > 1) {
-      var lColMap = (typeof getLeaveColumnMap === "function")
-        ? getLeaveColumnMap(leavesSheet)
-        : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
-      var lColsToFetch = Math.max(leavesSheet.getLastColumn(), 6);
-      var lRange = leavesSheet.getRange(2, 1, lMax - 1, lColsToFetch);
-      var lVals = lRange.getValues();
-      var lRich = (typeof lRange.getRichTextValues === "function") ? lRange.getRichTextValues() : [];
-
-      for (var l = 0; l < lVals.length; l++) {
-        var lMemRaw = lVals[l][lColMap.member - 1];
-        var lMemR = (lRich && lRich[l]) ? lRich[l][lColMap.member - 1] : null;
-        var lMem = (typeof extractCellValue === "function") ? extractCellValue(lMemRaw, lMemR) : String(lMemRaw).trim();
-        if (!lMem) continue;
-
-        var lStatus = String(lVals[l][lColMap.status - 1] || "").trim().toLowerCase();
-        if (lStatus !== "approved") continue;
-
-        var sDate = parseMatrixDate(lVals[l][lColMap.start_date - 1]);
-        var eDate = parseMatrixDate(lVals[l][lColMap.end_date - 1]);
-        if (!sDate) continue;
-        if (!eDate) eDate = sDate;
-
-        if (todayDate >= sDate && todayDate <= eDate) {
-          var lType = String(lVals[l][lColMap.leave_type - 1] || "Vacation").trim();
-          leavesMap[lMem.toLowerCase()] = lType;
-        }
-      }
+  var approvedLeaves = readApprovedLeavesByMember(ss);
+  for (var lKey in approvedLeaves) {
+    if (!approvedLeaves.hasOwnProperty(lKey)) continue;
+    for (var li = 0; li < approvedLeaves[lKey].length; li++) {
+      var lv = approvedLeaves[lKey][li];
+      if (todayDate >= lv.startDate && todayDate <= lv.endDate) leavesMap[lKey] = lv.leaveType;
     }
   }
 

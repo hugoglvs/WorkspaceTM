@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { seedBaselines, seedLeaves } = require('./presenceFixtures');
+Object.assign(global, require('../src/PresenceRanges'));
 
 let mockSpreadsheet;
 
@@ -190,8 +192,8 @@ test('compilePresence: should automatically trigger weekly matrix refresh', () =
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Main Office']
   ]);
 
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
-  baselinesSheet.getRange(2, 1, 1, 7).setValues([
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  seedBaselines(mockSpreadsheet, [
     ['b-1', 'Alice Smith', '2026-01-05', '2026-01-09', 'Monday', 'Main Office', 'Remote']
   ]);
 
@@ -255,8 +257,8 @@ test('renderActiveResponsiblesDashboard: should accurately compute Lead Active, 
   ]);
 
   // Setup tbl_leaves: Bob on Vacation today (2026-01-05), Dave on Sick Leave
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
-  leavesSheet.getRange(2, 1, 2, 6).setValues([
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  seedLeaves(mockSpreadsheet, [
     ['LV-001', 'Bob Jones', '2026-01-05', '2026-01-09', 'Vacation', 'Approved'],
     ['LV-002', 'Dave Wilson', '2026-01-05', '2026-01-06', 'Sick Leave', 'Approved']
   ]);

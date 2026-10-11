@@ -4,13 +4,14 @@
 
 - **WorkspacePM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
 - No build, no `package.json`. Each `src/*.js` and `consumer/Code.js` is a global script in Apps Script and ends with a `if (typeof module !== 'undefined') module.exports = {...}` guard so Node tests can `require` it. Keep that guard when adding files or exports.
-- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-11: **141 pass, 0 fail**.
+- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-11: **146 pass, 0 fail**.
 - Spec and tickets: `.scratch/workspace-pm-library/` (`spec.md`, `issues/NN-*.md`). Status words in use: `resolved`/`closed` = done, `open`, `ready-for-agent`.
-- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0035); new domain terms land in `GLOSSARY.md`.
+- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0036); new domain terms land in `GLOSSARY.md`.
 - Product principles (ADR 0034): every grid stays editable, and there is no privacy model; data tables are hidden for declutter, never locked; sidebars are an extra entry path; KPIs go to Looker Studio through `fact_presence`.
+- Presence data lives in one table, `tbl_presence_ranges` (Baselines + Leaves, ADR 0035); only `src/PresenceRanges.js` knows its columns.
 - All sync writes run under the **Sync Lock** (ADR 0032): new write paths triggered by edits or schedules go through `runWithEditLock` / `acquireSyncLock` in `src/Code.js`.
 - Apps Script projects (owner `hugoglvs42@gmail.com`): Library `1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v` ← `src/`; Consumer Sheet "[NEW] ACN" (`1FOVefnly_zusD1TobiPAYrUEeAR7pLSAhIPxaXMFme0`) bound script `1IVORKENsN2r81QcA5hXa5qa-tgXub2RFFlhzD0-8fopojfAoQFixFujH` ← `consumer/`. Each folder has its own `.clasp.json`.
-- **Deploy** (ADR 0033) from the shell on the user's Mac: `cd src && ~/.npm-global/bin/clasp push` (library), `cd consumer && ~/.npm-global/bin/clasp push` (wrapper). Check `clasp status` first and run the tests before every push. The Consumer Sheet uses the library in development mode (HEAD), so a library push is live at once. Push only when the user asks. `scripts/clasp-setup.sh` sets clasp up in the user's macOS Terminal and clones the live code into the git-ignored `.scratch/live/`.
+- **Deploy** (ADR 0033) from the shell on the user's Mac: `cd src && ~/.npm-global/bin/clasp push` (library), `cd consumer && ~/.npm-global/bin/clasp push` (wrapper). Run the tests, commit, tag the commit `deploy-YYYYMMDD-HHMM`, then push without asking: the user tests live and asks for a rollback when needed (redeploy an earlier `deploy-*` tag). The Consumer Sheet uses the library in development mode (HEAD), so a library push is live at once. `scripts/clasp-setup.sh` sets clasp up in the user's macOS Terminal and clones the live code into the git-ignored `.scratch/live/`.
 ## Reporting to the user
 
 The final message of every change lists each modified file as a direct link (`[path](file:///Users/hugogoncalves/Documents/antigravity/jolly-salk/<path>)`), with the changes applied to it as sub-bullets.

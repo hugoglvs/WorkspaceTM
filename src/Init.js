@@ -102,11 +102,12 @@ function freshInit(targetSpreadsheet) {
     createdSheets.push(config.sheetName);
   }
 
-  // Safely remove initial blank sheet (e.g. "Sheet1" or "Feuille 1") if created from scratch
+  // Safely remove the initial blank sheet (e.g. "Sheet1" or "Feuille 1") if created from scratch and still empty
   if (initialSheets.length === 1) {
     var firstSheet = initialSheets[0];
     var firstName = firstSheet.getName();
-    if (!SCHEMA_SPEC.hasOwnProperty(firstName) && createdSheets.length > 0) {
+    var firstIsEmpty = !firstSheet.getLastRow() || !firstSheet.getLastColumn();
+    if (!SCHEMA_SPEC.hasOwnProperty(firstName) && createdSheets.length > 0 && firstIsEmpty) {
       try {
         ss.deleteSheet(firstSheet);
       } catch (e) {

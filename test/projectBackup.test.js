@@ -2,8 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals, MailApp } = require('./mockGas');
-const { seedBaselines, seedLeaves } = require('./presenceFixtures');
-Object.assign(global, require('../src/PresenceRanges'));
 
 let mockSpreadsheet;
 
@@ -52,12 +50,13 @@ global.clearStaticCellBackgrounds = clearStaticCellBackgrounds;
 global.applyRequiredValidationFormatting = applyRequiredValidationFormatting;
 
 const { freshInit } = require('../src/Init');
-const { extractCellValue, formatDateIso, saveMemberBaselines, submitMemberLeave, getMemberBaselines } = require('../src/Sidebar');
+const { extractCellValue, formatDateIso, saveMemberBaselines, submitMemberLeave, getMemberBaselines, getLeaveColumnMap } = require('../src/Sidebar');
 global.extractCellValue = extractCellValue;
 global.formatDateIso = formatDateIso;
 global.saveMemberBaselines = saveMemberBaselines;
 global.submitMemberLeave = submitMemberLeave;
 global.getMemberBaselines = getMemberBaselines;
+global.getLeaveColumnMap = getLeaveColumnMap;
 
 const { syncMembersAndTenures, copyCellChip } = require('../src/SyncEngine');
 global.syncMembersAndTenures = syncMembersAndTenures;
@@ -82,7 +81,7 @@ global.checkBackupConflicts = checkBackupConflicts;
 test('Half-day leaves: single day morning (AM) and afternoon (PM) leave resolution', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 1, 7).setValues([
@@ -206,7 +205,7 @@ test('Half-day leaves: multi-day leave with PM start and AM end', () => {
 test('Weekend working days: weekend baselines default to Off and compile when configured with working location', () => {
   freshInit(mockSpreadsheet);
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
   var logSheet = mockSpreadsheet.getSheetByName('tbl_presence_log');
 
   membersSheet.getRange(2, 1, 2, 7).setValues([
@@ -294,7 +293,7 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
 
   var projectsSheet = mockSpreadsheet.getSheetByName('tbl_projects');
   var membersSheet = mockSpreadsheet.getSheetByName('tbl_members');
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
   var tasksSheet = mockSpreadsheet.getSheetByName('tbl_tasks');
 
   // Setup members: Alice (Lead), Bob (Backup), Dave (Manager)

@@ -404,7 +404,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
   }
 
   // -------------------------------------------------------------
-  // 5b. Synchronize People Chips into tbl_presence_ranges
+  // 5b. Synchronize People Chips into tbl_presence_baselines
   // -------------------------------------------------------------
   try {
     syncBaselinesPeopleChips(ss);
@@ -636,7 +636,7 @@ function parseDateValue(val) {
 }
 
 /**
- * Synchronizes and hydrates People Chips into tbl_presence_ranges (Baselines and Leaves)
+ * Synchronizes and hydrates People Chips into tbl_presence_baselines
  * from tbl_members (or tbl_tenures), ensuring that baseline rows display native People Chips.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
@@ -646,7 +646,7 @@ function syncBaselinesPeopleChips(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return 0;
   var membersSheet = ss.getSheetByName("tbl_members");
-  var baselinesSheet = ss.getSheetByName("tbl_presence_ranges");
+  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
   if (!membersSheet || !baselinesSheet || typeof copyCellChip !== "function") return 0;
 
   var mMax = Math.min(membersSheet.getMaxRows(), 300);

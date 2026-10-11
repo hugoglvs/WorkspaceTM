@@ -39,7 +39,7 @@ global.refreshActiveResponsibles = viewBuilder.refreshActiveResponsibles;
 
 const kpiEngine = require('../src/KpiEngine');
 global.KpiEngine = kpiEngine;
-global.renderKpiDashboard = kpiEngine.renderKpiDashboard;
+global.renderPresenceFacts = kpiEngine.renderPresenceFacts;
 global.refreshKpis = kpiEngine.refreshKpis;
 
 const taskSyncService = require('../src/TaskSyncService');

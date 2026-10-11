@@ -75,6 +75,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
   var projectsSheet = ss.getSheetByName("tbl_projects");
+  var leavesSheet = ss.getSheetByName("tbl_leaves");
   var backupsSheet = ss.getSheetByName("tbl_backups");
   var tasksSheet = ss.getSheetByName("tbl_tasks");
   var membersSheet = ss.getSheetByName("tbl_members");
@@ -155,8 +156,43 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     } catch (eOwn) {}
   }
 
-  // 2. Read approved Leaves from tbl_presence_ranges (ADR 0035)
-  var leavesByMember = readApprovedLeavesByMember(ss);
+  // 2. Read Approved Leaves from tbl_leaves
+  var leavesByMember = {};
+  if (leavesSheet) {
+    var lColMap = (typeof getLeaveColumnMap === "function")
+      ? getLeaveColumnMap(leavesSheet)
+      : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
+    var lMax = Math.min(leavesSheet.getMaxRows(), 500);
+    if (lMax > 1) {
+      var lRange = leavesSheet.getRange(2, 1, lMax - 1, Math.max(leavesSheet.getLastColumn(), 6));
+      var lVals = lRange.getValues();
+      var lRich = (typeof lRange.getRichTextValues === "function") ? lRange.getRichTextValues() : [];
+
+      for (var l = 0; l < lVals.length; l++) {
+        var rawLMem = lVals[l][lColMap.member - 1];
+        var rLMem = (lRich && lRich[l]) ? lRich[l][lColMap.member - 1] : null;
+        var lMem = (typeof extractCellValue === "function") ? extractCellValue(rawLMem, rLMem) : String(rawLMem || "").trim();
+        if (!lMem) continue;
+
+        var lStatus = String(lVals[l][lColMap.status - 1] || "").trim().toLowerCase();
+        if (lStatus !== "approved") continue;
+
+        var lKey = lMem.toLowerCase();
+        if (!leavesByMember[lKey]) leavesByMember[lKey] = [];
+
+        var sDate = parseBackupDate(lVals[l][lColMap.start_date - 1]);
+        var eDate = parseBackupDate(lVals[l][lColMap.end_date - 1]);
+        if (!sDate) continue;
+        if (!eDate) eDate = new Date(sDate.getTime());
+
+        leavesByMember[lKey].push({
+          startDate: sDate,
+          endDate: eDate,
+          leaveType: String(lVals[l][lColMap.leave_type - 1] || "Vacation").trim()
+        });
+      }
+    }
+  }
 
   // 3. Read Active Designated Backups from tbl_backups
   var backupsByProject = {};

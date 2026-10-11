@@ -1,7 +1,7 @@
 # ADR 0035: One Presence Ranges Table for Baselines and Leaves
 
 ## Status
-Accepted. Supersedes the separate-table parts of ADR 0003, 0011, 0012 and 0023.
+**Reverted on 2026-10-12** (see ADR 0036). It was live for about 30 minutes on "[NEW] ACN". Kept here so the reasoning stays on record.
 
 ## Context
 1. `tbl_presence_baselines` and `tbl_leaves` hold the same kind of fact: a date range that decides where a Member is for each Period. Leaves override Baselines when the Presence Log is compiled.
@@ -20,3 +20,6 @@ Accepted. Supersedes the separate-table parts of ADR 0003, 0011, 0012 and 0023.
 - 2 tables become 1, and the presence tabs shrink to the Weekly Matrix View.
 - `required` columns are shared by both range types: end dates and periods are nullable, and the sidebar enforces leave end dates.
 - Rolling back = rename `archive_tbl_*` back and redeploy the previous library version (each push is tagged `deploy-*` in git).
+
+## Why it was reverted
+Hiding the two tables already met the goal (fewer visible tabs). Leaves and Baselines also have different lifecycles: Leaves go through an approval status and use half-day periods, while Baselines are per-weekday routines. Merged, half of every row's columns were empty and the required-field rules had to be loosened. The user chose two hidden tables instead.

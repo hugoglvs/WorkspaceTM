@@ -423,17 +423,16 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
   logMsg("[tbl_members] Total members examined: " + memberCount + ". Active user match: " + (matchingMemberRow ? "FOUND on row " + matchingMemberRow.row : "NOT FOUND"));
 
   // Baselines check
-  var baselinesSheet = ss.getSheetByName("tbl_presence_ranges");
+  var baselinesSheet = ss.getSheetByName("tbl_presence_baselines");
   var baselinesCount = 0;
   if (baselinesSheet && matchingMemberRow) {
     var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
     if (bMax > 1) {
-      var bChipEmails = ssId ? fetchMemberChipEmails(ssId, "tbl_presence_ranges", 2, bMax - 1) : {};
-      var bRange = baselinesSheet.getRange(2, 1, bMax - 1, 3);
+      var bChipEmails = ssId ? fetchMemberChipEmails(ssId, "tbl_presence_baselines", 2, bMax - 1) : {};
+      var bRange = baselinesSheet.getRange(2, 1, bMax - 1, 2);
       var bVals = bRange.getValues();
       var bRich = (typeof bRange.getRichTextValues === "function") ? bRange.getRichTextValues() : [];
       for (var b = 0; b < bVals.length; b++) {
-        if (String(bVals[b][2] || "").trim() === "Leave") continue;
         var bVal = bVals[b][1];
         var bR = (bRich && bRich[b]) ? bRich[b][1] : null;
         var bExtEmail = bChipEmails[b + 2] || extractEmailFromChip(bVal, bR);
@@ -446,7 +445,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
       }
     }
   }
-  logMsg("[tbl_presence_ranges] Baselines configured for user: " + baselinesCount);
+  logMsg("[tbl_presence_baselines] Baselines configured for user: " + baselinesCount);
 
   // Tasks check in tbl_tasks
   var tasksSheet = ss.getSheetByName("tbl_tasks");
@@ -776,28 +775,52 @@ function checkBaselineDateOverlap(s1Str, e1Str, s2Str, e2Str) {
  */
 function getMemberBaselines(memberIdentifier) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss ? ss.getSheetByName("tbl_presence_baselines") : null;
   var result = {
     days: {},
     startDate: "",
     endDate: "",
     totalBaselinesCount: 0
   };
-  if (!ss || !memberIdentifier) return result;
 
+  if (!sheet || !memberIdentifier) {
+    return result;
+  }
+
+  var maxRows = Math.min(sheet.getMaxRows(), 500);
+  if (maxRows <= 1) return result;
+
+  // Columns: baseline_id(0), member(1), start_date(2), end_date(3), day_of_week(4), location_am(5), location_pm(6)
+  var values = sheet.getRange(2, 1, maxRows - 1, 7).getValues();
   var targetMember = String(memberIdentifier).trim().toLowerCase();
-  var baselinesByStart = {};
-  var ranges = readPresenceRanges(ss);
 
-  for (var i = 0; i < ranges.length; i++) {
-    var rg = ranges[i];
-    if (rg.rangeType !== "Baseline" || rg.status.toLowerCase() === "cancelled") continue;
-    if (rg.member.toLowerCase() !== targetMember) continue;
-    var sDate = rg.startIso;
-    if (!baselinesByStart[sDate]) {
-      baselinesByStart[sDate] = { startDate: sDate, endDate: rg.endIso, days: {} };
-    }
-    if (rg.dayOfWeek) {
-      baselinesByStart[sDate].days[rg.dayOfWeek] = { location_am: rg.locationAm, location_pm: rg.locationPm };
+  var baselinesByStart = {};
+
+  for (var i = 0; i < values.length; i++) {
+    var bId = extractCellValue(values[i][0]);
+    var rowMember = extractCellValue(values[i][1]);
+    if (!bId && !rowMember) continue;
+
+    if (rowMember.toLowerCase() === targetMember) {
+      var sDate = values[i][2] ? formatDateIso(values[i][2]) : "";
+      var eDate = values[i][3] ? formatDateIso(values[i][3]) : "";
+      var day = extractCellValue(values[i][4]);
+      var locAm = extractCellValue(values[i][5]);
+      var locPm = extractCellValue(values[i][6]);
+
+      if (!baselinesByStart[sDate]) {
+        baselinesByStart[sDate] = {
+          startDate: sDate,
+          endDate: eDate,
+          days: {}
+        };
+      }
+      if (day) {
+        baselinesByStart[sDate].days[day] = {
+          location_am: locAm,
+          location_pm: locPm
+        };
+      }
     }
   }
 
@@ -819,7 +842,7 @@ function getMemberBaselines(memberIdentifier) {
 }
 
 /**
- * Saves a new Baseline routine into tbl_presence_ranges (one row per weekday).
+ * Saves a new baseline routine into tbl_presence_baselines.
  * Does NOT overwrite older historical baselines; appends new rows.
  * Checks for date overlaps with existing baselines for the member.
  * If overlapping and adjustPreviousEnd is not true, prompts the user.
@@ -835,10 +858,10 @@ function saveMemberBaselines(payload) {
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("tbl_presence_ranges");
+  var sheet = ss.getSheetByName("tbl_presence_baselines");
   var membersSheet = ss.getSheetByName("tbl_members");
   if (!sheet) {
-    throw new Error("Sheet tbl_presence_ranges not found. Please run Initialize / Upgrade first.");
+    throw new Error("Sheet tbl_presence_baselines not found. Please run init() first.");
   }
 
   var targetMember = String(member).trim();
@@ -848,17 +871,31 @@ function saveMemberBaselines(payload) {
   var days = payload.days || {};
   var adjustPreviousEnd = payload.adjustPreviousEnd === true;
 
-  // 1. Scan this Member's existing Baselines in tbl_presence_ranges and detect overlaps
+  // 1. Scan existing rows in tbl_presence_baselines for target member and detect overlaps
+  var maxRows = Math.min(sheet.getMaxRows(), 500);
   var overlappingRows = [];
   var existingMemberRows = 0;
-  var existingRanges = readPresenceRanges(ss);
-  for (var i = 0; i < existingRanges.length; i++) {
-    var rg = existingRanges[i];
-    if (rg.rangeType !== "Baseline" || rg.status.toLowerCase() === "cancelled") continue;
-    if (rg.member.toLowerCase() !== targetMemberLower) continue;
-    existingMemberRows++;
-    if (checkBaselineDateOverlap(rg.startIso, rg.endIso, startDate, endDate)) {
-      overlappingRows.push({ rowNumber: rg.row, startDate: rg.startIso, endDate: rg.endIso });
+
+  if (maxRows > 1) {
+    var rawValues = sheet.getRange(2, 1, maxRows - 1, 7).getValues();
+    for (var i = 0; i < rawValues.length; i++) {
+      var bId = extractCellValue(rawValues[i][0]);
+      var rowMember = extractCellValue(rawValues[i][1]);
+      if (!bId && !rowMember) continue;
+
+      if (rowMember.toLowerCase() === targetMemberLower) {
+        existingMemberRows++;
+        var rowStart = rawValues[i][2] ? formatDateIso(rawValues[i][2]) : "";
+        var rowEnd = rawValues[i][3] ? formatDateIso(rawValues[i][3]) : "";
+
+        if (checkBaselineDateOverlap(rowStart, rowEnd, startDate, endDate)) {
+          overlappingRows.push({
+            rowNumber: i + 2,
+            startDate: rowStart,
+            endDate: rowEnd
+          });
+        }
+      }
     }
   }
 
@@ -877,11 +914,26 @@ function saveMemberBaselines(payload) {
   // 3. If overlap confirmed, update end date of previous overlapping baselines to new startDate
   if (overlappingRows.length > 0 && adjustPreviousEnd) {
     for (var ov = 0; ov < overlappingRows.length; ov++) {
-      sheet.getRange(overlappingRows[ov].rowNumber, presenceRangeColumn("end_date")).setValue(startDate);
+      sheet.getRange(overlappingRows[ov].rowNumber, 4).setValue(startDate);
     }
   }
 
-  // 4-5. Build one Baseline range per weekday (weekend days only when provided)
+  // 4. Find next available row to append the new baseline rows
+  var targetStartRow = 2;
+  var bLastRow = (typeof sheet.getLastRow === "function") ? (sheet.getLastRow() || 1) : 1;
+  if (bLastRow > 1) {
+    var checkVals = sheet.getRange(2, 1, bLastRow - 1, 7).getValues();
+    var actualEnd = 1;
+    for (var cv = checkVals.length - 1; cv >= 0; cv--) {
+      if (checkVals[cv][0] || checkVals[cv][1]) {
+        actualEnd = cv + 2;
+        break;
+      }
+    }
+    targetStartRow = actualEnd + 1;
+  }
+
+  // 5. Prepare new rows for weekdays and weekend days (if provided)
   var allPossibleDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   var newRows = [];
 
@@ -891,22 +943,22 @@ function saveMemberBaselines(payload) {
     if (isWeekend && (!days || !days[dayName])) {
       continue;
     }
-    var fallbackLoc = isWeekend ? "Off" : "Main Office";
-    var dayData = days[dayName] || { location_am: fallbackLoc, location_pm: fallbackLoc };
-    newRows.push({
-      member: targetMember,
-      range_type: "Baseline",
-      start_date: startDate,
-      end_date: endDate,
-      day_of_week: dayName,
-      location_am: dayData.location_am || fallbackLoc,
-      location_pm: dayData.location_pm || fallbackLoc,
-      status: "Approved"
-    });
+    var dayData = days[dayName] || { location_am: (isWeekend ? "Off" : "Main Office"), location_pm: (isWeekend ? "Off" : "Main Office") };
+    var uuid = "base_" + Math.random().toString(36).substring(2, 9);
+
+    newRows.push([
+      uuid,
+      targetMember,
+      startDate,
+      endDate,
+      dayName,
+      dayData.location_am || (isWeekend ? "Off" : "Main Office"),
+      dayData.location_pm || (isWeekend ? "Off" : "Main Office")
+    ]);
   }
 
-  // 6. Append without modifying non-overlapping historical data
-  var targetStartRow = appendPresenceRanges(ss, newRows).firstRow;
+  // 6. Write new rows without modifying non-overlapping historical data
+  sheet.getRange(targetStartRow, 1, newRows.length, 7).setValues(newRows);
 
   // Copy People Chip from tbl_members if available
   if (membersSheet && typeof copyCellChip === "function") {
@@ -945,7 +997,7 @@ function saveMemberBaselines(payload) {
           1,
           sheet,
           targetStartRow + r,
-          presenceRangeColumn("member"),
+          2,
           canonicalMemberName,
           ss.getId()
         );
@@ -953,11 +1005,15 @@ function saveMemberBaselines(payload) {
     }
   }
 
-  // Also synchronize and hydrate all People Chips in tbl_presence_ranges
+  // Also synchronize and hydrate all People Chips in tbl_presence_baselines
   if (typeof syncBaselinesPeopleChips === "function") {
     try {
       syncBaselinesPeopleChips(ss);
     } catch (eSyncChips) {}
+  }
+
+  if (typeof applyTypography === "function") {
+    applyTypography(sheet.getRange(targetStartRow, 1, newRows.length, 7));
   }
 
   if (typeof applyProtections === "function") {
@@ -993,8 +1049,49 @@ function formatDateIso(dateVal) {
 }
 
 /**
- * Submits a Member Leave from the sidebar as a Leave range in tbl_presence_ranges
- * (the leave type is stored as the AM/PM Work Location).
+ * Resolves column index mappings for tbl_leaves supporting both legacy 6-column
+ * and modern 8-column half-day schemas.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} leavesSheet
+ * @return {Object}
+ */
+function getLeaveColumnMap(leavesSheet) {
+  var colMap = {
+    leave_id: 1,
+    member: 2,
+    start_date: 3,
+    start_period: -1,
+    end_date: 4,
+    end_period: -1,
+    leave_type: 5,
+    status: 6,
+    numCols: 6
+  };
+  if (!leavesSheet) return colMap;
+  var lastCol = leavesSheet.getLastColumn();
+  if (lastCol >= 1) {
+    var headers = leavesSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c] || "").trim().toLowerCase();
+      if (h === "leave_id") colMap.leave_id = c + 1;
+      else if (h === "member") colMap.member = c + 1;
+      else if (h === "start_date") colMap.start_date = c + 1;
+      else if (h === "start_period") colMap.start_period = c + 1;
+      else if (h === "end_date") colMap.end_date = c + 1;
+      else if (h === "end_period") colMap.end_period = c + 1;
+      else if (h === "leave_type") colMap.leave_type = c + 1;
+      else if (h === "status") colMap.status = c + 1;
+    }
+    colMap.numCols = (colMap.start_period > 0 && colMap.end_period > 0) ? 8 : 6;
+  }
+  return colMap;
+}
+
+/**
+ * Submits a member leave request directly to tbl_leaves from the sidebar.
+ * Columns in tbl_leaves:
+ * Modern (8 cols): leave_id(1), member(2), start_date(3), start_period(4), end_date(5), end_period(6), leave_type(7), status(8).
+ * Legacy (6 cols): leave_id(1), member(2), start_date(3), end_date(4), leave_type(5), status(6).
  * Automatically copies the People Chip from tbl_members, applies typography and protections,
  * and triggers compilePresenceLogs and checkProjectBackupConflicts in real time.
  *
@@ -1026,11 +1123,11 @@ function submitMemberLeave(payload, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
-  var leavesSheet = ss.getSheetByName("tbl_presence_ranges");
+  var leavesSheet = ss.getSheetByName("tbl_leaves");
   var membersSheet = ss.getSheetByName("tbl_members");
 
   if (!leavesSheet) {
-    return { success: false, message: "tbl_presence_ranges sheet not found." };
+    return { success: false, message: "tbl_leaves sheet not found." };
   }
 
   var targetMember = String(payload.member).trim();
@@ -1042,19 +1139,47 @@ function submitMemberLeave(payload, targetSpreadsheet) {
   var startPeriod = (payload.startPeriod ? String(payload.startPeriod).toUpperCase() : "AM");
   var endPeriod = (payload.endPeriod ? String(payload.endPeriod).toUpperCase() : "PM");
 
-  var targetRow = appendPresenceRanges(ss, [{
-    range_id: leaveId,
-    member: targetMember,
-    range_type: "Leave",
-    start_date: startDateStr,
-    start_period: startPeriod,
-    end_date: endDateStr,
-    end_period: endPeriod,
-    day_of_week: "All",
-    location_am: payload.leaveType,
-    location_pm: payload.leaveType,
-    status: status
-  }]).firstRow;
+  var colMap = getLeaveColumnMap(leavesSheet);
+
+  // Find next empty row in tbl_leaves starting at row 2
+  var maxRows = Math.min(leavesSheet.getMaxRows(), 1000);
+  var targetRow = 2;
+  if (maxRows > 1) {
+    var existingVals = leavesSheet.getRange(2, 1, maxRows - 1, 1).getValues();
+    for (var i = 0; i < existingVals.length; i++) {
+      if (existingVals[i][0]) {
+        targetRow = i + 3;
+      }
+    }
+  }
+
+  if (targetRow > leavesSheet.getMaxRows()) {
+    leavesSheet.insertRowAfter(leavesSheet.getMaxRows());
+  }
+
+  var leaveRow;
+  if (colMap.numCols >= 8 && colMap.start_period > 0 && colMap.end_period > 0) {
+    leaveRow = new Array(colMap.numCols);
+    leaveRow[colMap.leave_id - 1] = leaveId;
+    leaveRow[colMap.member - 1] = targetMember;
+    leaveRow[colMap.start_date - 1] = startDateStr;
+    leaveRow[colMap.start_period - 1] = startPeriod;
+    leaveRow[colMap.end_date - 1] = endDateStr;
+    leaveRow[colMap.end_period - 1] = endPeriod;
+    leaveRow[colMap.leave_type - 1] = payload.leaveType;
+    leaveRow[colMap.status - 1] = status;
+  } else {
+    leaveRow = [
+      leaveId,
+      targetMember,
+      startDateStr,
+      endDateStr,
+      payload.leaveType,
+      status
+    ];
+  }
+
+  leavesSheet.getRange(targetRow, 1, 1, leaveRow.length).setValues([leaveRow]);
 
   // Copy People Chip from tbl_members if available
   if (membersSheet && typeof copyCellChip === "function") {
@@ -1074,11 +1199,15 @@ function submitMemberLeave(payload, targetSpreadsheet) {
         1,
         leavesSheet,
         targetRow,
-        presenceRangeColumn("member"),
+        colMap.member,
         targetMember,
         ss.getId()
       );
     }
+  }
+
+  if (typeof applyTypography === "function") {
+    applyTypography(leavesSheet.getRange(targetRow, 1, 1, leaveRow.length));
   }
 
   if (typeof applyProtections === "function") {
@@ -1139,7 +1268,8 @@ if (typeof module !== 'undefined' && module.exports) {
     isUserMemberMatch: isUserMemberMatch,
     fetchMemberChipEmails: fetchMemberChipEmails,
     normalizePersonName: normalizePersonName,
-    formatDateIso: formatDateIso
+    formatDateIso: formatDateIso,
+    getLeaveColumnMap: getLeaveColumnMap
   };
 }
 

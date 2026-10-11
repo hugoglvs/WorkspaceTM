@@ -2,8 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
-const { seedBaselines, seedLeaves } = require('./presenceFixtures');
-Object.assign(global, require('../src/PresenceRanges'));
 
 let mockSpreadsheet;
 
@@ -192,8 +190,8 @@ test('compilePresence: should automatically trigger weekly matrix refresh', () =
     ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Main Office']
   ]);
 
-  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
-  seedBaselines(mockSpreadsheet, [
+  var baselinesSheet = mockSpreadsheet.getSheetByName('tbl_presence_baselines');
+  baselinesSheet.getRange(2, 1, 1, 7).setValues([
     ['b-1', 'Alice Smith', '2026-01-05', '2026-01-09', 'Monday', 'Main Office', 'Remote']
   ]);
 
@@ -257,8 +255,8 @@ test('renderActiveResponsiblesDashboard: should accurately compute Lead Active, 
   ]);
 
   // Setup tbl_leaves: Bob on Vacation today (2026-01-05), Dave on Sick Leave
-  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_presence_ranges');
-  seedLeaves(mockSpreadsheet, [
+  var leavesSheet = mockSpreadsheet.getSheetByName('tbl_leaves');
+  leavesSheet.getRange(2, 1, 2, 6).setValues([
     ['LV-001', 'Bob Jones', '2026-01-05', '2026-01-09', 'Vacation', 'Approved'],
     ['LV-002', 'Dave Wilson', '2026-01-05', '2026-01-06', 'Sick Leave', 'Approved']
   ]);
@@ -357,3 +355,19 @@ test('onOpen: should include Refresh Active Responsibles Dashboard in custom men
   assert.ok(itemCaptions.includes('Refresh Weekly Matrix View'), 'Menu should have Refresh Weekly Matrix View');
 });
 
+
+test('handleWeeklyMatrixEdit: keeps the edit and suggests the sidebar for routines and leaves', () => {
+  freshInit(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+    ['Alice Smith', '', '', 'Engineer', 'Core', 'Active', 'Not Logged']
+  ]);
+  viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-01-11', mockSpreadsheet);
+  var editRange = mockSpreadsheet.getSheetByName('view_weekly_matrix').getRange(3, 3, 1, 1);
+  editRange.setValue('Remote');
+
+  code.onEdit({ range: editRange });
+
+  assert.strictEqual(mockSpreadsheet.getSheetByName('tbl_presence_log').getRange(2, 4).getValue(), 'Remote', 'edit saved');
+  assert.ok(mockSpreadsheet.lastToast, 'a toast is shown');
+  assert.ok(mockSpreadsheet.lastToast.msg.includes('Declare Presence & Leaves'), 'it points to the sidebar');
+});

@@ -1007,7 +1007,7 @@
           btn.disabled = false;
           btn.innerHTML = 'Submit Leave';
           if (res && res.success) {
-            showStatus('Leave recorded and presence updated!', 'success');
+            showStatus('Leave recorded in tbl_leaves and presence updated!', 'success');
           } else {
             showStatus(res ? res.message : 'Failed to record leave.', 'error');
           }

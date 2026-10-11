@@ -36,12 +36,8 @@ _Avoid_: Place, Desk, Site, Spot
 A half-day working segment: Morning (AM) or Afternoon (PM).
 _Avoid_: Half-day, Slot, Shift, Session
 
-**Presence Range**:
-A row of `tbl_presence_ranges`: a date range that shapes a Member's presence. Its `range_type` is either Baseline or Leave. Leaves override Baselines when the Presence Log is compiled.
-_Avoid_: Schedule row, Presence rule
-
 **Baseline**:
-A Presence Range (`range_type` = Baseline) giving a Member's default AM/PM Work Location for one weekday over a date range.
+A recurring schedule or date-range rule defining default AM/PM Work Locations for a Member.
 _Avoid_: Default, Preset, Template
 
 **Presence Baseline Sidebar**:
@@ -49,7 +45,7 @@ An interactive HTML sidebar panel opened inside Google Sheets allowing Members t
 _Avoid_: Baseline Form, Schedule Popup
 
 **Leave**:
-A Presence Range (`range_type` = Leave) marking a non-working period (Vacation, Sick Leave…) across a date range, possibly starting or ending on a half day. The leave type is stored as its Work Location; only `Approved` Leaves are compiled.
+An approved non-working period (Vacation, Sick Leave) defined across a date range.
 _Avoid_: Time-off, PTO, Absence
 
 ### Work & Scheduling

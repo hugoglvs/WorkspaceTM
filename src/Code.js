@@ -22,11 +22,11 @@ function setupOrUpgrade(targetSpreadsheet) {
   var curVer = getSchemaVersion();
   var res = freshInit(ss);
 
-  // One-time move of legacy baselines / leaves into tbl_presence_ranges (ADR 0035)
+  // One-time restore of the reverted merged presence table (ADR 0036)
   try {
-    res.presenceMigration = migrateLegacyPresenceTables(ss);
-  } catch (errMig) {
-    Logger.log("setupOrUpgrade presence migration note: " + errMig);
+    res.presenceRestore = restorePresenceTablesFromRanges(ss);
+  } catch (errRestore) {
+    Logger.log("setupOrUpgrade presence restore note: " + errRestore);
   }
 
   // Automatically install real-time edit trigger and nightly 2:00 AM sync trigger
@@ -43,11 +43,11 @@ function setupOrUpgrade(targetSpreadsheet) {
     Logger.log("setupOrUpgrade initial sync note: " + errSync);
   }
 
-  // Members only see the Weekly Matrix View for presence; the data stays one unhide away
+  // Members see Members, Weekly Matrix, Projects, Tasks and Events (ADR 0036)
   try {
-    res.hiddenSheets = hidePresenceDataSheets(ss);
-  } catch (errHide) {
-    Logger.log("setupOrUpgrade hide note: " + errHide);
+    res.layout = applyWorkspaceLayout(ss);
+  } catch (errLayout) {
+    Logger.log("setupOrUpgrade layout note: " + errLayout);
   }
 
   if (ss && typeof ss.toast === "function") {
@@ -315,30 +315,16 @@ function refreshActiveResponsibles(targetSpreadsheet) {
 }
 
 /**
- * Refreshes the Presence & Remote Work KPI Engine dashboard (calc_kpis).
+ * Rebuilds the hidden fact_presence table that feeds the Looker Studio KPIs.
+ * The single public refreshKpis: KpiEngine.js must not declare another one,
+ * because Apps Script shares one global scope across files.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object} Status report
  */
 function refreshKpis(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  if (typeof KpiEngine !== "undefined" && typeof KpiEngine.refreshKpis === "function") {
-    return KpiEngine.refreshKpis(ss);
-  }
-  if (typeof renderKpiDashboard === "function") {
-    var res = renderKpiDashboard(ss);
-    if (res.success && ss && typeof ss.toast === "function") {
-      try {
-        ss.toast(
-          "Refreshed Presence & Remote KPIs: " + res.memberRowsCount + " member metrics across " + res.monthsCount + " months.",
-          "KPIs Updated",
-          5
-        );
-      } catch (eToast) {}
-    }
-    return res;
-  }
-  return { success: false, message: "renderKpiDashboard not available" };
+  return renderPresenceFacts(ss);
 }
 
 /**
@@ -636,14 +622,14 @@ function nightlySyncJob(targetSpreadsheet) {
  * @param {Object} res Status report to fill
  */
 function runNightlySyncSteps(ss, res) {
-  // 0. Finish the legacy presence migration on sheets that were not upgraded by hand
+  // 0. Restore the reverted merged presence table on sheets not upgraded by hand
   try {
-    if (typeof migrateLegacyPresenceTables === "function") {
-      res.steps.presenceMigration = migrateLegacyPresenceTables(ss);
+    if (typeof restorePresenceTablesFromRanges === "function") {
+      res.steps.presenceRestore = restorePresenceTablesFromRanges(ss);
     }
   } catch (e0) {
-    Logger.log("[nightlySyncJob] Presence migration note: " + e0);
-    res.steps.presenceMigration = { error: String(e0) };
+    Logger.log("[nightlySyncJob] Presence restore note: " + e0);
+    res.steps.presenceRestore = { error: String(e0) };
   }
 
 
@@ -726,7 +712,7 @@ function onOpen(e, skipMenu) {
         .addItem("Compile Presence Logs (Migration / Undefined Start Date)", "compilePresenceMigration")
         .addItem("Refresh Weekly Matrix View", "refreshWeeklyMatrix")
         .addItem("Refresh Active Responsibles Dashboard", "refreshActiveResponsibles")
-        .addItem("Refresh Presence & Remote KPIs (calc_kpis)", "refreshKpis")
+        .addItem("Refresh KPI Data for Looker (fact_presence)", "refreshKpis")
         .addItem("Check Project Backup Conflicts", "checkBackupConflicts")
         .addItem("Sync Google Tasks", "syncTasks")
         .addItem("Sync Calendar Events", "syncCalendarEvents")
@@ -903,7 +889,7 @@ function handleSheetEdit(e) {
   }
 
   // Real-time simultaneous absence conflict re-evaluation
-  if (sheetName === "tbl_projects" || sheetName === "tbl_presence_ranges" || sheetName === "tbl_backups") {
+  if (sheetName === "tbl_projects" || sheetName === "tbl_leaves" || sheetName === "tbl_backups") {
     if (typeof checkProjectBackupConflicts === "function") {
       try {
         checkProjectBackupConflicts(SpreadsheetApp.getActiveSpreadsheet());

@@ -50,41 +50,56 @@ var SCHEMA_SPEC = {
       contract_type: ["Permanent", "Contractor", "Apprentice", "Intern"]
     }
   },
-  tbl_presence_ranges: {
-    sheetName: "tbl_presence_ranges",
-    hiddenByDefault: true,
-    columns: ["range_id", "member", "range_type", "start_date", "start_period", "end_date", "end_period", "day_of_week", "location_am", "location_pm", "status"],
-    requiredColumns: ["range_id", "member", "range_type", "start_date", "day_of_week", "location_am", "location_pm", "status"],
-    nullableColumns: ["start_period", "end_date", "end_period"],
-    strictlyProtectedColumns: ["range_id"],
+  tbl_presence_baselines: {
+    sheetName: "tbl_presence_baselines",
+    columns: ["baseline_id", "member", "start_date", "end_date", "day_of_week", "location_am", "location_pm"],
+    requiredColumns: ["baseline_id", "member", "start_date", "day_of_week", "location_am", "location_pm"],
+    nullableColumns: ["end_date"],
+    strictlyProtectedColumns: ["baseline_id"],
     warningProtectedColumns: ["member"],
-    protectedColumns: ["range_id", "member"],
+    protectedColumns: ["baseline_id", "member"],
     columnTypes: {
-      range_id: "TEXT",
+      baseline_id: "TEXT",
       member: "PEOPLE_CHIP",
-      range_type: "DROPDOWN",
+      start_date: "DATE",
+      end_date: "DATE",
+      day_of_week: "DROPDOWN",
+      location_am: "DROPDOWN",
+      location_pm: "DROPDOWN"
+    },
+    validations: {
+      day_of_week: ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      location_am: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off"],
+      location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off"]
+    }
+  },
+  tbl_leaves: {
+    sheetName: "tbl_leaves",
+    columns: ["leave_id", "member", "start_date", "start_period", "end_date", "end_period", "leave_type", "status"],
+    requiredColumns: ["leave_id", "member", "start_date", "end_date", "leave_type", "status"],
+    nullableColumns: ["start_period", "end_period"],
+    strictlyProtectedColumns: ["leave_id"],
+    warningProtectedColumns: ["member", "leave_type"],
+    protectedColumns: ["leave_id", "member", "leave_type"],
+    columnTypes: {
+      leave_id: "TEXT",
+      member: "PEOPLE_CHIP",
       start_date: "DATE",
       start_period: "DROPDOWN",
       end_date: "DATE",
       end_period: "DROPDOWN",
-      day_of_week: "DROPDOWN",
-      location_am: "DROPDOWN",
-      location_pm: "DROPDOWN",
+      leave_type: "DROPDOWN",
       status: "DROPDOWN"
     },
     validations: {
-      range_type: ["Baseline", "Leave"],
       start_period: ["AM", "PM"],
       end_period: ["AM", "PM"],
-      day_of_week: ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      location_am: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave"],
-      location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave"],
+      leave_type: ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave"],
       status: ["Requested", "Approved", "Cancelled"]
     }
   },
   tbl_presence_log: {
     sheetName: "tbl_presence_log",
-    hiddenByDefault: true,
     columns: ["log_id", "date", "member", "location_am", "location_pm", "timestamp"],
     requiredColumns: ["log_id", "date", "member", "location_am", "location_pm", "timestamp"],
     nullableColumns: [],

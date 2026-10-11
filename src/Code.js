@@ -436,6 +436,17 @@ function installLiveTaskSync(targetSpreadsheet) {
  */
 function installedTaskEditHandler(e) {
   if (!e || !e.range) return null;
+  return runWithEditLock(e, handleInstalledEdit);
+}
+
+/**
+ * Routes an installable onEdit event to the Tasks / Calendar sync handlers.
+ * Must only run while holding the sync lock.
+ *
+ * @param {Object} e Apps Script onEdit event object
+ * @return {Object|null}
+ */
+function handleInstalledEdit(e) {
   var sheet = e.range.getSheet();
   if (!sheet) return null;
   var sheetName = sheet.getName();
@@ -520,6 +531,54 @@ function installAllTriggers(targetSpreadsheet) {
   };
 }
 
+var NIGHTLY_SYNC_LOCK_TIMEOUT_MS = 30000;
+var EDIT_LOCK_TIMEOUT_MS = 10000; // simple onEdit triggers are capped at 30 s
+
+/**
+ * Acquires the lock that serialises sync writes on this spreadsheet.
+ * Uses the document lock so each Consumer Sheet has its own lock: a script
+ * lock created in a library is shared by every including script, so it would
+ * make all teams' nightly jobs queue behind each other. Falls back to the
+ * script lock when there is no containing document.
+ *
+ * @param {number} timeoutMs How long to wait for the lock
+ * @return {GoogleAppsScript.Lock.Lock|null} The held lock, or null on timeout
+ */
+function acquireSyncLock(timeoutMs) {
+  var lock = LockService.getDocumentLock() || LockService.getScriptLock();
+  return lock.tryLock(timeoutMs) ? lock : null;
+}
+
+/**
+ * Runs an edit handler under the sync lock. While the nightly sync holds the
+ * lock, the user's typed value stays in the cell but the script-side follow-up
+ * (IDs, Google Tasks / Calendar push, presence log writes) is skipped, and the
+ * user is told so. The nightly sync picks up pending tasks and events.
+ *
+ * @param {Object} e Apps Script onEdit event object
+ * @param {function(Object):*} handler
+ * @return {*} The handler result, or { skipped: true, reason: "sync_in_progress" }
+ */
+function runWithEditLock(e, handler) {
+  var lock = acquireSyncLock(EDIT_LOCK_TIMEOUT_MS);
+  if (!lock) {
+    try {
+      var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
+      ss.toast(
+        "The nightly sync is running. Your change is saved, but its automatic updates were skipped. Re-enter it in a few minutes if it does not appear in Google Tasks / Calendar or the presence log.",
+        "Sync in progress",
+        10
+      );
+    } catch (tErr) {}
+    return { skipped: true, reason: "sync_in_progress" };
+  }
+  try {
+    return handler(e);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /**
  * Automated nightly maintenance sync job:
  * Runs daily at 2:00 AM via time-driven trigger, or on-demand during setup/upgrade.
@@ -537,6 +596,32 @@ function nightlySyncJob(targetSpreadsheet) {
     success: true,
     steps: {}
   };
+
+  var lock = acquireSyncLock(NIGHTLY_SYNC_LOCK_TIMEOUT_MS);
+  if (!lock) {
+    Logger.log("[nightlySyncJob] Another sync holds the spreadsheet lock; skipping this run.");
+    res.success = false;
+    res.reason = "lock_timeout";
+    return res;
+  }
+  try {
+    runNightlySyncSteps(ss, res);
+  } finally {
+    lock.releaseLock();
+  }
+
+  Logger.log("[nightlySyncJob] Completed: " + JSON.stringify(res));
+  return res;
+}
+
+/**
+ * The six nightly maintenance steps. Each step is isolated so one failure
+ * does not stop the others. Must only run while holding the sync lock.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {Object} res Status report to fill
+ */
+function runNightlySyncSteps(ss, res) {
 
   // 1. Sync Directory & Tenures
   try {
@@ -597,9 +682,6 @@ function nightlySyncJob(targetSpreadsheet) {
     Logger.log("[nightlySyncJob] Backup conflicts check note: " + e6);
     res.steps.backupConflicts = { error: String(e6) };
   }
-
-  Logger.log("[nightlySyncJob] Completed: " + JSON.stringify(res));
-  return res;
 }
 
 /**
@@ -682,7 +764,18 @@ function debugUserIdentity() {
  * Automatically triggers validation warnings and synchronization on edit.
  */
 function onEdit(e) {
-  if (!e || !e.range) return;
+  if (!e || !e.range) return null;
+  return runWithEditLock(e, handleSheetEdit);
+}
+
+/**
+ * Script-side processing of a user edit (IDs, validation, protections,
+ * directory sync, presence declarations, backup conflicts).
+ * Must only run while holding the sync lock.
+ *
+ * @param {Object} e Apps Script onEdit event object
+ */
+function handleSheetEdit(e) {
   var sheet = e.range.getSheet();
   var sheetName = sheet.getName();
   var editedRow = e.range.getRow();

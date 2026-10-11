@@ -98,6 +98,10 @@ _Avoid_: Script, Package, Add-on, Template
 A team's operational Google Sheet containing protected operational tables, dashboards, and a thin script wrapper pointing to the Library.
 _Avoid_: Client sheet, Local spreadsheet, Workbook
 
+**Sync Lock**:
+The per-Consumer Sheet lock (`LockService` document lock) that serialises the nightly sync and the script-side handling of live edits, so they never write from stale snapshots at the same time.
+_Avoid_: Mutex, Sync flag, Script lock
+
 **Required Column**:
 A table column that must contain a valid, non-blank value for any active or populated row (e.g. `member`, `role`, `start_date` in `tbl_tenures`).
 _Avoid_: Mandatory field, Not null column

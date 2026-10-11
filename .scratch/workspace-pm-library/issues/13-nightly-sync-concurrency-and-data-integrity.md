@@ -1,6 +1,6 @@
 # 13: Nightly Sync Concurrency & Data Integrity
 
-**Status:** open
+**Status:** resolved
 
 **Blocked by:** _(none)_
 
@@ -142,3 +142,5 @@ Expected baseline (before any changes): **127 pass, 0 fail**.
 ## Comments
 
 _2026-10-11 — Issue created from user request. User said: "I am worried that people would interact with the sheet at the same time as the synchronization and I am worried that it would compromise data integrity. For now, don't implement anything." No code was changed. This issue is the handover artefact._
+
+_2026-10-11 — Implemented, see `docs/adr/0032-per-spreadsheet-sync-lock.md`. It deviates from option A by using the **document** lock instead of the script lock: a library-created script lock is shared by every Consumer Sheet. Both `onEdit` and `installedTaskEditHandler` take the lock too (the simple `onEdit` also writes task/event IDs, presence log rows and directory sync). Option B was dropped and option D deferred. Removed the duplicate `installedTaskEditHandler` from `TaskSyncService.js`. Tests: `test/syncLock.test.js` (8 new); full suite 135 pass, 0 fail._

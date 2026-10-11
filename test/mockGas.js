@@ -628,6 +628,37 @@ function setupGasGlobals(mockSpreadsheet) {
     }
   };
 
+  // LockService mock: one shared slot per lock scope, like Apps Script.
+  // Tests simulate another execution by setting LockService.__state.<scope>.held = true.
+  var lockState = {
+    document: { held: false },
+    script: { held: false },
+    documentLockAvailable: true
+  };
+  function createMockLock(slot) {
+    var mine = false;
+    return {
+      tryLock: function(timeoutMs) {
+        if (slot.held) return false;
+        slot.held = true;
+        mine = true;
+        return true;
+      },
+      waitLock: function(timeoutMs) {
+        if (!this.tryLock(timeoutMs)) throw new Error("Lock timeout: another process was holding the lock for too long.");
+      },
+      releaseLock: function() {
+        if (mine) { slot.held = false; mine = false; }
+      },
+      hasLock: function() { return mine; }
+    };
+  }
+  global.LockService = {
+    getDocumentLock: function() { return lockState.documentLockAvailable ? createMockLock(lockState.document) : null; },
+    getScriptLock: function() { return createMockLock(lockState.script); },
+    __state: lockState
+  };
+
   global.CacheService = {
     getUserCache: function() {
       return {

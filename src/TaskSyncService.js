@@ -1110,16 +1110,6 @@ function installTaskSyncTrigger(targetSpreadsheet) {
   return { success: true, installed: true };
 }
 
-/**
- * Handler invoked by installable onEdit trigger with full OAuth authorization.
- *
- * @param {Object} e Apps Script onEdit event object
- * @return {Object|null}
- */
-function installedTaskEditHandler(e) {
-  return handleTaskEdit(e);
-}
-
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     GOOGLE_TASKS_LIST_ID_KEY: GOOGLE_TASKS_LIST_ID_KEY,
@@ -1137,7 +1127,6 @@ if (typeof module !== 'undefined' && module.exports) {
     createGoogleTaskForTaskRow: createGoogleTaskForTaskRow,
     handleDoneStatusChange: handleDoneStatusChange,
     handleTaskEdit: handleTaskEdit,
-    installTaskSyncTrigger: installTaskSyncTrigger,
-    installedTaskEditHandler: installedTaskEditHandler
+    installTaskSyncTrigger: installTaskSyncTrigger
   };
 }

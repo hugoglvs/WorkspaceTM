@@ -65,6 +65,8 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
       prop.columnType = "DATE";
     } else if (declaredType === "DOUBLE" || declaredType === "NUMBER" || declaredType === "NUMERIC" || declaredType === "INTEGER") {
       prop.columnType = "DOUBLE";
+    } else if (declaredType === "BOOLEAN" || declaredType === "CHECKBOX") {
+      prop.columnType = "BOOLEAN";
     } else if (declaredType === "PERCENT") {
       prop.columnType = "PERCENT";
     } else if (declaredType === "CURRENCY") {
@@ -127,6 +129,15 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
       } catch (eUpd) {
         Logger.log("Updating table '" + tableName + "' note: " + eUpd);
       }
+    }
+    // Column names, types and dropdown lists follow the schema (e.g. the Locations list).
+    // Sent separately so a refusal here never blocks the rename above.
+    try {
+      Sheets.Spreadsheets.batchUpdate({ requests: [{
+        updateTable: { table: { tableId: own.tableId, columnProperties: columnProperties }, fields: "columnProperties" }
+      }] }, spreadsheetId);
+    } catch (eCols) {
+      Logger.log("Updating columns of table '" + tableName + "' note: " + eCols);
     }
     return true;
   }

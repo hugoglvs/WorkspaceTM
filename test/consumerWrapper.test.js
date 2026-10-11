@@ -3,6 +3,7 @@ const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
+Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
 global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
@@ -41,8 +42,9 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Initialize / Upgrade Spreadsheet'));
   assert.ok(captions.includes('Declare Presence & Leaves'));
   assert.ok(captions.includes('Members & Contracts'));
+  assert.ok(captions.includes('Edit Locations'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 3);
+  assert.strictEqual(actionItems.length, 4);
 });
 
 test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {

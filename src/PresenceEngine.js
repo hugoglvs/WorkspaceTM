@@ -259,6 +259,9 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     return { success: true, createdCount: 0, preservedCount: 0, message: "No active members found." };
   }
 
+  // Weekdays without a routine default to the first active office (Locations tab, ADR 0040)
+  var defaultOffice = (typeof defaultOfficeLocation === "function") ? defaultOfficeLocation(ss) : "Office";
+
   // 3. Read Baselines from tbl_presence_baselines
   // Columns: baseline_id(1), member(2), start_date(3), end_date(4), day_of_week(5), location_am(6), location_pm(7)
   var baselinesByMember = {};
@@ -286,8 +289,8 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
           startDate: sDate,
           endDate: eDate,
           dayOfWeek: dow,
-          locationAm: locAm || "Main Office",
-          locationPm: locPm || "Main Office"
+          locationAm: locAm || defaultOffice,
+          locationPm: locPm || defaultOffice
         });
       }
     }
@@ -377,7 +380,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
       if (rule.endDate && dateObj > rule.endDate) continue;
       return { am: rule.locationAm, pm: rule.locationPm };
     }
-    var defaultLoc = isWeekend ? "Off" : "Main Office";
+    var defaultLoc = isWeekend ? "Off" : defaultOffice;
     return { am: defaultLoc, pm: defaultLoc };
   }
 

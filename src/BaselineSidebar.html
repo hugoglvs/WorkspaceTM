@@ -505,14 +505,9 @@
   </div>
 
   <script>
-    var locationOptions = [
-      "Main Office",
-      "Remote",
-      "Downtown Office",
-      "Branch Office",
-      "Client Site",
-      "Off"
-    ];
+    var locationOptions = ["Off"];
+    var defaultOffice = "Office";
+    var defaultRemote = "Remote";
 
     var weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
     var weekendDays = ["Saturday", "Sunday"];
@@ -651,6 +646,8 @@
     }
 
     function onDataLoaded(data) {
+      if (data.defaultOffice) defaultOffice = data.defaultOffice;
+      if (data.defaultRemote) defaultRemote = data.defaultRemote;
       if (data.locationOptions && data.locationOptions.length > 0) {
         locationOptions = data.locationOptions;
         buildWeekdayGrid();
@@ -817,18 +814,18 @@
         var am = document.getElementById(day + '_am');
         var pm = document.getElementById(day + '_pm');
         if (presetType === 'all-office') {
-          am.value = 'Main Office';
-          pm.value = 'Main Office';
+          am.value = defaultOffice;
+          pm.value = defaultOffice;
         } else if (presetType === 'all-remote') {
-          am.value = 'Remote';
-          pm.value = 'Remote';
+          am.value = defaultRemote;
+          pm.value = defaultRemote;
         } else if (presetType === 'hybrid') {
           if (day === 'Monday' || day === 'Friday') {
-            am.value = 'Remote';
-            pm.value = 'Remote';
+            am.value = defaultRemote;
+            pm.value = defaultRemote;
           } else {
-            am.value = 'Main Office';
-            pm.value = 'Main Office';
+            am.value = defaultOffice;
+            pm.value = defaultOffice;
           }
         }
       });

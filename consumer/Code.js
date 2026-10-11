@@ -27,6 +27,8 @@ function onOpen(e) {
     .addSeparator()
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
     .addItem("Members & Contracts", "showMembersSidebar")
+    .addSeparator()
+    .addItem("Edit Locations", "showLocationsTab")
     .addToUi();
 
   // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
@@ -256,6 +258,10 @@ function installedConsumerTriggerHandler(e) {
 /**
  * Sidebar API forwarders for google.script.run calls from BaselineSidebar.html
  */
+function showLocationsTab() {
+  return safeInvokeLibrary("showLocationsTab");
+}
+
 function showMembersSidebar() {
   return safeInvokeLibrary("showMembersSidebar");
 }
@@ -325,6 +331,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clientInstallTriggers: clientInstallTriggers,
     installedTaskEditHandler: installedTaskEditHandler,
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
+    showLocationsTab: showLocationsTab,
     showMembersSidebar: showMembersSidebar,
     getMembersSidebarData: getMembersSidebarData,
     saveMemberTenure: saveMemberTenure,

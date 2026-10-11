@@ -15,6 +15,19 @@ var DATE_FORMAT = "yyyy-mm-dd";
  * headers = readable column labels for the visible tables (column keys stay internal).
  */
 var SCHEMA_SPEC = {
+  locations: {
+    sheetName: "Locations",
+    legacyName: "tbl_locations",
+    headers: { location: "Location", type: "Type", active: "Active" },
+    columns: ["location", "type", "active"],
+    requiredColumns: ["location", "type"],
+    nullableColumns: ["active"],
+    strictlyProtectedColumns: [],
+    warningProtectedColumns: [],
+    protectedColumns: [],
+    columnTypes: { location: "TEXT", type: "DROPDOWN", active: "BOOLEAN" },
+    validations: { type: ["Office", "Client site", "Remote"] }
+  },
   members: {
     sheetName: "Members",
     legacyName: "tbl_members",
@@ -86,9 +99,11 @@ var SCHEMA_SPEC = {
     },
     validations: {
       day_of_week: ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      location_am: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off"],
-      location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off"]
-    }
+      location_am: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off"],
+      location_pm: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off"]
+    },
+    // Filled at runtime from the Locations tab (src/Locations.js)
+    locationColumns: { location_am: "plain", location_pm: "plain" }
   },
   leaves: {
     sheetName: "Leaves",
@@ -134,9 +149,11 @@ var SCHEMA_SPEC = {
       timestamp: "TEXT"
     },
     validations: {
-      location_am: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off", "Vacation", "Sick Leave", "Holiday"],
-      location_pm: ["Remote", "Main Office", "Downtown Office", "Branch Office", "Client Site", "Off", "Vacation", "Sick Leave", "Holiday"]
-    }
+      location_am: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"],
+      location_pm: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"]
+    },
+    // Filled at runtime from the Locations tab (src/Locations.js)
+    locationColumns: { location_am: "withLeaves", location_pm: "withLeaves" }
   },
   projects: {
     sheetName: "Projects",

@@ -170,6 +170,11 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
       this.dataValidation = rule;
       return this;
     },
+    clearDataValidations: function() {
+      this.dataValidation = null;
+      this.validationCleared = true;
+      return this;
+    },
     protect: function() {
       var protection = {
         description: "",
@@ -266,6 +271,18 @@ function createMockSheet(name, parent) {
     setColumnWidth: function(col, width) { this.columnWidths[col] = width; },
     getBandings: function() { return []; },
     getProtections: function(type) { return this.protections.slice(); },
+    hiddenColumns: {},
+    hideColumns: function(colIndex, numCols) {
+      numCols = numCols || 1;
+      for (var c = 0; c < numCols; c++) this.hiddenColumns[colIndex + c] = true;
+    },
+    showColumns: function(colIndex, numCols) {
+      numCols = numCols || 1;
+      for (var c = 0; c < numCols; c++) delete this.hiddenColumns[colIndex + c];
+    },
+    isColumnHiddenByUser: function(col) { return !!this.hiddenColumns[col]; },
+    activated: false,
+    activate: function() { this.activated = true; return this; },
     hiddenRows: {},
     hideRows: function(rowIndex, numRows) {
       numRows = numRows || 1;
@@ -546,6 +563,7 @@ function setupGasGlobals(mockSpreadsheet) {
                 if (mockTables[ut].tableId !== req.updateTable.table.tableId) continue;
                 if (req.updateTable.table.name) mockTables[ut].name = req.updateTable.table.name;
                 if (req.updateTable.table.range) mockTables[ut].range = req.updateTable.table.range;
+                if (req.updateTable.table.columnProperties) mockTables[ut].columnProperties = req.updateTable.table.columnProperties;
               }
             } else if (req.addTable && req.addTable.table) {
               var newTable = req.addTable.table;
@@ -554,7 +572,7 @@ function setupGasGlobals(mockSpreadsheet) {
                   throw new Error("API call to sheets.spreadsheets.batchUpdate failed with error: Internal error encountered.");
                 }
               }
-              mockTables.push({ tableId: "tbl" + (mockTables.length + 1), name: newTable.name, sheetId: newTable.range.sheetId, range: newTable.range });
+              mockTables.push({ tableId: "tbl" + (mockTables.length + 1), name: newTable.name, sheetId: newTable.range.sheetId, range: newTable.range, columnProperties: newTable.columnProperties });
             } else if (req.copyPaste) {
               var cp = req.copyPaste;
               var srcSheet = null;

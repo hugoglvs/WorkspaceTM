@@ -6,6 +6,7 @@
  */
 
 var TABLE_REGISTRY = {
+  locations:    { sheetName: "Locations",       legacyName: "tbl_locations" },
   members:      { sheetName: "Members",         legacyName: "tbl_members" },
   tenures:      { sheetName: "Contracts",       legacyName: "tbl_tenures" },
   baselines:    { sheetName: "Routines",        legacyName: "tbl_presence_baselines" },

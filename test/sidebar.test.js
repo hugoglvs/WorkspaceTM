@@ -3,6 +3,7 @@ const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
+Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
 global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
@@ -51,7 +52,7 @@ test('Sidebar initial data should extract members from tbl_members', () => {
   assert.strictEqual(data.members[0].member, 'alice@example.com');
   assert.strictEqual(data.members[1].member, 'bob@example.com');
   assert.strictEqual(data.activeUserEmail, 'alice@example.com');
-  assert.ok(data.locationOptions.includes('Main Office'));
+  assert.ok(data.locationOptions.includes('OneRoof'));
   assert.ok(data.locationOptions.includes('Remote'));
 });
 

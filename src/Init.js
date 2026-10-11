@@ -65,7 +65,7 @@ function freshInit(targetSpreadsheet) {
       config.sheetName,
       config.columns,
       config.columnTypes,
-      config.validations,
+      (typeof schemaValidationsFor === "function") ? schemaValidationsFor(ss, config) : config.validations,
       Math.min(rowCount, 25),
       schemaHeaderRow(config)
     );
@@ -102,6 +102,11 @@ function freshInit(targetSpreadsheet) {
     }
 
     createdSheets.push(config.sheetName);
+  }
+
+  // Default Work Locations in a new, empty Locations tab (ADR 0040)
+  if (typeof seedDefaultLocations === "function") {
+    try { seedDefaultLocations(ss); } catch (eSeed) { Logger.log("Locations seed note: " + eSeed); }
   }
 
   // Safely remove the initial blank sheet (e.g. "Sheet1" or "Feuille 1") if created from scratch and still empty

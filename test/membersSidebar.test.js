@@ -3,6 +3,7 @@ const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
+Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
 global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 

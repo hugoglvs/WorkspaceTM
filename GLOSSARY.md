@@ -29,7 +29,7 @@ The ground-truth database (`tbl_presence_log`) capturing a Member's actual recor
 _Avoid_: Attendance, Timesheet, Check-in, Speculative Schedule
 
 **Work Location**:
-A recognized physical office, remote site, or absence status where a Member operates during a Period.
+A place where a Member works during a Period, configured in the hidden Locations tab with a type: Office (e.g. OneRoof), Client site (JLL, C04, C60) or Remote. Inactive locations stay valid in history but are not offered for new entries. `Off` and leave types are not Work Locations.
 _Avoid_: Place, Desk, Site, Spot
 
 **Period**:

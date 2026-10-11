@@ -179,12 +179,13 @@ function formatIsoWeek(d) {
  * Classifies one Period's Work Location for the fact table.
  *
  * @param {string} location
- * @return {string} remote | office | leave | off | not_logged
+ * @return {string} remote | office | client_site | leave | off | not_logged
  */
-function classifyPeriod(location) {
+function classifyPeriod(location, locationList) {
   if (!location || !String(location).trim()) return "not_logged";
   if (isLeaveLocation(location)) return "leave";
   if (isOffLocation(location)) return "off";
+  if (typeof locationCategory === "function") return locationCategory(locationList || [], location);
   return categorizeLocation(location) === "remote" ? "remote" : "office";
 }
 
@@ -217,6 +218,7 @@ function readSheetRows(sheet, numCols, maxRows) {
 function buildPresenceFacts(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var asOf = parseKpiDate((options && options.asOfDate) || new Date());
+  var locationList = (typeof readLocations === "function") ? readLocations(ss) : [];
 
   // Members: department fallback from tbl_members
   var memberDept = {};
@@ -280,12 +282,12 @@ function buildPresenceFacts(targetSpreadsheet, options) {
       var periods = [["AM", log ? log.am : ""], ["PM", log ? log.pm : ""]];
       for (var p = 0; p < periods.length; p++) {
         var location = String(periods[p][1] || "").trim();
-        var category = classifyPeriod(location);
+        var category = classifyPeriod(location, locationList);
         rows.push([
           iso, formatMonthKey(cur), formatIsoWeek(cur), WEEKDAY_LABELS[dow], isWeekend,
           mem.name, dept, tenure ? tenure.role : "", fte,
           periods[p][0], location, category,
-          (category === "remote" || category === "office") ? 0.5 : 0,
+          (category === "remote" || category === "office" || category === "client_site") ? 0.5 : 0,
           category === "leave" ? 0.5 : 0,
           (!isWeekend && tenure) ? 0.5 * fte : 0
         ]);

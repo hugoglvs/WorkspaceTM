@@ -3,6 +3,7 @@ const assert = require('node:assert');
 
 const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
+Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
 global.schemaColumnLabel = require('../src/Schema').schemaColumnLabel;
 
@@ -34,6 +35,7 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
   assert.strictEqual(result.schemaVersion, 1);
 
   const expectedSheets = [
+    'Locations',
     'Members',
     'Contracts',
     'Routines',

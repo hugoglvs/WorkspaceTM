@@ -887,6 +887,16 @@ function handleSheetEdit(e) {
     }
   }
 
+  // Locations tab edited: refresh the location dropdowns and Weekly Presence (ADR 0040)
+  if (tableKey === "locations" && editedRow > 1 && typeof refreshLocationDropdowns === "function") {
+    try {
+      refreshLocationDropdowns(SpreadsheetApp.getActiveSpreadsheet() || sheet.getParent());
+      if (typeof refreshWeeklyMatrix === "function") refreshWeeklyMatrix(sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
+    } catch (errLoc) {
+      Logger.log("onEdit locations refresh note: " + errLoc);
+    }
+  }
+
   // A project without a backup: ask for one (ADR 0038)
   if (tableKey === "projects" && typeof promptProjectBackup === "function") {
     try {

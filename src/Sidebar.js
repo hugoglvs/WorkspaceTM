@@ -712,14 +712,8 @@ function getSidebarInitialData() {
     activeUserEmail = Session.getActiveUser().getEmail();
   } catch (e) {}
 
-  var locationOptions = [
-    "Main Office",
-    "Remote",
-    "Downtown Office",
-    "Branch Office",
-    "Client Site",
-    "Off"
-  ];
+  // Active Work Locations from the Locations tab, plus Off (ADR 0040)
+  var locationOptions = activeLocationNames(ss).concat(["Off"]);
 
   var userChecklist = null;
   if (activeUserEmail) {
@@ -730,6 +724,8 @@ function getSidebarInitialData() {
     members: members,
     activeUserEmail: activeUserEmail,
     locationOptions: locationOptions,
+    defaultOffice: defaultOfficeLocation(ss),
+    defaultRemote: firstActiveLocationOfType(ss, "Remote") || "Remote",
     leaveTypes: ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave"],
     leaveStatuses: ["Approved", "Requested"],
     userChecklist: userChecklist
@@ -943,7 +939,8 @@ function saveMemberBaselines(payload) {
     if (isWeekend && (!days || !days[dayName])) {
       continue;
     }
-    var dayData = days[dayName] || { location_am: (isWeekend ? "Off" : "Main Office"), location_pm: (isWeekend ? "Off" : "Main Office") };
+    var fallbackLoc = isWeekend ? "Off" : defaultOfficeLocation(ss);
+    var dayData = days[dayName] || { location_am: fallbackLoc, location_pm: fallbackLoc };
     var uuid = "base_" + Math.random().toString(36).substring(2, 9);
 
     newRows.push([
@@ -952,8 +949,8 @@ function saveMemberBaselines(payload) {
       startDate,
       endDate,
       dayName,
-      dayData.location_am || (isWeekend ? "Off" : "Main Office"),
-      dayData.location_pm || (isWeekend ? "Off" : "Main Office")
+      dayData.location_am || fallbackLoc,
+      dayData.location_pm || fallbackLoc
     ]);
   }
 

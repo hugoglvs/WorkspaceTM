@@ -118,52 +118,37 @@ function getAllMatrixDays(startDate, endDate) {
 }
 
 /**
- * Configures color-coded conditional formatting rules on the matrix member cells:
- * - Office locations (Main Office, Downtown Office, Branch Office, Client Site): Soft Green (#E6F4EA / #137333)
- * - Remote / Home (Remote): Soft Purple (#F3E8FD / #7627BB)
- * - Leaves (Vacation, Sick Leave, Maternity/Paternity, Unpaid Leave, Holiday): Soft Red (#FCE8E6 / #C5221F)
+ * Colour-codes the matrix cells by Work Location type (Locations tab, ADR 0040):
+ * Office green, Client site blue, Remote purple, leaves red, Off grey.
  *
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
  * @param {GoogleAppsScript.Spreadsheet.Range} targetRange
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss]
  */
-function applyMatrixConditionalFormatting(sheet, targetRange) {
+function applyMatrixConditionalFormatting(sheet, targetRange, ss) {
   if (!sheet || !targetRange) return;
+  var styles = {
+    office: ["#E6F4EA", "#137333"],
+    client_site: ["#E8F0FE", "#1967D2"],
+    remote: ["#F3E8FD", "#7627BB"],
+    leave: ["#FCE8E6", "#C5221F"],
+    off: ["#F1F3F4", "#5F6368"]
+  };
+  var list = (typeof readLocations === "function") ? readLocations(ss || sheet.getParent()) : [];
+  var entries = list.map(function(l) {
+    return { text: l.name, style: styles[l.type === "Remote" ? "remote" : (l.type === "Client site" ? "client_site" : "office")] };
+  });
+  ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"].forEach(function(t) { entries.push({ text: t, style: styles.leave }); });
+  entries.push({ text: "Off", style: styles.off });
 
-  var rules = [];
-
-  // 1. Remote (Soft Purple)
-  var remoteRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo("Remote")
-    .setBackground("#F3E8FD")
-    .setFontColor("#7627BB")
-    .setRanges([targetRange])
-    .build();
-  rules.push(remoteRule);
-
-  // 2. Office Locations (Soft Green)
-  var officeLocations = ["Main Office", "Downtown Office", "Branch Office", "Client Site"];
-  for (var o = 0; o < officeLocations.length; o++) {
-    var officeRule = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo(officeLocations[o])
-      .setBackground("#E6F4EA")
-      .setFontColor("#137333")
+  var rules = entries.map(function(en) {
+    return SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(en.text)
+      .setBackground(en.style[0])
+      .setFontColor(en.style[1])
       .setRanges([targetRange])
       .build();
-    rules.push(officeRule);
-  }
-
-  // 3. Leaves (Soft Red)
-  var leaveTypes = ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"];
-  for (var l = 0; l < leaveTypes.length; l++) {
-    var leaveRule = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo(leaveTypes[l])
-      .setBackground("#FCE8E6")
-      .setFontColor("#C5221F")
-      .setRanges([targetRange])
-      .build();
-    rules.push(leaveRule);
-  }
-
+  });
   sheet.setConditionalFormatRules(rules);
 }
 
@@ -181,7 +166,7 @@ function applyMatrixConditionalFormatting(sheet, targetRange) {
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object} Status report
  */
-function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
+function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asOfDateParam) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet available" };
 
@@ -216,7 +201,8 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
         name: memberName,
         key: memberKey,
         sourceRow: i + 2,
-        rawVal: rawVal
+        rawVal: rawVal,
+        departed: tenureStatus === "departed" // columns hidden, not removed (ADR 0040)
       });
     }
   }
@@ -265,7 +251,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
   var startD = parseMatrixDate(startDateStr);
   var endD = parseMatrixDate(endDateStr);
 
-  var today = new Date();
+  var today = asOfDateParam ? (parseMatrixDate(asOfDateParam) || new Date()) : new Date();
   today.setHours(0, 0, 0, 0);
 
   if (!startD) {
@@ -307,10 +293,13 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
     viewSheet = ss.insertSheet(tableSheetName("weeklyMatrix"));
   }
 
-  // Unhide all rows first so stale hidden states are cleared
+  // Unhide all rows and columns first so stale hidden states are cleared
   try {
     viewSheet.showRows(1, Math.max(viewSheet.getMaxRows(), 100));
   } catch (eShow) {}
+  try {
+    viewSheet.showColumns(1, Math.max(viewSheet.getMaxColumns(), 2));
+  } catch (eShowCols) {}
 
   // 5. Build Header Rows (Two-row structure)
   // Row 1: "Week Number", "Date", Member 1 (merged 2 cols), Member 2 (merged 2 cols)...
@@ -490,18 +479,37 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet) {
     // Alignment: Column B (Date) center-aligned
     viewSheet.getRange(3, 2, numDataRows, 1).setHorizontalAlignment("center");
 
-    // Apply Dropdown Data Validation on Member AM/PM Cells (Columns 3 to numCols)
+    // Dropdown of ACTIVE locations from the current week on; past weeks get none, so
+    // retired locations in history are not flagged as invalid (ADR 0040)
     try {
-      var locationChoices = ["Main Office", "Remote", "Downtown Office", "Branch Office", "Client Site", "Vacation", "Sick Leave", "Holiday"];
-      var validationRule = SpreadsheetApp.newDataValidation()
-        .requireValueInList(locationChoices, true)
-        .setAllowInvalid(true)
-        .build();
-      viewSheet.getRange(3, 3, numDataRows, numCols - 2).setDataValidation(validationRule);
+      var locationChoices = ((typeof activeLocationNames === "function") ? activeLocationNames(ss) : ["Remote"])
+        .concat(["Off", "Vacation", "Sick Leave", "Holiday"]);
+      var mondayIso = formatMatrixDateIso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7)));
+      var firstEditable = numDataRows;
+      for (var fr = 0; fr < rows.length; fr++) {
+        if (String(rows[fr][1]) >= mondayIso) { firstEditable = fr; break; }
+      }
+      if (firstEditable > 0) {
+        viewSheet.getRange(3, 3, Math.min(firstEditable, numDataRows), numCols - 2).clearDataValidations();
+      }
+      if (firstEditable < numDataRows) {
+        var validationRule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(locationChoices, true)
+          .setAllowInvalid(true)
+          .build();
+        viewSheet.getRange(3 + firstEditable, 3, numDataRows - firstEditable, numCols - 2).setDataValidation(validationRule);
+      }
     } catch (eVal) {}
 
     // Apply Conditional Formatting for presence modes
-    applyMatrixConditionalFormatting(viewSheet, viewSheet.getRange(3, 3, numDataRows, numCols - 2));
+    applyMatrixConditionalFormatting(viewSheet, viewSheet.getRange(3, 3, numDataRows, numCols - 2), ss);
+
+    // Hide departed Members (their columns stay, just hidden)
+    for (var dm = 0; dm < numMembers; dm++) {
+      if (activeMembers[dm].departed) {
+        try { viewSheet.hideColumns(3 + dm * 2, 2); } catch (eHideCol) {}
+      }
+    }
 
     // Hide prior weeks: only display the last 4 weeks by default
     var totalWeeks = weekGroups.length;

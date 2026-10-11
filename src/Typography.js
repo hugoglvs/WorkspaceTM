@@ -92,8 +92,27 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
     }
   };
 
+  // Table names are unique per spreadsheet and survive tab renames, so an archived tab
+  // (e.g. archive_tbl_leaves) can still hold "tbl_leaves". Check before adding.
+  var requests = [request];
+  var existing = findTablesByName(spreadsheetId, tableName);
+  for (var e = 0; e < existing.length; e++) {
+    if (existing[e].sheetId === sheetId) {
+      Logger.log("Table '" + tableName + "' already exists on its sheet, preserving it.");
+      return true;
+    }
+  }
+  for (var x = 0; x < existing.length; x++) {
+    requests.unshift({
+      updateTable: {
+        table: { tableId: existing[x].tableId, name: "archived_" + tableName + "_" + existing[x].sheetId },
+        fields: "name"
+      }
+    });
+  }
+
   try {
-    Sheets.Spreadsheets.batchUpdate({ requests: [request] }, spreadsheetId);
+    Sheets.Spreadsheets.batchUpdate({ requests: requests }, spreadsheetId);
     return true;
   } catch (err) {
     var msg = (err && err.message) ? err.message : String(err);
@@ -104,6 +123,31 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
     Logger.log("Sheets API addTable error on '" + tableName + "': " + msg);
     throw new Error("Failed to create Google Sheets Table '" + tableName + "': " + msg);
   }
+}
+
+/**
+ * Lists the native tables named tableName across the whole spreadsheet.
+ * Returns [] if the lookup fails, so table creation falls back to its old behaviour.
+ *
+ * @param {string} spreadsheetId
+ * @param {string} tableName
+ * @return {Array<{tableId: string, sheetId: number}>}
+ */
+function findTablesByName(spreadsheetId, tableName) {
+  var found = [];
+  try {
+    var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name))" });
+    var sheets = (meta && meta.sheets) || [];
+    for (var i = 0; i < sheets.length; i++) {
+      var tables = sheets[i].tables || [];
+      for (var t = 0; t < tables.length; t++) {
+        if (tables[t].name === tableName) found.push({ tableId: tables[t].tableId, sheetId: sheets[i].properties.sheetId });
+      }
+    }
+  } catch (eGet) {
+    Logger.log("findTablesByName note: " + eGet);
+  }
+  return found;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

@@ -397,6 +397,7 @@ function createMockSpreadsheet() {
 function setupGasGlobals(mockSpreadsheet) {
   var docProps = {};
   var batchUpdateCalls = [];
+  var mockTables = [];
 
   var mockUi = {
     shownSidebar: null,
@@ -518,12 +519,25 @@ function setupGasGlobals(mockSpreadsheet) {
   global.Sheets = {
     batchUpdateCalls: batchUpdateCalls,
     Spreadsheets: {
+      tables: mockTables,
       batchUpdate: function(resource, spreadsheetId) {
         batchUpdateCalls.push({ resource: resource, spreadsheetId: spreadsheetId });
         if (resource && resource.requests) {
           for (var i = 0; i < resource.requests.length; i++) {
             var req = resource.requests[i];
-            if (req.copyPaste) {
+            if (req.updateTable && req.updateTable.table) {
+              for (var ut = 0; ut < mockTables.length; ut++) {
+                if (mockTables[ut].tableId === req.updateTable.table.tableId) mockTables[ut].name = req.updateTable.table.name;
+              }
+            } else if (req.addTable && req.addTable.table) {
+              var newTable = req.addTable.table;
+              for (var at = 0; at < mockTables.length; at++) {
+                if (mockTables[at].name === newTable.name) {
+                  throw new Error("API call to sheets.spreadsheets.batchUpdate failed with error: Internal error encountered.");
+                }
+              }
+              mockTables.push({ tableId: "tbl" + (mockTables.length + 1), name: newTable.name, sheetId: newTable.range.sheetId });
+            } else if (req.copyPaste) {
               var cp = req.copyPaste;
               var srcSheet = null;
               var dstSheet = null;
@@ -562,6 +576,18 @@ function setupGasGlobals(mockSpreadsheet) {
         return { replies: [{ addTable: { table: {} } }] };
       },
       get: function(spreadsheetId, options) {
+        if (options && options.fields && String(options.fields).indexOf("tables") !== -1) {
+          return {
+            sheets: mockSpreadsheet.sheets.map(function(sh) {
+              return {
+                properties: { sheetId: sh.getSheetId(), title: sh.getName() },
+                tables: mockTables.filter(function(t) { return t.sheetId === sh.getSheetId(); }).map(function(t) {
+                  return { tableId: t.tableId, name: t.name };
+                })
+              };
+            })
+          };
+        }
         var ranges = (options && options.ranges) ? options.ranges : [];
         var resultSheets = [];
         for (var i = 0; i < ranges.length; i++) {

@@ -110,3 +110,40 @@ test('setupOrUpgrade: keeps a Sheet1 that has content', () => {
 
   assert.ok(mockSpreadsheet.getSheetByName('Sheet1'));
 });
+
+test('freshInit: recreates a table whose name is still held by an archived tab', () => {
+  freshInit(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('tbl_leaves').setName('archive_tbl_leaves');
+
+  assert.doesNotThrow(() => freshInit(mockSpreadsheet));
+
+  var bySheet = {};
+  Sheets.Spreadsheets.tables.forEach(t => {
+    var sheet = mockSpreadsheet.getSheets().find(s => s.getSheetId() === t.sheetId);
+    bySheet[sheet.getName()] = t.name;
+  });
+  assert.strictEqual(bySheet['tbl_leaves'], 'tbl_leaves', 'new table takes the canonical name');
+  assert.notStrictEqual(bySheet['archive_tbl_leaves'], 'tbl_leaves', 'archived table was renamed out of the way');
+});
+
+test('setupOrUpgrade: recovers the half-upgraded "[NEW] ACN" state of 2026-10-12', () => {
+  // State before the merge, then merged (ADR 0035), then a failed upgrade
+  freshInit(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('tbl_members').getRange(2, 1, 1, 7).setValues([
+    ['Hugo Gonçalves', '', '', 'Data Analyst', 'FAL ME', 'Active', '']
+  ]);
+  mockSpreadsheet.getSheetByName('tbl_presence_baselines').setName('archive_tbl_presence_baselines');
+  mockSpreadsheet.getSheetByName('tbl_leaves').setName('archive_tbl_leaves');
+  addMergedRangesTable(mockSpreadsheet);
+  mockSpreadsheet.insertSheet('tbl_presence_baselines'); // empty tab left by the failed upgrade
+  mockSpreadsheet.insertSheet('calc_kpis');
+
+  var res = code.setupOrUpgrade(mockSpreadsheet);
+
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(rows(mockSpreadsheet, 'tbl_presence_baselines', 7).length, 2);
+  assert.strictEqual(rows(mockSpreadsheet, 'tbl_leaves', 8).length, 1);
+  assert.strictEqual(mockSpreadsheet.getSheetByName('tbl_presence_ranges'), null);
+  ['archive_tbl_presence_baselines', 'archive_tbl_leaves', 'archive_tbl_presence_ranges', 'tbl_presence_baselines', 'tbl_leaves']
+    .forEach(n => assert.ok(mockSpreadsheet.getSheetByName(n).isSheetHidden(), n + ' hidden'));
+});

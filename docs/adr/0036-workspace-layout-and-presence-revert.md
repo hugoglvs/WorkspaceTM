@@ -17,7 +17,8 @@ Accepted (2026-10-12)
 3. **KPIs:** `calc_kpis` and its code are deleted. `Code.js` holds the single `refreshKpis`, which rebuilds `fact_presence`.
 4. **Weekly Matrix:** edits are still saved to the Presence Log. The confirmation toast also points to *Declare Presence & Leaves* for routines and leaves.
 5. `freshInit` deletes the initial default sheet only when it is empty.
+6. **Native table names are unique per spreadsheet and survive tab renames.** Before adding a table, `createGoogleSheetsTable` lists the existing tables. If the name is held by the same tab it skips; if it is held by another tab (e.g. an `archive_` tab), it renames that table `archived_<name>_<sheetId>` first. The live upgrade had failed with "Internal error encountered" because `archive_tbl_presence_baselines` still held the table `tbl_presence_baselines`.
 
 ## Open (tracked as issues)
 - Members: Tenure creation and end dates through a sidebar that opens when a new row is started (issue 22).
-- Projects: read-only backup column fed by `tbl_backups`, a backup row created with each new project, removal of `view_active_responsibles`, and the permanent-vs-interim backup model (issue 23).
+- Projects: read-only `active_responsible` column replacing `view_active_responsibles`, a backup row created with each new project, and the permanent-vs-interim backup model (issue 23).

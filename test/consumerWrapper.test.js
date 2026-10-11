@@ -37,8 +37,9 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   var captions = ui.menu.items.map(function(item) { return item.caption; });
   assert.ok(captions.includes('Initialize / Upgrade Spreadsheet'));
   assert.ok(captions.includes('Declare Presence & Leaves'));
+  assert.ok(captions.includes('Members & Contracts'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 2);
+  assert.strictEqual(actionItems.length, 3);
 });
 
 test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {
@@ -208,3 +209,26 @@ test('setupOrUpgrade: runs freshInit, installs triggers, and runs initial mainte
   assert.ok(res.initialSync);
 });
 
+
+test('ConsumerWrapper: Members & Contracts sidebar calls reach the library with their payload', () => {
+  var calls = [];
+  global.WorkspacePM = {
+    showMembersSidebar: function() { calls.push(['showMembersSidebar']); },
+    getMembersSidebarData: function() { calls.push(['getMembersSidebarData']); return { members: [] }; },
+    saveMemberTenure: function(p) { calls.push(['saveMemberTenure', p]); return { success: true }; },
+    endMemberTenure: function(p) { calls.push(['endMemberTenure', p]); return { success: true }; },
+    saveMemberProfile: function(p) { calls.push(['saveMemberProfile', p]); return { success: true }; }
+  };
+
+  consumerWrapper.showMembersSidebar();
+  consumerWrapper.getMembersSidebarData();
+  consumerWrapper.saveMemberTenure({ member: 'A' });
+  consumerWrapper.endMemberTenure({ member: 'B' });
+  consumerWrapper.saveMemberProfile({ member: 'C' });
+
+  assert.deepStrictEqual(calls, [
+    ['showMembersSidebar'], ['getMembersSidebarData'],
+    ['saveMemberTenure', { member: 'A' }], ['endMemberTenure', { member: 'B' }], ['saveMemberProfile', { member: 'C' }]
+  ]);
+  delete global.WorkspacePM;
+});

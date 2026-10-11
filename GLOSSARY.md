@@ -44,6 +44,10 @@ _Avoid_: Default, Preset, Template
 An interactive HTML sidebar panel opened inside Google Sheets allowing Members to easily configure their default recurring or date-range Baselines.
 _Avoid_: Baseline Form, Schedule Popup
 
+**Members & Contracts Sidebar**:
+The sidebar (menu *Project Management → Members & Contracts*) for adding a Member, recording a new Tenure (which ends the previous one the day before) or setting a Tenure's end date. It opens by itself when a new name is typed in Members.
+_Avoid_: Onboarding form, HR panel
+
 **Leave**:
 An approved non-working period (Vacation, Sick Leave) defined across a date range.
 _Avoid_: Time-off, PTO, Absence

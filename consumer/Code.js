@@ -26,6 +26,7 @@ function onOpen(e) {
     .addItem("Initialize / Upgrade Spreadsheet", "setupOrUpgrade")
     .addSeparator()
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
+    .addItem("Members & Contracts", "showMembersSidebar")
     .addToUi();
 
   // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
@@ -259,6 +260,26 @@ function installedConsumerTriggerHandler(e) {
 /**
  * Sidebar API forwarders for google.script.run calls from BaselineSidebar.html
  */
+function showMembersSidebar() {
+  return safeInvokeLibrary("showMembersSidebar");
+}
+
+function getMembersSidebarData() {
+  return safeInvokeLibrary("getMembersSidebarData");
+}
+
+function saveMemberTenure(payload) {
+  return safeInvokeLibrary("saveMemberTenure", [payload]);
+}
+
+function endMemberTenure(payload) {
+  return safeInvokeLibrary("endMemberTenure", [payload]);
+}
+
+function saveMemberProfile(payload) {
+  return safeInvokeLibrary("saveMemberProfile", [payload]);
+}
+
 function getSidebarInitialData() {
   return safeInvokeLibrary("getSidebarInitialData");
 }
@@ -309,6 +330,11 @@ if (typeof module !== 'undefined' && module.exports) {
     clientInstallTriggers: clientInstallTriggers,
     installedTaskEditHandler: installedTaskEditHandler,
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
+    showMembersSidebar: showMembersSidebar,
+    getMembersSidebarData: getMembersSidebarData,
+    saveMemberTenure: saveMemberTenure,
+    endMemberTenure: endMemberTenure,
+    saveMemberProfile: saveMemberProfile,
     getSidebarInitialData: getSidebarInitialData,
     getMemberBaselines: getMemberBaselines,
     saveMemberBaselines: saveMemberBaselines,

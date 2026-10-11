@@ -482,6 +482,22 @@ function setupGasGlobals(mockSpreadsheet) {
   };
 
   global.HtmlService = {
+    createTemplateFromFile: function(filename) {
+      return {
+        filename: filename,
+        evaluate: function() {
+          var tpl = this;
+          return {
+            filename: filename,
+            template: tpl,
+            title: "",
+            width: 300,
+            setTitle: function(t) { this.title = t; return this; },
+            setWidth: function(w) { this.width = w; return this; }
+          };
+        }
+      };
+    },
     createHtmlOutputFromFile: function(filename) {
       return {
         filename: filename,

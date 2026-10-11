@@ -873,6 +873,15 @@ function handleSheetEdit(e) {
     }
   }
 
+  // A new name in Members without a contract: open the Members & Contracts sidebar (ADR 0037)
+  if (sheetName === "tbl_members" && typeof promptContractForNewMember === "function") {
+    try {
+      promptContractForNewMember(e);
+    } catch (errPrompt) {
+      Logger.log("onEdit promptContractForNewMember note: " + errPrompt);
+    }
+  }
+
   if (sheetName === "tbl_members" || sheetName === "tbl_tenures") {
     try {
       var syncTargetSs = (sheet.getParent && typeof sheet.getParent === "function") ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet();

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+    body { margin: 0; padding: 16px; font-size: 13px; color: #202124; background: #fff; }
+    h2 { font-size: 18px; margin: 0 0 4px; font-weight: 500; color: #1a73e8; }
+    .sub { margin: 0 0 16px; font-size: 12px; color: #5f6368; }
+    h3 { font-size: 13px; font-weight: 500; margin: 18px 0 8px; color: #202124; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #5f6368; margin-bottom: 6px; }
+    .form-group { margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; }
+    .row .form-group { flex: 1; min-width: 0; }
+    select, input { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
+    select:focus, input:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .btn-primary { width: 100%; background: #1a73e8; color: #fff; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; }
+    .btn-primary:hover { background: #1765cc; }
+    .btn-primary:disabled { background: #dadce0; cursor: not-allowed; }
+    .btn-link { background: none; border: none; color: #1a73e8; font-size: 12px; cursor: pointer; padding: 0; }
+    .btn-secondary { background: #f1f3f4; border: 1px solid #dadce0; border-radius: 6px; padding: 7px 12px; font-size: 12px; cursor: pointer; color: #3c4043; }
+    .card { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .card .title { font-weight: 500; }
+    .card .meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e8eaed; color: #3c4043; margin-left: 6px; }
+    .badge.Active { background: #e6f4ea; color: #137333; }
+    .badge.Upcoming { background: #e8f0fe; color: #1a73e8; }
+    .badge.Departed, .badge.No { background: #fce8e6; color: #c5221f; }
+    .end-form { display: none; margin-top: 8px; gap: 6px; align-items: center; }
+    .end-form.open { display: flex; }
+    .hint { font-size: 12px; color: #5f6368; margin: -4px 0 12px; }
+    .status-msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none; margin-bottom: 12px; }
+    .status-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; display: block; }
+    .status-msg.error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; display: block; }
+    .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body data-prefill="<?= prefillMember ?>">
+  <h2>Members &amp; Contracts</h2>
+  <p class="sub">Add a member, record a new contract, or set an end date.</p>
+
+  <div id="status" class="status-msg info">Loading the team…</div>
+
+  <div class="form-group">
+    <label for="memberSelect">Member</label>
+    <select id="memberSelect" onchange="onMemberChange()"></select>
+  </div>
+
+  <div id="newMemberFields" class="hidden">
+    <div class="form-group">
+      <label for="newName">Name or Google email</label>
+      <input id="newName" placeholder="e.g. ines.martin@gmail.com">
+    </div>
+  </div>
+
+  <div id="memberDetails" class="hidden">
+    <h3>Contracts</h3>
+    <div id="tenureList"></div>
+  </div>
+
+  <h3>Contact details</h3>
+  <div class="row">
+    <div class="form-group"><label for="email">Accenture email</label><input id="email" type="email"></div>
+  </div>
+  <div class="row">
+    <div class="form-group"><label for="phone">Phone</label><input id="phone" type="tel"></div>
+  </div>
+  <div id="saveContactRow" class="form-group hidden">
+    <button class="btn-secondary" onclick="saveContact()">Save contact details</button>
+  </div>
+
+  <h3 id="contractTitle">New contract</h3>
+  <p class="hint" id="contractHint">Recording a new contract ends the current one the day before.</p>
+  <div class="row">
+    <div class="form-group"><label for="role">Role</label><input id="role" list="roles"></div>
+    <div class="form-group"><label for="department">Department</label><input id="department" list="departments"></div>
+  </div>
+  <datalist id="roles"></datalist>
+  <datalist id="departments"></datalist>
+  <div class="row">
+    <div class="form-group"><label for="contractType">Contract</label><select id="contractType"></select></div>
+    <div class="form-group"><label for="fte">FTE %</label><input id="fte" type="number" min="1" max="100" value="100"></div>
+  </div>
+  <div class="row">
+    <div class="form-group"><label for="startDate">Start</label><input id="startDate" type="date"></div>
+    <div class="form-group"><label for="endDate">End (optional)</label><input id="endDate" type="date"></div>
+  </div>
+  <button id="saveBtn" class="btn-primary" onclick="saveContract()">Save contract</button>
+
+  <script>
+    var NEW = '__new__';
+    var data = { members: [], roles: [], departments: [], contractTypes: [] };
+    var prefill = document.body.getAttribute('data-prefill') || '';
+
+    function $(id) { return document.getElementById(id); }
+    function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
+    function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function current() {
+      var v = $('memberSelect').value;
+      return v === NEW ? null : data.members.filter(function(m) { return m.name === v; })[0];
+    }
+    function options(el, values, selected) {
+      el.innerHTML = '';
+      values.forEach(function(v) {
+        var o = document.createElement('option'); o.value = v; o.textContent = v;
+        if (v === selected) o.selected = true; el.appendChild(o);
+      });
+    }
+
+    function load(selectName) {
+      google.script.run.withSuccessHandler(function(res) {
+        data = res;
+        var sel = $('memberSelect');
+        sel.innerHTML = '';
+        var add = document.createElement('option'); add.value = NEW; add.textContent = '➕ New member'; sel.appendChild(add);
+        data.members.forEach(function(m) {
+          var o = document.createElement('option'); o.value = m.name;
+          o.textContent = m.name + (m.status ? ' · ' + m.status : ''); sel.appendChild(o);
+        });
+        $('roles').innerHTML = data.roles.map(function(r) { return '<option value="' + r.replace(/"/g, '&quot;') + '">'; }).join('');
+        $('departments').innerHTML = data.departments.map(function(d) { return '<option value="' + d.replace(/"/g, '&quot;') + '">'; }).join('');
+        options($('contractType'), data.contractTypes, 'Permanent');
+        var target = selectName || prefill;
+        var known = data.members.some(function(m) { return m.name === target; });
+        sel.value = known ? target : NEW;
+        if (!known && target) $('newName').value = target;
+        onMemberChange();
+        $('status').className = 'status-msg';
+        if (target && known && !current().tenures.length) show(target + ' has no contract yet. Fill in the form below.', 'info');
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getMembersSidebarData();
+    }
+
+    function onMemberChange() {
+      var m = current();
+      $('newMemberFields').classList.toggle('hidden', !!m);
+      $('memberDetails').classList.toggle('hidden', !m);
+      $('saveContactRow').classList.toggle('hidden', !m);
+      $('email').value = m ? m.email : '';
+      $('phone').value = m ? m.phone : '';
+      $('startDate').value = today();
+      $('endDate').value = '';
+      var last = m && m.tenures.length ? m.tenures[m.tenures.length - 1] : null;
+      $('role').value = last ? last.role : '';
+      $('department').value = last ? last.department : '';
+      $('fte').value = last ? last.ftePercent : 100;
+      if (last) $('contractType').value = last.contractType;
+      $('contractTitle').textContent = m && m.tenures.length ? 'New contract' : 'First contract';
+      $('contractHint').classList.toggle('hidden', !(m && m.tenures.length));
+      renderTenures(m);
+    }
+
+    function renderTenures(m) {
+      var list = $('tenureList');
+      list.innerHTML = '';
+      if (!m) return;
+      if (!m.tenures.length) { list.innerHTML = '<div class="meta">No contract yet.</div>'; return; }
+      m.tenures.slice().reverse().forEach(function(t, i) {
+        var card = document.createElement('div'); card.className = 'card';
+        var id = 'end_' + i;
+        card.innerHTML =
+          '<div class="title"></div><div class="meta"></div>' +
+          '<button class="btn-link">Set end date</button>' +
+          '<div class="end-form" id="' + id + '"><input type="date"><button class="btn-secondary">Save</button></div>';
+        card.querySelector('.title').textContent = t.role + ' · ' + t.department;
+        card.querySelector('.meta').textContent = t.contractType + ' · ' + t.ftePercent + ' % · ' + t.startDate + ' → ' + (t.endDate || 'ongoing');
+        var form = card.querySelector('.end-form');
+        form.querySelector('input').value = t.endDate || today();
+        card.querySelector('.btn-link').onclick = function() { form.classList.toggle('open'); };
+        form.querySelector('button').onclick = function() { endContract(m.name, t.startDate, form.querySelector('input').value); };
+        list.appendChild(card);
+      });
+    }
+
+    function busy(on) { $('saveBtn').disabled = on; }
+
+    function saveContract() {
+      var m = current();
+      var payload = {
+        member: m ? m.name : $('newName').value.trim(),
+        role: $('role').value, department: $('department').value,
+        contractType: $('contractType').value, ftePercent: $('fte').value,
+        startDate: $('startDate').value, endDate: $('endDate').value,
+        email: $('email').value, phone: $('phone').value
+      };
+      busy(true); show('Saving…', 'info');
+      google.script.run.withSuccessHandler(function(res) {
+        busy(false);
+        if (!res.success) { show(res.message, 'error'); return; }
+        show(res.message, 'success');
+        var name = payload.member; prefill = '';
+        load(name);
+      }).withFailureHandler(function(err) { busy(false); show(err.message || String(err), 'error'); }).saveMemberTenure(payload);
+    }
+
+    function endContract(member, startDate, endDate) {
+      show('Saving…', 'info');
+      google.script.run.withSuccessHandler(function(res) {
+        if (!res.success) { show(res.message, 'error'); return; }
+        show(res.message, 'success'); load(member);
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); })
+        .endMemberTenure({ member: member, startDate: startDate, endDate: endDate });
+    }
+
+    function saveContact() {
+      var m = current(); if (!m) return;
+      google.script.run.withSuccessHandler(function(res) {
+        show(res.message, res.success ? 'success' : 'error'); if (res.success) load(m.name);
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); })
+        .saveMemberProfile({ member: m.name, email: $('email').value, phone: $('phone').value });
+    }
+
+    load();
+  </script>
+</body>
+</html>

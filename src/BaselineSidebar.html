@@ -550,8 +550,16 @@
       buildWeekdayGrid();
     }
 
+    // Local date (toISOString is UTC: wrong between 00:00 and 02:00 in Paris)
+    function localIsoDate(d) {
+      return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
+    function localIsoToday() {
+      return localIsoDate(new Date());
+    }
+
     function initForm() {
-      var today = new Date().toISOString().split('T')[0];
+      var today = localIsoToday();
       document.getElementById('startDate').value = today;
       document.getElementById('leaveStartDate').value = today;
       document.getElementById('leaveEndDate').value = today;
@@ -939,7 +947,7 @@
 
     function applyLeavePreset(type) {
       var now = new Date();
-      var todayStr = now.toISOString().split('T')[0];
+      var todayStr = localIsoDate(now);
       if (type === 'today') {
         document.getElementById('leaveStartDate').value = todayStr;
         document.getElementById('leaveEndDate').value = todayStr;
@@ -950,8 +958,8 @@
         mon.setDate(now.getDate() + distToMon);
         var fri = new Date(mon);
         fri.setDate(mon.getDate() + 4);
-        document.getElementById('leaveStartDate').value = mon.toISOString().split('T')[0];
-        document.getElementById('leaveEndDate').value = fri.toISOString().split('T')[0];
+        document.getElementById('leaveStartDate').value = localIsoDate(mon);
+        document.getElementById('leaveEndDate').value = localIsoDate(fri);
       } else if (type === 'next-week') {
         var currentDay = now.getDay();
         var distToNextMon = currentDay === 0 ? 1 : 8 - currentDay;
@@ -959,8 +967,8 @@
         nextMon.setDate(now.getDate() + distToNextMon);
         var nextFri = new Date(nextMon);
         nextFri.setDate(nextMon.getDate() + 4);
-        document.getElementById('leaveStartDate').value = nextMon.toISOString().split('T')[0];
-        document.getElementById('leaveEndDate').value = nextFri.toISOString().split('T')[0];
+        document.getElementById('leaveStartDate').value = localIsoDate(nextMon);
+        document.getElementById('leaveEndDate').value = localIsoDate(nextFri);
       }
     }
 

@@ -147,3 +147,23 @@ test('setupOrUpgrade: recovers the half-upgraded "[NEW] ACN" state of 2026-10-12
   ['archive_tbl_presence_baselines', 'archive_tbl_leaves', 'archive_tbl_presence_ranges', 'tbl_presence_baselines', 'tbl_leaves']
     .forEach(n => assert.ok(mockSpreadsheet.getSheetByName(n).isSheetHidden(), n + ' hidden'));
 });
+
+test('freshInit: widens an existing table when the schema gains a column', () => {
+  freshInit(mockSpreadsheet);
+  var projects = mockSpreadsheet.getSheetByName('tbl_projects');
+  var table = Sheets.Spreadsheets.tables.find(t => t.name === 'tbl_projects');
+  table.range = Object.assign({}, table.range, { endColumnIndex: 7 }); // as created before active_responsible existed
+
+  freshInit(mockSpreadsheet);
+
+  assert.strictEqual(Sheets.Spreadsheets.tables.find(t => t.name === 'tbl_projects').range.endColumnIndex, 8);
+  assert.strictEqual(projects.getRange(1, 8).getValue(), 'active_responsible');
+});
+
+test('setupOrUpgrade: removes the retired Active Responsibles view', () => {
+  mockSpreadsheet.insertSheet('view_active_responsibles');
+
+  code.setupOrUpgrade(mockSpreadsheet);
+
+  assert.strictEqual(mockSpreadsheet.getSheetByName('view_active_responsibles'), null);
+});

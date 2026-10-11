@@ -164,10 +164,6 @@ function refreshWeeklyMatrix() {
   return safeInvokeLibrary("refreshWeeklyMatrix");
 }
 
-function refreshActiveResponsibles() {
-  return safeInvokeLibrary("refreshActiveResponsibles");
-}
-
 function refreshKpis() {
   return safeInvokeLibrary("refreshKpis");
 }
@@ -225,9 +221,9 @@ function clientCompilePresence() {
 
 function clientRefreshDashboards() {
   var r1 = refreshWeeklyMatrix();
-  var r2 = refreshActiveResponsibles();
+  var r2 = checkBackupConflicts();
   var r3 = refreshKpis();
-  return { weeklyMatrix: r1, activeResponsibles: r2, kpis: r3 };
+  return { weeklyMatrix: r1, backupCoverage: r2, kpis: r3 };
 }
 
 function clientSyncTasks() {
@@ -310,7 +306,6 @@ if (typeof module !== 'undefined' && module.exports) {
     compilePresence: compilePresence,
     compilePresenceMigration: compilePresenceMigration,
     refreshWeeklyMatrix: refreshWeeklyMatrix,
-    refreshActiveResponsibles: refreshActiveResponsibles,
     refreshKpis: refreshKpis,
     checkBackupConflicts: checkBackupConflicts,
     syncTasks: syncTasks,

@@ -5,7 +5,7 @@
 
 var VISIBLE_WORKSPACE_SHEETS = ["tbl_members", "view_weekly_matrix", "tbl_projects", "tbl_tasks", "tbl_events"];
 var MANAGED_SHEET_PREFIXES = ["tbl_", "view_", "fact_", "calc_", "archive_"];
-var RETIRED_SHEETS = ["calc_kpis"];
+var RETIRED_SHEETS = ["calc_kpis", "view_active_responsibles"];
 
 function isManagedSheetName(name) {
   for (var i = 0; i < MANAGED_SHEET_PREFIXES.length; i++) {

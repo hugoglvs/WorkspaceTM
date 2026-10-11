@@ -34,8 +34,6 @@ global.checkActiveUserStatus = sidebar.checkActiveUserStatus;
 const viewBuilder = require('../src/ViewBuilder');
 global.renderWeeklyMatrixView = viewBuilder.renderWeeklyMatrixView;
 global.refreshWeeklyMatrix = viewBuilder.refreshWeeklyMatrix;
-global.renderActiveResponsiblesDashboard = viewBuilder.renderActiveResponsiblesDashboard;
-global.refreshActiveResponsibles = viewBuilder.refreshActiveResponsibles;
 
 const kpiEngine = require('../src/KpiEngine');
 global.KpiEngine = kpiEngine;

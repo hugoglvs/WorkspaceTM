@@ -102,8 +102,8 @@ function sync(targetSpreadsheet) {
     ? syncMembersAndTenures
     : (typeof require !== "undefined" ? (function() { try { return require("./SyncEngine").syncMembersAndTenures; } catch(e) { return null; } })() : null);
   var res = syncFn ? syncFn(ss) : null;
-  if (ss && typeof refreshActiveResponsibles === "function") {
-    try { refreshActiveResponsibles(ss); } catch (eR) {}
+  if (ss && typeof checkProjectBackupConflicts === "function") {
+    try { checkProjectBackupConflicts(ss); } catch (eR) {}
   }
   if (ss && typeof refreshKpis === "function") {
     try { refreshKpis(ss); } catch (eK) {}
@@ -171,9 +171,9 @@ function compilePresence() {
         refreshWeeklyMatrix(ss);
       } catch (eMatrix) {}
     }
-    if (typeof refreshActiveResponsibles === "function") {
+    if (typeof checkProjectBackupConflicts === "function") {
       try {
-        refreshActiveResponsibles(ss);
+        checkProjectBackupConflicts(ss);
       } catch (eResp) {}
     }
     if (typeof refreshKpis === "function") {
@@ -243,8 +243,8 @@ function compilePresenceMigration(targetSpreadsheet) {
       if (typeof refreshWeeklyMatrix === "function") {
         try { refreshWeeklyMatrix(ss); } catch (eM) {}
       }
-      if (typeof refreshActiveResponsibles === "function") {
-        try { refreshActiveResponsibles(ss); } catch (eR) {}
+      if (typeof checkProjectBackupConflicts === "function") {
+        try { checkProjectBackupConflicts(ss); } catch (eR) {}
       }
       if (typeof refreshKpis === "function") {
         try { refreshKpis(ss); } catch (eKp) {}
@@ -285,33 +285,6 @@ function refreshWeeklyMatrix(targetSpreadsheet) {
     return res;
   }
   return { success: false, message: "renderWeeklyMatrixView not available" };
-}
-
-/**
- * Refreshes the Active Responsibles Dashboard view.
- *
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
- * @return {Object} Status report
- */
-function refreshActiveResponsibles(targetSpreadsheet) {
-  var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  if (typeof viewBuilder !== "undefined" && typeof viewBuilder.refreshActiveResponsibles === "function") {
-    return viewBuilder.refreshActiveResponsibles(ss);
-  }
-  if (typeof renderActiveResponsiblesDashboard === "function") {
-    var res = renderActiveResponsiblesDashboard(ss);
-    if (res.success && ss && typeof ss.toast === "function") {
-      try {
-        ss.toast(
-          "Refreshed Active Responsibles: " + res.leadActiveCount + " Lead Active, " + res.coveredByBackupCount + " Backup Covered, " + res.uncoveredCount + " Uncovered.",
-          "Active Responsibles Updated",
-          5
-        );
-      } catch (eToast) {}
-    }
-    return res;
-  }
-  return { success: false, message: "renderActiveResponsiblesDashboard not available" };
 }
 
 /**
@@ -656,7 +629,6 @@ function runNightlySyncSteps(ss, res) {
   // 3. Refresh Dashboards (Matrix, Responsibles, KPIs)
   try {
     if (typeof refreshWeeklyMatrix === "function") res.steps.weeklyMatrix = refreshWeeklyMatrix(ss);
-    if (typeof refreshActiveResponsibles === "function") res.steps.activeResponsibles = refreshActiveResponsibles(ss);
     if (typeof refreshKpis === "function") res.steps.kpis = refreshKpis(ss);
   } catch (e3) {
     Logger.log("[nightlySyncJob] Dashboard refresh note: " + e3);
@@ -711,7 +683,6 @@ function onOpen(e, skipMenu) {
         .addItem("Compile Daily Presence Logs", "compilePresence")
         .addItem("Compile Presence Logs (Migration / Undefined Start Date)", "compilePresenceMigration")
         .addItem("Refresh Weekly Matrix View", "refreshWeeklyMatrix")
-        .addItem("Refresh Active Responsibles Dashboard", "refreshActiveResponsibles")
         .addItem("Refresh KPI Data for Looker (fact_presence)", "refreshKpis")
         .addItem("Check Project Backup Conflicts", "checkBackupConflicts")
         .addItem("Sync Google Tasks", "syncTasks")
@@ -897,6 +868,15 @@ function handleSheetEdit(e) {
     }
   }
 
+  // A project without a backup: ask for one (ADR 0038)
+  if (sheetName === "tbl_projects" && typeof promptProjectBackup === "function") {
+    try {
+      promptProjectBackup(e);
+    } catch (errBk) {
+      Logger.log("onEdit promptProjectBackup note: " + errBk);
+    }
+  }
+
   // Real-time simultaneous absence conflict re-evaluation
   if (sheetName === "tbl_projects" || sheetName === "tbl_leaves" || sheetName === "tbl_backups") {
     if (typeof checkProjectBackupConflicts === "function") {
@@ -927,7 +907,6 @@ if (typeof module !== 'undefined' && module.exports) {
     compilePresenceMigration: compilePresenceMigration,
     debugUserIdentity: debugUserIdentity,
     refreshWeeklyMatrix: refreshWeeklyMatrix,
-    refreshActiveResponsibles: refreshActiveResponsibles,
     refreshKpis: refreshKpis,
     syncTasks: syncTasks,
     syncCalendarEvents: syncCalendarEvents,

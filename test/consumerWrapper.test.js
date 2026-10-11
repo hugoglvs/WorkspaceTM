@@ -151,7 +151,7 @@ test('ConsumerWrapper: client actions forward correctly to linked library', () =
 
   consumerWrapper.clientRefreshDashboards();
   assert.ok(invokedMethods.includes('refreshWeeklyMatrix'));
-  assert.ok(invokedMethods.includes('refreshActiveResponsibles'));
+  assert.ok(invokedMethods.includes('checkBackupConflicts'));
   assert.ok(invokedMethods.includes('refreshKpis'));
 
   consumerWrapper.clientSyncTasks();

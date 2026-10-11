@@ -337,10 +337,10 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
   assert.strictEqual(auditRes.conflictsFound, 1);
   assert.strictEqual(auditRes.conflicts[0].projectId, 'PRJ-001');
   assert.strictEqual(auditRes.conflicts[0].conflictStart, '2026-06-15');
-  assert.strictEqual(auditRes.conflicts[0].conflictEnd, '2026-06-20');
+  assert.strictEqual(auditRes.conflicts[0].conflictEnd, '2026-06-19'); // Saturday 20 is not a working day
 
   // 1. Verify project row formatting is alert red (#F8D7DA, #721C24, bold)
-  var projectRowRange = projectsSheet.getRange(2, 1, 1, 7);
+  var projectRowRange = projectsSheet.getRange(2, 1, 1, 8);
   assert.strictEqual(projectRowRange.getBackground(), '#F8D7DA');
   assert.strictEqual(projectRowRange.getFontColor(), '#721C24');
   assert.strictEqual(projectRowRange.getFontWeight(), 'bold');
@@ -395,10 +395,10 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
     status: 'Approved'
   }, mockSpreadsheet);
 
-  // Initial check triggers conflict
-  var res1 = checkProjectBackupConflicts(mockSpreadsheet);
+  // Initial check (as of June 1) triggers conflict
+  var res1 = checkProjectBackupConflicts(mockSpreadsheet, { asOfDateParam: new Date(2026, 5, 1) });
   assert.strictEqual(res1.conflictsFound, 1);
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getBackground(), '#F8D7DA');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getBackground(), '#F8D7DA');
 
   // Assign Charlie as backup in tbl_backups covering the conflict period
   var bkpRes = assignProjectBackup({
@@ -413,17 +413,20 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
 
   assert.strictEqual(bkpRes.success, true);
 
-  // Check tbl_backups row
-  var bkpRow = backupsSheet.getRange(2, 1, 1, 8).getValues()[0];
+  // Row 2 is Bob's permanent backup (mirrored from tbl_projects), row 3 Charlie's interim backup
+  var permanentRow = backupsSheet.getRange(2, 1, 1, 8).getValues()[0];
+  assert.strictEqual(permanentRow[3], 'Bob');
+  assert.strictEqual(permanentRow[5], '', 'permanent backup has no end date');
+  var bkpRow = backupsSheet.getRange(3, 1, 1, 8).getValues()[0];
   assert.strictEqual(bkpRow[1], 'PRJ-002');
   assert.strictEqual(bkpRow[2], 'Alice');
   assert.strictEqual(bkpRow[3], 'Charlie');
   assert.strictEqual(bkpRow[6], 'Active');
 
   // Verify project row formatting is restored to normal white (#FFFFFF)
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getBackground(), '#FFFFFF');
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getFontColor(), '#000000');
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getFontWeight(), 'normal');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getBackground(), '#FFFFFF');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getFontColor(), '#000000');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getFontWeight(), 'normal');
 });
 
 test('Project conflict task assignment: assigns backup member when lead is already absent', () => {

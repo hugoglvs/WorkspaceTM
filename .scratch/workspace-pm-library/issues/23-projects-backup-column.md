@@ -1,6 +1,6 @@
 # 23: Projects with Read-Only Backup Column from tbl_backups
 
-**Status:** open
+**Status:** resolved
 
 **Blocked by:** _(none)_
 
@@ -16,3 +16,7 @@
 - It reads the backup from `tbl_projects.backup_member` instead of `tbl_backups`.
 - A conflict counts as covered only if a *single* designated backup spans the whole overlap; two consecutive interim backups are not recognised.
 - `Requested` leaves are ignored until approved (decide: warn early?).
+
+## Comments
+
+_2026-10-12 — Implemented (ADR 0038). User decision: Requested leaves trigger a warning. Rewrote `checkProjectBackupConflicts` around a per-day coverage rule, added `syncProjectBackups` and `promptProjectBackup`, the `active_responsible` column and table widening, and removed view_active_responsibles. 7 new tests; suite 161 pass. Follow-up idea: a sidebar to add interim backups._

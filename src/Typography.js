@@ -98,6 +98,29 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
   var existing = findTablesByName(spreadsheetId, tableName);
   for (var e = 0; e < existing.length; e++) {
     if (existing[e].sheetId === sheetId) {
+      // Additive migration: widen the table when the schema gained columns
+      var r = existing[e].range;
+      if (r && typeof r.endColumnIndex === "number" && r.endColumnIndex < numCols) {
+        try {
+          Sheets.Spreadsheets.batchUpdate({ requests: [{
+            updateTable: {
+              table: {
+                tableId: existing[e].tableId,
+                range: {
+                  sheetId: sheetId,
+                  startRowIndex: r.startRowIndex || 0,
+                  endRowIndex: r.endRowIndex || numRows,
+                  startColumnIndex: r.startColumnIndex || 0,
+                  endColumnIndex: numCols
+                }
+              },
+              fields: "range"
+            }
+          }] }, spreadsheetId);
+        } catch (eWiden) {
+          Logger.log("Widening table '" + tableName + "' note: " + eWiden);
+        }
+      }
       Logger.log("Table '" + tableName + "' already exists on its sheet, preserving it.");
       return true;
     }
@@ -131,17 +154,17 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
  *
  * @param {string} spreadsheetId
  * @param {string} tableName
- * @return {Array<{tableId: string, sheetId: number}>}
+ * @return {Array<{tableId: string, sheetId: number, range: Object}>}
  */
 function findTablesByName(spreadsheetId, tableName) {
   var found = [];
   try {
-    var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name))" });
+    var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name,range))" });
     var sheets = (meta && meta.sheets) || [];
     for (var i = 0; i < sheets.length; i++) {
       var tables = sheets[i].tables || [];
       for (var t = 0; t < tables.length; t++) {
-        if (tables[t].name === tableName) found.push({ tableId: tables[t].tableId, sheetId: sheets[i].properties.sheetId });
+        if (tables[t].name === tableName) found.push({ tableId: tables[t].tableId, sheetId: sheets[i].properties.sheetId, range: tables[t].range });
       }
     }
   } catch (eGet) {

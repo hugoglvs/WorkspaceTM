@@ -63,15 +63,23 @@ The primary Member accountable for a Project.
 _Avoid_: Owner, Manager, Responsible
 
 **Project Backup**:
-The designated secondary Member who steps in for the Project Lead during absences or leave.
+The permanent secondary Member who steps in for the Project Lead during absences or leave. Typed in `tbl_projects.backup_member` and mirrored into `tbl_backups` as the row with no `end_date`; a change ends the old row, which keeps the history.
 _Avoid_: Substitute, Second, Deputy, Shadow
 
 **Project Backup Conflict**:
-An operational risk scenario where both the Project Lead and Project Backup on an active Project are absent simultaneously (overlapping approved leaves or concurrent absences), requiring immediate interim backup designation in `tbl_backups`.
+A working day (from today on) when nobody can cover an active Project: the Project Lead, every Designated Backup active that day and the Project Backup are all on approved leave or absent. It turns the project row red, emails the lead and a manager, and creates an "Organize interim backup" task.
 _Avoid_: Dual absence, Uncovered project, Coverage clash
 
+**Coverage Warning**:
+Like a Project Backup Conflict, but at least one of the absences is a leave still `Requested`: the row turns orange and an email warns, with no task, so the gap can be fixed before approval.
+_Avoid_: Soft conflict, Pending conflict
+
+**Active Responsible**:
+The person in charge of a Project today, shown read-only in `tbl_projects.active_responsible`: the Project Lead, else "(interim)" Designated Backup, else "(backup)" Project Backup, else "⚠ Nobody available".
+_Avoid_: Owner today, Duty person
+
 **Designated Backup**:
-An active, time-bounded replacement assignment recorded in `tbl_backups` defining who backs up who on which project for a specific date range, mitigating project backup conflicts.
+A dated (interim) replacement in `tbl_backups` covering a Project for a specific date range. It takes precedence over the Project Backup on those days, and several consecutive ones can together cover a long absence.
 _Avoid_: Interim cover, Temp replacement
 
 **Task**:

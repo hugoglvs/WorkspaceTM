@@ -121,12 +121,12 @@ var SCHEMA_SPEC = {
   },
   tbl_projects: {
     sheetName: "tbl_projects",
-    columns: ["project_id", "name", "status", "start_date", "target_date", "lead_member", "backup_member"],
+    columns: ["project_id", "name", "status", "start_date", "target_date", "lead_member", "backup_member", "active_responsible"],
     requiredColumns: ["project_id", "name", "status", "start_date", "lead_member"],
-    nullableColumns: ["target_date", "backup_member"],
-    strictlyProtectedColumns: ["project_id"],
+    nullableColumns: ["target_date", "backup_member", "active_responsible"],
+    strictlyProtectedColumns: ["project_id", "active_responsible"],
     warningProtectedColumns: ["lead_member", "start_date"],
-    protectedColumns: ["project_id", "lead_member", "start_date"],
+    protectedColumns: ["project_id", "lead_member", "start_date", "active_responsible"],
     columnTypes: {
       project_id: "TEXT",
       name: "TEXT",
@@ -134,7 +134,8 @@ var SCHEMA_SPEC = {
       start_date: "DATE",
       target_date: "DATE",
       lead_member: "PEOPLE_CHIP",
-      backup_member: "PEOPLE_CHIP"
+      backup_member: "PEOPLE_CHIP",
+      active_responsible: "TEXT"
     },
     validations: {
       status: ["Planning", "Active", "On Hold", "Completed"]

@@ -1,17 +1,14 @@
 /**
- * Project Management Workspace - Project Backup Conflict Engine
+ * Project Management Workspace - Project Backup Coverage Engine (ADR 0038)
  *
- * Verifies that lead_member and backup_member on any active project in tbl_projects
- * are not absent simultaneously (overlapping approved leaves or current absence).
- *
- * If a conflict is detected:
- * 1. Highlights the project row in alert red (#F8D7DA background, #721C24 bold text).
- * 2. Sends an email notification via MailApp to the lead member and project manager.
- * 3. Creates an interim backup organization task in tbl_tasks assigning the lead member,
- *    or the backup member if the lead member is already absent.
- * 4. Resolves the conflict if an active designated backup exists in tbl_backups covering the range.
+ * For every active project and every working day from today on, the responsible person is:
+ *   the Project Lead if present -> else an interim backup active that day (dated tbl_backups row)
+ *   -> else the permanent backup (tbl_backups row with no end_date, mirrored from
+ *      tbl_projects.backup_member) -> else nobody (uncovered day).
+ * Uncovered days caused only by approved leaves are conflicts (red row, email, task);
+ * days involving a leave request are warnings (orange row, email). Today's responsible
+ * person is written to tbl_projects.active_responsible.
  */
-
 /**
  * Normalizes Date or date string to YYYY-MM-DD.
  *
@@ -59,8 +56,143 @@ function parseBackupDate(d) {
   return null;
 }
 
+var PROJECT_COLS = { id: 1, name: 2, status: 3, start: 4, target: 5, lead: 6, backup: 7, active: 8 };
+var CONFLICT_STYLE = { bg: "#F8D7DA", color: "#721C24" };
+var WARNING_STYLE = { bg: "#FCE8B2", color: "#7A4F01" };
+var COVERAGE_HORIZON_DAYS = 366;
+
+function backupCellName(val, rich) {
+  return (typeof extractCellValue === "function") ? extractCellValue(val, rich) : String(val || "").trim();
+}
+
+function addDays(d, n) {
+  var x = new Date(d.getTime());
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function isWeekendDay(d) {
+  return d.getDay() === 0 || d.getDay() === 6;
+}
+
 /**
- * Scans tbl_projects and detects simultaneous absence conflicts between lead_member and backup_member.
+ * Leaves by lower-cased Member: approved and requested only (cancelled ignored).
+ * @return {Object<string, Array<{startDate: Date, endDate: Date, status: string, leaveType: string}>>}
+ */
+function readCoverageLeaves(ss) {
+  var sheet = ss.getSheetByName("tbl_leaves");
+  var byMember = {};
+  if (!sheet || sheet.getMaxRows() < 2) return byMember;
+  var colMap = (typeof getLeaveColumnMap === "function")
+    ? getLeaveColumnMap(sheet)
+    : { member: 2, start_date: 3, end_date: 5, leave_type: 7, status: 8 };
+  var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 1000) - 1, Math.max(sheet.getLastColumn(), 6));
+  var vals = range.getValues();
+  var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
+  for (var r = 0; r < vals.length; r++) {
+    var name = backupCellName(vals[r][colMap.member - 1], rich[r] ? rich[r][colMap.member - 1] : null);
+    if (!name) continue;
+    var status = String(vals[r][colMap.status - 1] || "").trim().toLowerCase();
+    if (status !== "approved" && status !== "requested") continue;
+    var start = parseBackupDate(vals[r][colMap.start_date - 1]);
+    if (!start) continue;
+    var end = parseBackupDate(vals[r][colMap.end_date - 1]) || new Date(start.getTime());
+    var key = name.toLowerCase();
+    (byMember[key] = byMember[key] || []).push({
+      startDate: start, endDate: end, status: status,
+      leaveType: String(vals[r][colMap.leave_type - 1] || "Leave").trim()
+    });
+  }
+  return byMember;
+}
+
+/**
+ * tbl_backups rows by project_id (Active / Planned only).
+ * @return {Object<string, Array<{row: number, primary: string, backup: string, startDate: (Date|null), endDate: (Date|null)}>>}
+ */
+function readBackupAssignments(ss) {
+  var sheet = ss.getSheetByName("tbl_backups");
+  var byProject = {};
+  if (!sheet || sheet.getMaxRows() < 2) return byProject;
+  var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 1000) - 1, 8);
+  var vals = range.getValues();
+  var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
+  for (var r = 0; r < vals.length; r++) {
+    var projId = String(vals[r][1] || "").trim();
+    if (!projId) continue;
+    var status = String(vals[r][6] || "").trim().toLowerCase();
+    if (status !== "active" && status !== "planned") continue;
+    (byProject[projId] = byProject[projId] || []).push({
+      row: r + 2,
+      primary: backupCellName(vals[r][2], rich[r] ? rich[r][2] : null),
+      backup: backupCellName(vals[r][3], rich[r] ? rich[r][3] : null),
+      startDate: parseBackupDate(vals[r][4]),
+      endDate: parseBackupDate(vals[r][5])
+    });
+  }
+  return byProject;
+}
+
+/**
+ * Keeps tbl_backups in step with tbl_projects (ADR 0038):
+ * - a project with a name but no project_id gets one;
+ * - backup_member is the permanent backup: one tbl_backups row with no end_date.
+ *   A changed backup ends the old row yesterday and adds a new one from today.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {Date} todayDate
+ * @return {{idsCreated: number, rowsAdded: number, rowsEnded: number}}
+ */
+function syncProjectBackups(ss, todayDate) {
+  var res = { idsCreated: 0, rowsAdded: 0, rowsEnded: 0 };
+  var projectsSheet = ss.getSheetByName("tbl_projects");
+  var backupsSheet = ss.getSheetByName("tbl_backups");
+  if (!projectsSheet || !backupsSheet || projectsSheet.getMaxRows() < 2) return res;
+
+  var pRange = projectsSheet.getRange(2, 1, Math.min(projectsSheet.getMaxRows(), 500) - 1, 7);
+  var pVals = pRange.getValues();
+  var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
+  var assignments = readBackupAssignments(ss);
+  var todayIso = formatBackupDateIso(todayDate);
+  var yesterdayIso = formatBackupDateIso(addDays(todayDate, -1));
+
+  for (var p = 0; p < pVals.length; p++) {
+    var name = String(pVals[p][1] || "").trim();
+    var projId = String(pVals[p][0] || "").trim();
+    if (!name && !projId) continue;
+    if (!projId) {
+      projId = "PRJ-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+      projectsSheet.getRange(p + 2, PROJECT_COLS.id).setValue(projId);
+      res.idsCreated++;
+    }
+    var lead = backupCellName(pVals[p][5], pRich[p] ? pRich[p][5] : null);
+    var backup = backupCellName(pVals[p][6], pRich[p] ? pRich[p][6] : null);
+    if (!backup) continue;
+
+    var permanent = (assignments[projId] || []).filter(function(a) { return !a.endDate; });
+    var current = permanent.filter(function(a) { return a.backup.toLowerCase() === backup.toLowerCase(); })[0];
+    if (current) continue;
+
+    for (var k = 0; k < permanent.length; k++) {
+      backupsSheet.getRange(permanent[k].row, 6).setValue(yesterdayIso);
+      res.rowsEnded++;
+    }
+    var startIso = permanent.length ? todayIso : (formatBackupDateIso(parseBackupDate(pVals[p][3])) || todayIso);
+    var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(backupsSheet) : backupsSheet.getLastRow() + 1;
+    backupsSheet.getRange(row, 1, 1, 8).setValues([[
+      "bkp_" + Math.random().toString(36).substring(2, 9), projId, lead, backup, startIso, "", "Active", "Permanent backup"
+    ]]);
+    if (typeof copyCellChip === "function") {
+      try { copyCellChip(projectsSheet, p + 2, PROJECT_COLS.backup, backupsSheet, row, 4, backup, ss.getId ? ss.getId() : ""); } catch (eChip) {}
+    }
+    res.rowsAdded++;
+  }
+  return res;
+}
+
+/**
+ * Scans active projects for days with nobody available, writes today's
+ * active_responsible, highlights rows, emails and creates interim-backup tasks.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @param {Object} [options]
@@ -68,457 +200,258 @@ function parseBackupDate(d) {
  * @param {string} [options.managerEmail] - Explicit manager email override
  * @param {boolean} [options.sendNotifications] - Default true
  * @param {boolean} [options.createTasks] - Default true
- * @return {Object} Audit report with conflicts found and actions taken
+ * @return {Object} { success, projectsAudited, conflictsFound, conflicts[], warningsFound, warnings[], resolvedCount }
  */
 function checkProjectBackupConflicts(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return { success: false, message: "No active spreadsheet" };
-
   var projectsSheet = ss.getSheetByName("tbl_projects");
-  var leavesSheet = ss.getSheetByName("tbl_leaves");
-  var backupsSheet = ss.getSheetByName("tbl_backups");
   var tasksSheet = ss.getSheetByName("tbl_tasks");
   var membersSheet = ss.getSheetByName("tbl_members");
-
-  if (!projectsSheet) {
-    return { success: false, message: "Sheet 'tbl_projects' not found." };
-  }
+  if (!projectsSheet) return { success: false, message: "Sheet 'tbl_projects' not found." };
 
   var opt = options || {};
   var sendNotifications = opt.sendNotifications !== false;
   var createTasks = opt.createTasks !== false;
-
-  var now = opt.asOfDateParam ? new Date(opt.asOfDateParam) : new Date();
-  var todayDate = new Date(now.getTime());
-  todayDate.setHours(0, 0, 0, 0);
+  var todayDate = parseBackupDate(opt.asOfDateParam ? opt.asOfDateParam : new Date());
   var todayIso = formatBackupDateIso(todayDate);
 
-  // 1. Build Members map (for emails, chips, roles, and today presence)
+  syncProjectBackups(ss, todayDate);
+
+  // 1. Members: emails, chips, today's presence, a manager to notify
   var membersRoster = {};
-  var managerCandidateEmail = opt.managerEmail || "";
+  var managerEmail = opt.managerEmail || "";
+  if (membersSheet && membersSheet.getMaxRows() > 1) {
+    var mRange = membersSheet.getRange(2, 1, Math.min(membersSheet.getMaxRows(), 300) - 1, 7);
+    var mVals = mRange.getValues();
+    var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
+    for (var m = 0; m < mVals.length; m++) {
+      var nameM = backupCellName(mVals[m][0], mRich[m] ? mRich[m][0] : null);
+      if (!nameM) continue;
+      var emailM = String(mVals[m][1] || "").trim().toLowerCase();
+      if (!emailM && typeof extractEmailFromChip === "function") emailM = String(extractEmailFromChip(mVals[m][0], mRich[m] ? mRich[m][0] : null) || "").toLowerCase();
+      var roleM = String(mVals[m][3] || "").trim();
+      membersRoster[nameM.toLowerCase()] = { row: m + 2, name: nameM, email: emailM, todayPresence: String(mVals[m][6] || "").trim().toLowerCase() };
+      if (!managerEmail && emailM && /manager|head|director/i.test(roleM)) managerEmail = emailM;
+    }
+  }
+  if (!managerEmail) { try { managerEmail = Session.getActiveUser().getEmail(); } catch (eSes) {} }
+  if (!managerEmail) { try { managerEmail = ss.getOwner().getEmail(); } catch (eOwn) {} }
 
-  if (membersSheet) {
-    var mMax = Math.min(membersSheet.getMaxRows(), 300);
-    if (mMax > 1) {
-      var mRange = membersSheet.getRange(2, 1, mMax - 1, Math.max(membersSheet.getLastColumn(), 7));
-      var mVals = mRange.getValues();
-      var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
+  var leaves = readCoverageLeaves(ss);
+  var assignments = readBackupAssignments(ss);
 
-      for (var m = 0; m < mVals.length; m++) {
-        var rawM = mVals[m][0];
-        var rM = (mRich && mRich[m]) ? mRich[m][0] : null;
-        var nameM = (typeof extractCellValue === "function") ? extractCellValue(rawM, rM) : String(rawM || "").trim();
-        if (!nameM) continue;
+  // Absence of a Member on a date: null, "approved" or "requested"
+  function absence(name, date) {
+    if (!name) return "approved";
+    var key = name.toLowerCase();
+    var found = null;
+    var list = leaves[key] || [];
+    for (var i = 0; i < list.length; i++) {
+      if (date >= list[i].startDate && date <= list[i].endDate) {
+        if (list[i].status === "approved") return "approved";
+        found = "requested";
+      }
+    }
+    if (!found && date.getTime() === todayDate.getTime() && membersRoster[key]) {
+      var pres = membersRoster[key].todayPresence;
+      if (/vacation|sick|leave|absent/.test(pres)) return "approved";
+    }
+    return found;
+  }
 
-        var emailM = String(mVals[m][1] || "").trim().toLowerCase();
-        if (!emailM && typeof extractEmailFromChip === "function") {
-          emailM = extractEmailFromChip(rawM, rM).toLowerCase();
-        }
-        var roleM = String(mVals[m][3] || "").trim();
-        var deptM = String(mVals[m][4] || "").trim();
-        var tenureM = String(mVals[m][5] || "").trim();
-        var todayPresence = String(mVals[m][6] || "").trim();
+  // Who is responsible for a project on a date
+  function responsibleOn(project, date) {
+    var pending = false;
+    var a = absence(project.lead, date);
+    if (!a) return { name: project.lead, as: "lead" };
+    if (a === "requested") pending = true;
+    var rows = assignments[project.id] || [];
+    var interim = rows.filter(function(r) { return r.endDate && (!r.startDate || r.startDate <= date) && r.endDate >= date; });
+    var permanent = rows.filter(function(r) { return !r.endDate && (!r.startDate || r.startDate <= date); });
+    var candidates = interim.map(function(r) { return { name: r.backup, as: "interim" }; })
+      .concat(permanent.map(function(r) { return { name: r.backup, as: "backup" }; }));
+    if (!permanent.length && project.backup) candidates.push({ name: project.backup, as: "backup" });
+    for (var c = 0; c < candidates.length; c++) {
+      var ab = absence(candidates[c].name, date);
+      if (!ab) return { name: candidates[c].name, as: candidates[c].as };
+      if (ab === "requested") pending = true;
+    }
+    return { name: null, as: null, pending: pending };
+  }
 
-        var mObj = {
-          row: m + 2,
-          raw: rawM,
-          rich: rM,
-          name: nameM,
-          email: emailM,
-          role: roleM,
-          dept: deptM,
-          tenure: tenureM,
-          todayPresence: todayPresence
-        };
+  // Last day worth checking for a project: the latest leave end among the people involved
+  function horizonFor(project) {
+    var people = [project.lead, project.backup].concat((assignments[project.id] || []).map(function(r) { return r.backup; }));
+    var last = todayDate;
+    people.forEach(function(n) {
+      (leaves[String(n || "").toLowerCase()] || []).forEach(function(l) { if (l.endDate > last) last = l.endDate; });
+    });
+    var cap = addDays(todayDate, COVERAGE_HORIZON_DAYS);
+    return last > cap ? cap : last;
+  }
 
-        membersRoster[nameM.toLowerCase()] = mObj;
-        if (emailM) membersRoster[emailM] = mObj;
-
-        // Check if member has a Manager / Lead role
-        if (!managerCandidateEmail && emailM && /manager|head|director/i.test(roleM)) {
-          managerCandidateEmail = emailM;
-        }
+  // Existing open interim-backup tasks, so each project gets at most one
+  var openBackupTasks = {};
+  if (tasksSheet && tasksSheet.getMaxRows() > 1) {
+    var tVals = tasksSheet.getRange(2, 1, Math.min(tasksSheet.getMaxRows(), 1000) - 1, 7).getValues();
+    for (var t = 0; t < tVals.length; t++) {
+      var tProj = String(tVals[t][1] || "").trim();
+      if (tProj && String(tVals[t][3] || "").toLowerCase().indexOf("organize interim backup") !== -1 && String(tVals[t][6] || "").toLowerCase() !== "done") {
+        openBackupTasks[tProj] = true;
       }
     }
   }
 
-  // Fallback manager email if none found in members roster
-  if (!managerCandidateEmail) {
-    try {
-      managerCandidateEmail = Session.getActiveUser().getEmail();
-    } catch (eSes) {}
-  }
-  if (!managerCandidateEmail) {
-    try {
-      if (typeof ss.getOwner === "function" && ss.getOwner()) {
-        managerCandidateEmail = ss.getOwner().getEmail();
-      }
-    } catch (eOwn) {}
-  }
-
-  // 2. Read Approved Leaves from tbl_leaves
-  var leavesByMember = {};
-  if (leavesSheet) {
-    var lColMap = (typeof getLeaveColumnMap === "function")
-      ? getLeaveColumnMap(leavesSheet)
-      : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
-    var lMax = Math.min(leavesSheet.getMaxRows(), 500);
-    if (lMax > 1) {
-      var lRange = leavesSheet.getRange(2, 1, lMax - 1, Math.max(leavesSheet.getLastColumn(), 6));
-      var lVals = lRange.getValues();
-      var lRich = (typeof lRange.getRichTextValues === "function") ? lRange.getRichTextValues() : [];
-
-      for (var l = 0; l < lVals.length; l++) {
-        var rawLMem = lVals[l][lColMap.member - 1];
-        var rLMem = (lRich && lRich[l]) ? lRich[l][lColMap.member - 1] : null;
-        var lMem = (typeof extractCellValue === "function") ? extractCellValue(rawLMem, rLMem) : String(rawLMem || "").trim();
-        if (!lMem) continue;
-
-        var lStatus = String(lVals[l][lColMap.status - 1] || "").trim().toLowerCase();
-        if (lStatus !== "approved") continue;
-
-        var lKey = lMem.toLowerCase();
-        if (!leavesByMember[lKey]) leavesByMember[lKey] = [];
-
-        var sDate = parseBackupDate(lVals[l][lColMap.start_date - 1]);
-        var eDate = parseBackupDate(lVals[l][lColMap.end_date - 1]);
-        if (!sDate) continue;
-        if (!eDate) eDate = new Date(sDate.getTime());
-
-        leavesByMember[lKey].push({
-          startDate: sDate,
-          endDate: eDate,
-          leaveType: String(lVals[l][lColMap.leave_type - 1] || "Vacation").trim()
-        });
-      }
-    }
-  }
-
-  // 3. Read Active Designated Backups from tbl_backups
-  var backupsByProject = {};
-  if (backupsSheet) {
-    var bMax = Math.min(backupsSheet.getMaxRows(), 500);
-    if (bMax > 1) {
-      // Columns: backup_id(1), project_id(2), primary_member(3), backup_member(4), start_date(5), end_date(6), status(7), notes(8)
-      var bVals = backupsSheet.getRange(2, 1, bMax - 1, Math.max(backupsSheet.getLastColumn(), 8)).getValues();
-      var bRich = (typeof backupsSheet.getRange(2, 1, bMax - 1, Math.max(backupsSheet.getLastColumn(), 8)).getRichTextValues === "function")
-        ? backupsSheet.getRange(2, 1, bMax - 1, Math.max(backupsSheet.getLastColumn(), 8)).getRichTextValues()
-        : [];
-
-      for (var b = 0; b < bVals.length; b++) {
-        var bProjId = String(bVals[b][1] || "").trim();
-        if (!bProjId) continue;
-
-        var bStatus = String(bVals[b][6] || "").trim().toLowerCase();
-        if (bStatus !== "active" && bStatus !== "planned") continue;
-
-        var bPrimaryRaw = bVals[b][2];
-        var bPrimary = (typeof extractCellValue === "function") ? extractCellValue(bPrimaryRaw) : String(bPrimaryRaw || "").trim();
-        var bBackupRaw = bVals[b][3];
-        var bBackup = (typeof extractCellValue === "function") ? extractCellValue(bBackupRaw) : String(bBackupRaw || "").trim();
-
-        var bStart = parseBackupDate(bVals[b][4]);
-        var bEnd = parseBackupDate(bVals[b][5]);
-
-        if (!backupsByProject[bProjId]) backupsByProject[bProjId] = [];
-        backupsByProject[bProjId].push({
-          primaryMember: bPrimary,
-          backupMember: bBackup,
-          startDate: bStart,
-          endDate: bEnd,
-          status: bVals[b][6]
-        });
-      }
-    }
-  }
-
-  // 4. Read Existing Tasks from tbl_tasks to ensure idempotent task creation
-  var existingBackupTasks = {}; // key: projectId -> true
-  if (tasksSheet) {
-    var tMax = Math.min(tasksSheet.getMaxRows(), 500);
-    if (tMax > 1) {
-      // Columns: task_id(1), project_id(2), assigned_member(3), title(4), description(5), due_date(6), status(7)
-      var tVals = tasksSheet.getRange(2, 1, tMax - 1, Math.max(tasksSheet.getLastColumn(), 7)).getValues();
-      for (var t = 0; t < tVals.length; t++) {
-        var tProj = String(tVals[t][1] || "").trim();
-        var tTitle = String(tVals[t][3] || "").trim().toLowerCase();
-        var tStatus = String(tVals[t][6] || "").trim().toLowerCase();
-        if (tProj && tTitle.indexOf("organize interim backup") !== -1 && tStatus !== "done") {
-          existingBackupTasks[tProj] = true;
-        }
-      }
-    }
-  }
-
-  // Helper to test if a member is currently absent
-  function isMemberCurrentlyAbsent(mKey) {
-    var mR = membersRoster[mKey];
-    if (mR && mR.todayPresence) {
-      var pres = mR.todayPresence.toLowerCase();
-      if (pres.indexOf("vacation") !== -1 || pres.indexOf("sick") !== -1 || pres.indexOf("leave") !== -1 || pres.indexOf("absent") !== -1) {
-        return true;
-      }
-    }
-    var lList = leavesByMember[mKey] || [];
-    for (var i = 0; i < lList.length; i++) {
-      if (todayDate >= lList[i].startDate && todayDate <= lList[i].endDate) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Helper to check if designated backup resolves an overlap period on project
-  function isConflictMitigated(projId, overlapStart, overlapEnd) {
-    var bList = backupsByProject[projId] || [];
-    for (var i = 0; i < bList.length; i++) {
-      var b = bList[i];
-      if (!b.backupMember) continue;
-      // If designated backup has dates, ensure they cover or overlap
-      if (b.startDate && b.startDate > overlapStart) continue;
-      if (b.endDate && b.endDate < overlapEnd) continue;
-
-      // Check if designated backup is also absent
-      var bKey = b.backupMember.toLowerCase();
-      var bLeaves = leavesByMember[bKey] || [];
-      var bAbsent = false;
-      for (var bl = 0; bl < bLeaves.length; bl++) {
-        if (bLeaves[bl].startDate <= overlapEnd && bLeaves[bl].endDate >= overlapStart) {
-          bAbsent = true;
-          break;
-        }
-      }
-      if (!bAbsent) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // 5. Scan Projects in tbl_projects
-  // Columns: project_id(1), name(2), status(3), start_date(4), target_date(5), lead_member(6), backup_member(7)
-  var pMax = Math.min(projectsSheet.getMaxRows(), 500);
-  if (pMax <= 1) {
-    return { success: true, projectsAudited: 0, conflictsFound: 0, message: "No project rows in tbl_projects." };
-  }
-
-  var pRange = projectsSheet.getRange(2, 1, pMax - 1, Math.max(projectsSheet.getLastColumn(), 7));
+  var pRange = projectsSheet.getRange(2, 1, Math.min(projectsSheet.getMaxRows(), 500) - 1, 8);
   var pVals = pRange.getValues();
   var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
-
-  var conflictsList = [];
-  var resolvedCount = 0;
+  var conflicts = [], warnings = [], resolvedCount = 0, audited = 0;
+  var activeColumn = [];
 
   for (var p = 0; p < pVals.length; p++) {
     var rowNum = p + 2;
-    var projId = String(pVals[p][0] || "").trim();
-    var projName = String(pVals[p][1] || projId).trim();
-    var projStatus = String(pVals[p][2] || "").trim();
-    if (!projId && !projName) continue;
-
-    // Completed projects do not need backup conflict alerting
-    if (projStatus.toLowerCase() === "completed") {
-      projectsSheet.getRange(rowNum, 1, 1, 7).setBackground("#FFFFFF").setFontColor("#000000").setFontWeight("normal");
+    var project = {
+      id: String(pVals[p][0] || "").trim(),
+      name: String(pVals[p][1] || pVals[p][0] || "").trim(),
+      status: String(pVals[p][2] || "").trim().toLowerCase(),
+      lead: backupCellName(pVals[p][5], pRich[p] ? pRich[p][5] : null),
+      backup: backupCellName(pVals[p][6], pRich[p] ? pRich[p][6] : null)
+    };
+    var rowRange = projectsSheet.getRange(rowNum, 1, 1, 8);
+    if (!project.id && !project.name) { activeColumn.push([pVals[p][7] || ""]); continue; }
+    if (project.status === "completed" || !project.lead) {
+      rowRange.setBackground("#FFFFFF").setFontColor("#000000").setFontWeight("normal");
+      activeColumn.push([""]);
       continue;
     }
+    audited++;
 
-    var leadRaw = pVals[p][5];
-    var leadR = (pRich && pRich[p]) ? pRich[p][5] : null;
-    var leadName = (typeof extractCellValue === "function") ? extractCellValue(leadRaw, leadR) : String(leadRaw || "").trim();
+    // Today's responsible person
+    var now = responsibleOn(project, todayDate);
+    activeColumn.push([now.name
+      ? now.name + (now.as === "lead" ? "" : " (" + now.as + ")")
+      : "⚠ Nobody available" + (now.pending ? " (pending request)" : "")]);
 
-    var backupRaw = pVals[p][6];
-    var backupR = (pRich && pRich[p]) ? pRich[p][6] : null;
-    var backupName = (typeof extractCellValue === "function") ? extractCellValue(backupRaw, backupR) : String(backupRaw || "").trim();
-
-    if (!leadName || !backupName) {
-      projectsSheet.getRange(rowNum, 1, 1, 7).setBackground("#FFFFFF").setFontColor("#000000").setFontWeight("normal");
-      continue;
+    // Uncovered working days from today on, grouped into periods (weekends do not break a period)
+    var periods = [];
+    var open = null;
+    var horizon = horizonFor(project);
+    for (var d = new Date(todayDate.getTime()); d <= horizon; d = addDays(d, 1)) {
+      if (isWeekendDay(d)) continue;
+      var who = responsibleOn(project, d);
+      if (who.name) { open = null; continue; }
+      var kind = who.pending ? "warning" : "conflict";
+      if (open && open.kind === kind) { open.end = new Date(d.getTime()); continue; }
+      open = { kind: kind, start: new Date(d.getTime()), end: new Date(d.getTime()) };
+      periods.push(open);
     }
+    var conflictPeriods = periods.filter(function(x) { return x.kind === "conflict"; });
+    var warningPeriods = periods.filter(function(x) { return x.kind === "warning"; });
 
-    var leadKey = leadName.toLowerCase();
-    var backupKey = backupName.toLowerCase();
-
-    var leadLeaves = leavesByMember[leadKey] || [];
-    var backupLeaves = leavesByMember[backupKey] || [];
-
-    var detectedConflict = null;
-
-    // A. Check for overlapping approved leaves
-    for (var ll = 0; ll < leadLeaves.length; ll++) {
-      var lLeave = leadLeaves[ll];
-      for (var bl = 0; bl < backupLeaves.length; bl++) {
-        var bLeave = backupLeaves[bl];
-        var ovStart = new Date(Math.max(lLeave.startDate.getTime(), bLeave.startDate.getTime()));
-        var ovEnd = new Date(Math.min(lLeave.endDate.getTime(), bLeave.endDate.getTime()));
-
-        if (ovStart <= ovEnd) {
-          detectedConflict = {
-            startDate: ovStart,
-            endDate: ovEnd,
-            reason: "Overlapping approved leaves (" + formatBackupDateIso(ovStart) + " to " + formatBackupDateIso(ovEnd) + ")"
-          };
-          break;
-        }
-      }
-      if (detectedConflict) break;
-    }
-
-    // B. Check if both are absent today
-    if (!detectedConflict && isMemberCurrentlyAbsent(leadKey) && isMemberCurrentlyAbsent(backupKey)) {
-      detectedConflict = {
-        startDate: todayDate,
-        endDate: todayDate,
-        reason: "Simultaneous absence today (" + todayIso + ")"
-      };
-    }
-
-    // C. Check if conflict is mitigated by an active entry in tbl_backups
-    var isMitigated = false;
-    if (detectedConflict) {
-      isMitigated = isConflictMitigated(projId, detectedConflict.startDate, detectedConflict.endDate);
-    }
-
-    if (detectedConflict && !isMitigated) {
-      // === CONFLICT DETECTED ===
-      var targetRowRange = projectsSheet.getRange(rowNum, 1, 1, 7);
-      var currentBg = String(targetRowRange.getBackground() || "").toUpperCase();
-      var isAlreadyAlerted = (currentBg === "#F8D7DA");
-
-      // 1. Highlight project row in alert red (#F8D7DA, #721C24 bold)
-      targetRowRange.setBackground("#F8D7DA");
-      targetRowRange.setFontColor("#721C24");
-      targetRowRange.setFontWeight("bold");
-
-      var conflictStartStr = formatBackupDateIso(detectedConflict.startDate);
-      var conflictEndStr = formatBackupDateIso(detectedConflict.endDate);
-
-      // Resolve lead member email and manager email
-      var leadEmail = "";
-      if (membersRoster[leadKey] && membersRoster[leadKey].email) {
-        leadEmail = membersRoster[leadKey].email;
-      } else if (typeof extractEmailFromChip === "function") {
-        leadEmail = extractEmailFromChip(leadRaw, leadR);
-      }
-
-      var recipientsList = [];
-      if (leadEmail) recipientsList.push(leadEmail);
-      if (managerCandidateEmail && recipientsList.indexOf(managerCandidateEmail.toLowerCase()) === -1) {
-        recipientsList.push(managerCandidateEmail);
-      }
-
-      // 2. Send email notification (only if newly alerted to avoid duplicate spam)
-      var emailSent = false;
-      if (sendNotifications && !isAlreadyAlerted && recipientsList.length > 0 && typeof MailApp !== "undefined" && typeof MailApp.sendEmail === "function") {
-        try {
-          var subject = "[ACTION REQUIRED] Simultaneous Absence Conflict on Project: " + projName;
-          var body = "Attention Required: Simultaneous Absence Conflict Detected\n\n" +
-            "Project: " + projName + " (ID: " + projId + ")\n" +
-            "Lead Member: " + leadName + "\n" +
-            "Backup Member: " + backupName + "\n" +
-            "Conflict Period: " + conflictStartStr + " to " + conflictEndStr + "\n" +
-            "Details: " + detectedConflict.reason + "\n\n" +
-            "Both the project lead and backup member are absent simultaneously without a designated replacement in tbl_backups.\n" +
-            "Please assign an interim backup member in the 'tbl_backups' table immediately to ensure continuity.";
-          MailApp.sendEmail({
-            to: recipientsList.join(","),
-            subject: subject,
-            body: body
-          });
-          emailSent = true;
-        } catch (eMail) {
-          Logger.log("Failed to send conflict email: " + eMail);
-        }
-      }
-
-      // 3. Create interim backup task in tbl_tasks
-      var taskCreated = false;
-      var assignedMemberForTask = leadRaw; // Default to lead
-      var isLeadAbsentNow = isMemberCurrentlyAbsent(leadKey) || (todayDate >= detectedConflict.startDate);
-      if (isLeadAbsentNow) {
-        assignedMemberForTask = backupRaw; // Assign backup member if lead is already absent
-      }
-
-      if (createTasks && tasksSheet && !existingBackupTasks[projId]) {
-        try {
-          var tLast = (typeof tasksSheet.getLastRow === "function") ? (tasksSheet.getLastRow() || 1) : 1;
-          var tTargetRow = tLast + 1;
-          if (tTargetRow <= 2) tTargetRow = 2;
-
-          var taskId = "task_" + Math.random().toString(36).substring(2, 9);
-          var taskTitle = "Organize interim backup for project " + projName;
-          var taskDesc = "Simultaneous absence conflict between " + leadName + " and " + backupName + " from " + conflictStartStr + " to " + conflictEndStr + ". Assign an interim backup in tbl_backups.";
-
-          var newTaskRow = [
-            taskId,
-            projId,
-            (typeof extractCellValue === "function") ? extractCellValue(assignedMemberForTask) : leadName,
-            taskTitle,
-            taskDesc,
-            conflictStartStr,
-            "Todo",
-            ""
-          ];
-
-          tasksSheet.getRange(tTargetRow, 1, 1, 8).setValues([newTaskRow]);
-
-          // Copy People Chip if available
-          var assignedNameStr = (typeof extractCellValue === "function") ? extractCellValue(assignedMemberForTask) : leadName;
-          var assignRoster = membersRoster[assignedNameStr.toLowerCase()];
-          if (assignRoster && typeof copyCellChip === "function") {
-            copyCellChip(
-              membersSheet,
-              assignRoster.row,
-              1,
-              tasksSheet,
-              tTargetRow,
-              3,
-              assignedNameStr,
-              ss.getId()
-            );
-          }
-
-          if (typeof applyTypography === "function") {
-            applyTypography(tasksSheet.getRange(tTargetRow, 1, 1, 8));
-          }
-
-          existingBackupTasks[projId] = true;
-          taskCreated = true;
-        } catch (eTask) {
-          Logger.log("Failed to create backup task: " + eTask);
-        }
-      }
-
-      conflictsList.push({
-        projectId: projId,
-        projectName: projName,
-        row: rowNum,
-        leadMember: leadName,
-        backupMember: backupName,
-        conflictStart: conflictStartStr,
-        conflictEnd: conflictEndStr,
-        reason: detectedConflict.reason,
-        emailSent: emailSent,
-        recipients: recipientsList,
-        taskCreated: taskCreated
-      });
-    } else {
-      // === NO CONFLICT / MITIGATED ===
-      // Clear alert red formatting
-      projectsSheet.getRange(rowNum, 1, 1, 7)
-        .setBackground("#FFFFFF")
-        .setFontColor("#000000")
-        .setFontWeight("normal");
+    if (!periods.length) {
+      rowRange.setBackground("#FFFFFF").setFontColor("#000000").setFontWeight("normal");
       resolvedCount++;
+      continue;
     }
+
+    var style = conflictPeriods.length ? CONFLICT_STYLE : WARNING_STYLE;
+    var previousBg = String(rowRange.getBackground() || "").toUpperCase();
+    var alreadyAlerted = previousBg === style.bg;
+    rowRange.setBackground(style.bg).setFontColor(style.color).setFontWeight("bold");
+
+    var first = (conflictPeriods[0] || warningPeriods[0]);
+    var startStr = formatBackupDateIso(first.start), endStr = formatBackupDateIso(first.end);
+    var isConflict = !!conflictPeriods.length;
+    var reason = (isConflict ? "Nobody available" : "Nobody available if pending leave requests are approved") +
+      " (" + startStr + (endStr !== startStr ? " to " + endStr : "") + ")";
+
+    var leadEmail = membersRoster[project.lead.toLowerCase()] ? membersRoster[project.lead.toLowerCase()].email : "";
+    var recipients = [];
+    if (leadEmail) recipients.push(leadEmail);
+    if (managerEmail && recipients.indexOf(managerEmail.toLowerCase()) === -1) recipients.push(managerEmail);
+
+    var emailSent = false;
+    if (sendNotifications && !alreadyAlerted && recipients.length && typeof MailApp !== "undefined" && MailApp.sendEmail) {
+      try {
+        MailApp.sendEmail({
+          to: recipients.join(","),
+          subject: (isConflict ? "[ACTION REQUIRED] No backup available on project: " : "[WARNING] Leave request leaves project without backup: ") + project.name,
+          body: (isConflict ? "Nobody can cover this project on some working days.\n\n" : "If the pending leave request(s) are approved, nobody can cover this project on some working days.\n\n") +
+            "Project: " + project.name + " (ID: " + project.id + ")\n" +
+            "Project Lead: " + project.lead + "\n" +
+            "Permanent backup: " + (project.backup || "none") + "\n" +
+            "Uncovered: " + startStr + " to " + endStr + "\n\n" +
+            "Add an interim backup for these dates (tbl_backups), or adjust the leaves."
+        });
+        emailSent = true;
+      } catch (eMail) { Logger.log("Backup coverage email note: " + eMail); }
+    }
+
+    var taskCreated = false;
+    if (isConflict && createTasks && tasksSheet && !openBackupTasks[project.id]) {
+      try {
+        var assignee = absence(project.lead, todayDate) ? (project.backup || project.lead) : project.lead;
+        var tRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tasksSheet) : tasksSheet.getLastRow() + 1;
+        tasksSheet.getRange(tRow, 1, 1, 8).setValues([[
+          "task_" + Math.random().toString(36).substring(2, 9), project.id, assignee,
+          "Organize interim backup for project " + project.name,
+          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates in tbl_backups.",
+          startStr, "Todo", ""
+        ]]);
+        var assigneeRoster = membersRoster[String(assignee).toLowerCase()];
+        if (assigneeRoster && typeof copyCellChip === "function") {
+          try { copyCellChip(membersSheet, assigneeRoster.row, 1, tasksSheet, tRow, 3, assignee, ss.getId()); } catch (eChip) {}
+        }
+        if (typeof applyTypography === "function") applyTypography(tasksSheet.getRange(tRow, 1, 1, 8));
+        openBackupTasks[project.id] = true;
+        taskCreated = true;
+      } catch (eTask) { Logger.log("Backup task note: " + eTask); }
+    }
+
+    var entry = {
+      projectId: project.id, projectName: project.name, row: rowNum,
+      leadMember: project.lead, backupMember: project.backup,
+      conflictStart: startStr, conflictEnd: endStr, reason: reason,
+      pending: !isConflict, emailSent: emailSent, recipients: recipients, taskCreated: taskCreated,
+      periods: periods.map(function(x) { return { kind: x.kind, start: formatBackupDateIso(x.start), end: formatBackupDateIso(x.end) }; })
+    };
+    (isConflict ? conflicts : warnings).push(entry);
+  }
+
+  if (activeColumn.length) {
+    projectsSheet.getRange(2, PROJECT_COLS.active, activeColumn.length, 1).setValues(activeColumn);
   }
 
   return {
     success: true,
-    projectsAudited: pVals.length,
-    conflictsFound: conflictsList.length,
-    conflicts: conflictsList,
+    asOf: todayIso,
+    projectsAudited: audited,
+    conflictsFound: conflicts.length,
+    conflicts: conflicts,
+    warningsFound: warnings.length,
+    warnings: warnings,
     resolvedCount: resolvedCount
   };
+}
+
+/**
+ * Asks for a backup when a project row has a name but no backup_member (onEdit on tbl_projects).
+ *
+ * @param {Object} e Apps Script onEdit event object
+ * @return {boolean} true when the toast was shown
+ */
+function promptProjectBackup(e) {
+  if (!e || !e.range || e.range.getRow() < 2) return false;
+  var sheet = e.range.getSheet();
+  var vals = sheet.getRange(e.range.getRow(), 1, 1, 7).getValues()[0];
+  var name = String(vals[1] || "").trim();
+  if (!name || String(vals[6] || "").trim()) return false;
+  var ss = e.source || (sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
+  try {
+    ss.toast("Project \"" + name + "\" has no backup yet. Fill in backup_member so absences stay covered.", "Backup needed", 8);
+  } catch (eToast) {}
+  return true;
 }
 
 /**
@@ -622,6 +555,8 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     checkProjectBackupConflicts: checkProjectBackupConflicts,
+    syncProjectBackups: syncProjectBackups,
+    promptProjectBackup: promptProjectBackup,
     assignProjectBackup: assignProjectBackup,
     formatBackupDateIso: formatBackupDateIso,
     parseBackupDate: parseBackupDate

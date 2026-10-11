@@ -4,9 +4,9 @@
 
 - **WorkspacePM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
 - No build, no `package.json`. Each `src/*.js` and `consumer/Code.js` is a global script in Apps Script and ends with a `if (typeof module !== 'undefined') module.exports = {...}` guard so Node tests can `require` it. Keep that guard when adding files or exports.
-- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-11: **156 pass, 0 fail**.
+- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-11: **161 pass, 0 fail**.
 - Spec and tickets: `.scratch/workspace-pm-library/` (`spec.md`, `issues/NN-*.md`). Status words in use: `resolved`/`closed` = done, `open`, `ready-for-agent`.
-- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0038); new domain terms land in `GLOSSARY.md`.
+- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0039); new domain terms land in `GLOSSARY.md`.
 - Product principles (ADR 0034): every grid stays editable, and there is no privacy model; data tables are hidden for declutter, never locked; sidebars are an extra entry path; KPIs go to Looker Studio through `fact_presence`.
 - Visible tabs are Members, Weekly Matrix, Projects, Tasks and Events (ADR 0036, `src/Layout.js`); every other Library sheet is hidden on upgrade. KPIs exist only as `fact_presence` for Looker.
 - Sidebars served by the Library call server functions through `google.script.run`, which reaches the **Consumer Sheet** script: every new sidebar server function needs a forwarder in `consumer/Code.js`, and both projects must be pushed. A `.js` and an `.html` file cannot share a base name in Apps Script (`MembersService.js` + `MembersSidebar.html`).

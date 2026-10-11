@@ -543,7 +543,9 @@ function setupGasGlobals(mockSpreadsheet) {
             var req = resource.requests[i];
             if (req.updateTable && req.updateTable.table) {
               for (var ut = 0; ut < mockTables.length; ut++) {
-                if (mockTables[ut].tableId === req.updateTable.table.tableId) mockTables[ut].name = req.updateTable.table.name;
+                if (mockTables[ut].tableId !== req.updateTable.table.tableId) continue;
+                if (req.updateTable.table.name) mockTables[ut].name = req.updateTable.table.name;
+                if (req.updateTable.table.range) mockTables[ut].range = req.updateTable.table.range;
               }
             } else if (req.addTable && req.addTable.table) {
               var newTable = req.addTable.table;
@@ -552,7 +554,7 @@ function setupGasGlobals(mockSpreadsheet) {
                   throw new Error("API call to sheets.spreadsheets.batchUpdate failed with error: Internal error encountered.");
                 }
               }
-              mockTables.push({ tableId: "tbl" + (mockTables.length + 1), name: newTable.name, sheetId: newTable.range.sheetId });
+              mockTables.push({ tableId: "tbl" + (mockTables.length + 1), name: newTable.name, sheetId: newTable.range.sheetId, range: newTable.range });
             } else if (req.copyPaste) {
               var cp = req.copyPaste;
               var srcSheet = null;
@@ -598,7 +600,7 @@ function setupGasGlobals(mockSpreadsheet) {
               return {
                 properties: { sheetId: sh.getSheetId(), title: sh.getName() },
                 tables: mockTables.filter(function(t) { return t.sheetId === sh.getSheetId(); }).map(function(t) {
-                  return { tableId: t.tableId, name: t.name };
+                  return { tableId: t.tableId, name: t.name, range: t.range };
                 })
               };
             })

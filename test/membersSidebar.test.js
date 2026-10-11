@@ -28,7 +28,7 @@ global.extractCellValue = sidebar.extractCellValue;
 global.isUserMemberMatch = sidebar.isUserMemberMatch;
 global.formatDateIso = sidebar.formatDateIso;
 
-const members = require('../src/MembersSidebar');
+const members = require('../src/MembersService');
 Object.assign(global, members);
 const code = require('../src/Code');
 

@@ -9,7 +9,7 @@ Accepted (2026-10-12), resolves issue 22
 3. Google's docs do not say whether a sidebar can be opened from an `onEdit` trigger for every editor.
 
 ## Decision
-1. **Sidebar** `MembersSidebar.html` (menu *Project Management → Members & Contracts*), backed by `src/MembersSidebar.js`:
+1. **Sidebar** `MembersSidebar.html` (menu *Project Management → Members & Contracts*), backed by `src/MembersService.js`:
    - `getMembersSidebarData`: Members with their Tenures, plus known roles, departments and contract types.
    - `saveMemberTenure`: first contract for a new Member, or a new contract for an existing one. Any open or overlapping earlier Tenure ends **the day before** the new start. A contract starting on or before an existing one is refused. FTE is stored as a percentage (1–100).
    - `endMemberTenure`: sets the end date of one Tenure (Member + start date).

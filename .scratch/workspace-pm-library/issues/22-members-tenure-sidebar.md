@@ -12,4 +12,4 @@
 
 ## Comments
 
-_2026-10-12 — Implemented (ADR 0037): `src/MembersSidebar.js`, `src/MembersSidebar.html`, a menu item and forwarders in `consumer/Code.js`, and an onEdit hook in `src/Code.js`. 10 new tests; suite 153 pass. The sidebar opens automatically, with a toast fallback. Still to confirm live: whether automatic opening works for an editor who is not the script owner (test with a second account)._
+_2026-10-12 — Implemented (ADR 0037): `src/MembersService.js`, `src/MembersSidebar.html`, a menu item and forwarders in `consumer/Code.js`, and an onEdit hook in `src/Code.js`. 10 new tests; suite 153 pass. The sidebar opens automatically, with a toast fallback. Still to confirm live: whether automatic opening works for an editor who is not the script owner (test with a second account)._

@@ -21,11 +21,15 @@ function msIsoDate(val) {
   return isNaN(parsed.getTime()) ? "" : msIsoDate(parsed);
 }
 
-function msDayBefore(iso) {
+function msShiftDays(iso, days) {
   var p = iso.split("-");
   var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() + days);
   return msIsoDate(d);
+}
+
+function msDayBefore(iso) {
+  return msShiftDays(iso, -1);
 }
 
 function msName(val, rich) {
@@ -115,13 +119,15 @@ function getMembersSidebarData(targetSpreadsheet) {
 
 /**
  * Declares a Tenure: a new Member's first contract, or a new contract for an
- * existing Member (role, department, FTE change). An open or overlapping earlier
- * Tenure is ended the day before the new one starts.
+ * existing Member (role, department, FTE change). The current (open or
+ * overlapping) Tenure ends on payload.previousEndDate, by default the day before
+ * the new start. Overlaps are refused; a gap is allowed and reported in `gap`.
  *
  * @param {{member: string, role: string, department: string, startDate: string, endDate: (string|undefined),
- *          contractType: string, ftePercent: number, email: (string|undefined), phone: (string|undefined)}} payload
+ *          contractType: string, ftePercent: number, previousEndDate: (string|undefined),
+ *          email: (string|undefined), phone: (string|undefined)}} payload
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
- * @return {{success: boolean, message: string, closedPrevious: (boolean|undefined)}}
+ * @return {{success: boolean, message: string, closedPrevious: (boolean|undefined), gap: ({from: string, to: string}|undefined)}}
  */
 function saveMemberTenure(payload, targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
@@ -155,14 +161,39 @@ function saveMemberTenure(payload, targetSpreadsheet) {
     }
   }
 
-  var closedPrevious = false;
-  for (var j = 0; j < existing.length; j++) {
-    var exEnd = msIsoDate(existing[j].values[4]);
-    if (!exEnd || exEnd >= startDate) {
-      tenuresSheet.getRange(existing[j].row, TENURE_COLS.end_date).setValue(msDayBefore(startDate));
-      closedPrevious = true;
+  // The current (open or overlapping) contract ends on the date given in the form,
+  // by default the day before the new start. Overlaps are refused; gaps are allowed.
+  var previousEndDate = msIsoDate(p.previousEndDate) || msDayBefore(startDate);
+  var open = existing.filter(function(t) {
+    var e = msIsoDate(t.values[4]);
+    return !e || e >= startDate;
+  });
+  if (open.length > 0) {
+    if (previousEndDate >= startDate) {
+      return { success: false, message: "The current contract must end before the new one starts (" + startDate + ")." };
+    }
+    for (var o = 0; o < open.length; o++) {
+      var openStart = msIsoDate(open[o].values[3]);
+      if (openStart && previousEndDate < openStart) {
+        return { success: false, message: "The current contract cannot end before it started (" + openStart + ")." };
+      }
     }
   }
+
+  var closedPrevious = false;
+  var latestEnd = "";
+  for (var j = 0; j < existing.length; j++) {
+    var isOpen = open.indexOf(existing[j]) !== -1;
+    if (isOpen) {
+      tenuresSheet.getRange(existing[j].row, TENURE_COLS.end_date).setValue(previousEndDate);
+      closedPrevious = true;
+    }
+    var end = isOpen ? previousEndDate : msIsoDate(existing[j].values[4]);
+    if (end > latestEnd) latestEnd = end;
+  }
+  var gap = (latestEnd && latestEnd < msDayBefore(startDate))
+    ? { from: msShiftDays(latestEnd, 1), to: msDayBefore(startDate) }
+    : undefined;
 
   var targetRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tenuresSheet) : tenuresSheet.getLastRow() + 1;
   tenuresSheet.getRange(targetRow, 1, 1, 7).setValues([[member, role, department, startDate, endDate, contractType, fte]]);
@@ -177,13 +208,14 @@ function saveMemberTenure(payload, targetSpreadsheet) {
   msSync(ss);
   if (p.email || p.phone) saveMemberProfile({ member: member, email: p.email, phone: p.phone }, ss);
 
-  return {
-    success: true,
-    closedPrevious: closedPrevious,
-    message: closedPrevious
-      ? "Contract saved. The previous contract now ends " + msDayBefore(startDate) + "."
-      : "Contract saved for " + member + "."
-  };
+  var message = closedPrevious
+    ? "Contract saved. The previous contract now ends " + previousEndDate + "."
+    : "Contract saved for " + member + ".";
+  if (gap) {
+    message += " Note: no contract between " + gap.from + " and " + gap.to +
+      ", so " + member + " shows as Departed then and counts no capacity.";
+  }
+  return { success: true, closedPrevious: closedPrevious, gap: gap, message: message };
 }
 
 /**

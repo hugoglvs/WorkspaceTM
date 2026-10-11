@@ -34,12 +34,20 @@
     .status-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; display: block; }
     .status-msg.error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; display: block; }
     .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
+    .seg { display: flex; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+    .seg button { flex: 1; background: #fff; border: none; border-right: 1px solid #dadce0; padding: 8px 4px; font-size: 12px; color: #3c4043; cursor: pointer; }
+    .seg button:last-child { border-right: none; }
+    .seg button.on { background: #e8f0fe; color: #1a73e8; font-weight: 500; }
+    .card.pick { cursor: pointer; }
+    .card.pick.on { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .current { background: #f8f9fa; }
+    .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
   </style>
 </head>
 <body data-prefill="<?= prefillMember ?>">
   <h2>Members &amp; Contracts</h2>
-  <p class="sub">Add a member, record a new contract, or set an end date.</p>
+  <p class="sub">Add a member, update contact details, or manage contracts.</p>
 
   <div id="status" class="status-msg info">Loading the team…</div>
 
@@ -48,68 +56,90 @@
     <select id="memberSelect" onchange="onMemberChange()"></select>
   </div>
 
-  <div id="newMemberFields" class="hidden">
-    <div class="form-group">
-      <label for="newName">Name or Google email</label>
-      <input id="newName" placeholder="e.g. ines.martin@gmail.com">
-    </div>
+  <div id="actions" class="seg hidden">
+    <button data-action="contact" onclick="setAction('contact')">Contact details</button>
+    <button data-action="contract" onclick="setAction('contract')">New contract</button>
+    <button data-action="end" onclick="setAction('end')">End a contract</button>
   </div>
 
-  <div id="memberDetails" class="hidden">
-    <h3>Contracts</h3>
-    <div id="tenureList"></div>
-  </div>
-
-  <h3>Contact details</h3>
-  <div class="row">
+  <!-- Contact details (existing member) -->
+  <div id="contactPanel" class="hidden">
     <div class="form-group"><label for="email">Accenture email</label><input id="email" type="email"></div>
-  </div>
-  <div class="row">
     <div class="form-group"><label for="phone">Phone</label><input id="phone" type="tel"></div>
-  </div>
-  <div id="saveContactRow" class="form-group hidden">
-    <button class="btn-secondary" onclick="saveContact()">Save contact details</button>
+    <button class="btn-primary" onclick="saveContact()">Save contact details</button>
   </div>
 
-  <h3 id="contractTitle">New contract</h3>
-  <p class="hint" id="contractHint">Recording a new contract ends the current one the day before.</p>
-  <div class="row">
-    <div class="form-group"><label for="role">Role</label><input id="role" list="roles"></div>
-    <div class="form-group"><label for="department">Department</label><input id="department" list="departments"></div>
+  <!-- New contract (new or existing member) -->
+  <div id="contractPanel" class="hidden">
+    <div id="newMemberFields" class="hidden">
+      <div class="form-group"><label for="newName">Name or Google email</label><input id="newName" placeholder="e.g. ines.martin@gmail.com"></div>
+      <div class="row">
+        <div class="form-group"><label for="newEmail">Accenture email <span class="optional">(optional)</span></label><input id="newEmail" type="email"></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label for="newPhone">Phone <span class="optional">(optional)</span></label><input id="newPhone" type="tel"></div>
+      </div>
+      <h3>First contract</h3>
+    </div>
+
+    <div id="currentContract" class="hidden">
+      <h3>Current contract</h3>
+      <div class="card current"><div class="title" id="curTitle"></div><div class="meta" id="curMeta"></div></div>
+      <div class="form-group"><label for="previousEnd">Current contract ends on</label><input id="previousEnd" type="date" oninput="previousEndTouched = true; checkGap()"></div>
+      <h3>New contract</h3>
+    </div>
+
+    <div class="row">
+      <div class="form-group"><label for="role">Role</label><input id="role" list="roles"></div>
+      <div class="form-group"><label for="department">Department</label><input id="department" list="departments"></div>
+    </div>
+    <datalist id="roles"></datalist>
+    <datalist id="departments"></datalist>
+    <div class="row">
+      <div class="form-group"><label for="contractType">Contract</label><select id="contractType"></select></div>
+      <div class="form-group"><label for="fte">FTE %</label><input id="fte" type="number" min="1" max="100" value="100"></div>
+    </div>
+    <div class="row">
+      <div class="form-group"><label for="startDate">Start</label><input id="startDate" type="date" oninput="onStartChange()"></div>
+      <div class="form-group"><label for="endDate">End <span class="optional">(optional)</span></label><input id="endDate" type="date"></div>
+    </div>
+    <p id="gapHint" class="hint hidden"></p>
+    <button id="saveBtn" class="btn-primary" onclick="saveContract()">Save contract</button>
   </div>
-  <datalist id="roles"></datalist>
-  <datalist id="departments"></datalist>
-  <div class="row">
-    <div class="form-group"><label for="contractType">Contract</label><select id="contractType"></select></div>
-    <div class="form-group"><label for="fte">FTE %</label><input id="fte" type="number" min="1" max="100" value="100"></div>
+
+  <!-- End a contract (existing member) -->
+  <div id="endPanel" class="hidden">
+    <label>Contract</label>
+    <div id="endList"></div>
+    <div class="form-group"><label for="endOn">Ends on</label><input id="endOn" type="date"></div>
+    <button class="btn-primary" onclick="endContract()">Save end date</button>
   </div>
-  <div class="row">
-    <div class="form-group"><label for="startDate">Start</label><input id="startDate" type="date"></div>
-    <div class="form-group"><label for="endDate">End (optional)</label><input id="endDate" type="date"></div>
-  </div>
-  <button id="saveBtn" class="btn-primary" onclick="saveContract()">Save contract</button>
 
   <script>
     var NEW = '__new__';
     var data = { members: [], roles: [], departments: [], contractTypes: [] };
     var prefill = document.body.getAttribute('data-prefill') || '';
+    var action = 'contact';
+    var previousEndTouched = false;
+    var endPick = null;
 
     function $(id) { return document.getElementById(id); }
     function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
-    function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function clearStatus() { $('status').className = 'status-msg'; }
+    function iso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function today() { return iso(new Date()); }
+    function shift(isoStr, days) { var p = isoStr.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + days); return iso(d); }
     function current() {
       var v = $('memberSelect').value;
       return v === NEW ? null : data.members.filter(function(m) { return m.name === v; })[0];
     }
-    function options(el, values, selected) {
-      el.innerHTML = '';
-      values.forEach(function(v) {
-        var o = document.createElement('option'); o.value = v; o.textContent = v;
-        if (v === selected) o.selected = true; el.appendChild(o);
-      });
+    function lastTenure(m) { return m && m.tenures.length ? m.tenures[m.tenures.length - 1] : null; }
+    function openTenure(m, startDate) {
+      var t = lastTenure(m);
+      return t && (!t.endDate || t.endDate >= startDate) ? t : null;
     }
 
-    function load(selectName) {
+    function load(selectName, keepAction) {
       google.script.run.withSuccessHandler(function(res) {
         data = res;
         var sel = $('memberSelect');
@@ -121,94 +151,139 @@
         });
         $('roles').innerHTML = data.roles.map(function(r) { return '<option value="' + r.replace(/"/g, '&quot;') + '">'; }).join('');
         $('departments').innerHTML = data.departments.map(function(d) { return '<option value="' + d.replace(/"/g, '&quot;') + '">'; }).join('');
-        options($('contractType'), data.contractTypes, 'Permanent');
+        var ct = $('contractType'); ct.innerHTML = '';
+        data.contractTypes.forEach(function(v) { var o = document.createElement('option'); o.value = v; o.textContent = v; ct.appendChild(o); });
         var target = selectName || prefill;
         var known = data.members.some(function(m) { return m.name === target; });
         sel.value = known ? target : NEW;
         if (!known && target) $('newName').value = target;
-        onMemberChange();
-        $('status').className = 'status-msg';
-        if (target && known && !current().tenures.length) show(target + ' has no contract yet. Fill in the form below.', 'info');
+        onMemberChange(keepAction);
+        if (!selectName && target && known && !current().tenures.length) show(target + ' has no contract yet. Fill in the first contract below.', 'info');
       }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getMembersSidebarData();
     }
 
-    function onMemberChange() {
+    function onMemberChange(keepAction) {
       var m = current();
+      $('actions').classList.toggle('hidden', !m);
       $('newMemberFields').classList.toggle('hidden', !!m);
-      $('memberDetails').classList.toggle('hidden', !m);
-      $('saveContactRow').classList.toggle('hidden', !m);
-      $('email').value = m ? m.email : '';
-      $('phone').value = m ? m.phone : '';
-      $('startDate').value = today();
-      $('endDate').value = '';
-      var last = m && m.tenures.length ? m.tenures[m.tenures.length - 1] : null;
+      if (!keepAction) {
+        clearStatus();
+        action = !m || !m.tenures.length ? 'contract' : 'contact';
+      }
+      setAction(action);
+    }
+
+    function setAction(a) {
+      var m = current();
+      action = m ? a : 'contract';
+      Array.prototype.forEach.call(document.querySelectorAll('#actions button'), function(b) {
+        b.classList.toggle('on', b.getAttribute('data-action') === action);
+      });
+      $('contactPanel').classList.toggle('hidden', action !== 'contact');
+      $('contractPanel').classList.toggle('hidden', action !== 'contract');
+      $('endPanel').classList.toggle('hidden', action !== 'end');
+      if (action === 'contact') { $('email').value = m ? m.email : ''; $('phone').value = m ? m.phone : ''; }
+      if (action === 'contract') prepareContract(m);
+      if (action === 'end') prepareEnd(m);
+    }
+
+    function prepareContract(m) {
+      var last = lastTenure(m);
       $('role').value = last ? last.role : '';
       $('department').value = last ? last.department : '';
       $('fte').value = last ? last.ftePercent : 100;
-      if (last) $('contractType').value = last.contractType;
-      $('contractTitle').textContent = m && m.tenures.length ? 'New contract' : 'First contract';
-      $('contractHint').classList.toggle('hidden', !(m && m.tenures.length));
-      renderTenures(m);
+      $('contractType').value = last ? last.contractType : 'Permanent';
+      $('startDate').value = today();
+      $('endDate').value = '';
+      previousEndTouched = false;
+      onStartChange();
     }
 
-    function renderTenures(m) {
-      var list = $('tenureList');
+    function onStartChange() {
+      var m = current();
+      var start = $('startDate').value || today();
+      var open = openTenure(m, start);
+      $('currentContract').classList.toggle('hidden', !open);
+      if (open) {
+        $('curTitle').textContent = open.role + ' · ' + open.department;
+        $('curMeta').textContent = open.contractType + ' · ' + open.ftePercent + ' % · since ' + open.startDate + (open.endDate ? ' · ends ' + open.endDate : '');
+        if (!previousEndTouched) $('previousEnd').value = shift(start, -1);
+      }
+      checkGap();
+    }
+
+    function checkGap() {
+      var m = current();
+      var start = $('startDate').value;
+      var last = lastTenure(m);
+      var hint = $('gapHint');
+      if (!m || !last || !start) { hint.classList.add('hidden'); return; }
+      var open = openTenure(m, start);
+      var end = open ? $('previousEnd').value : last.endDate;
+      if (end && end < shift(start, -1)) {
+        hint.textContent = 'No contract between ' + shift(end, 1) + ' and ' + shift(start, -1) + ': ' + m.name + ' will show as Departed then and count no capacity.';
+        hint.classList.remove('hidden');
+      } else {
+        hint.classList.add('hidden');
+      }
+    }
+
+    function prepareEnd(m) {
+      var list = $('endList');
       list.innerHTML = '';
-      if (!m) return;
-      if (!m.tenures.length) { list.innerHTML = '<div class="meta">No contract yet.</div>'; return; }
+      endPick = null;
+      if (!m || !m.tenures.length) { list.innerHTML = '<div class="meta">No contract to end.</div>'; return; }
       m.tenures.slice().reverse().forEach(function(t, i) {
-        var card = document.createElement('div'); card.className = 'card';
-        var id = 'end_' + i;
-        card.innerHTML =
-          '<div class="title"></div><div class="meta"></div>' +
-          '<button class="btn-link">Set end date</button>' +
-          '<div class="end-form" id="' + id + '"><input type="date"><button class="btn-secondary">Save</button></div>';
+        var card = document.createElement('div'); card.className = 'card pick';
+        card.innerHTML = '<div class="title"></div><div class="meta"></div>';
         card.querySelector('.title').textContent = t.role + ' · ' + t.department;
         card.querySelector('.meta').textContent = t.contractType + ' · ' + t.ftePercent + ' % · ' + t.startDate + ' → ' + (t.endDate || 'ongoing');
-        var form = card.querySelector('.end-form');
-        form.querySelector('input').value = t.endDate || today();
-        card.querySelector('.btn-link').onclick = function() { form.classList.toggle('open'); };
-        form.querySelector('button').onclick = function() { endContract(m.name, t.startDate, form.querySelector('input').value); };
+        card.onclick = function() {
+          endPick = t;
+          Array.prototype.forEach.call(list.children, function(c) { c.classList.remove('on'); });
+          card.classList.add('on');
+          $('endOn').value = t.endDate || today();
+        };
         list.appendChild(card);
+        if (i === 0) card.onclick();
       });
     }
 
-    function busy(on) { $('saveBtn').disabled = on; }
-
-    function saveContract() {
-      var m = current();
-      var payload = {
-        member: m ? m.name : $('newName').value.trim(),
-        role: $('role').value, department: $('department').value,
-        contractType: $('contractType').value, ftePercent: $('fte').value,
-        startDate: $('startDate').value, endDate: $('endDate').value,
-        email: $('email').value, phone: $('phone').value
-      };
-      busy(true); show('Saving…', 'info');
-      google.script.run.withSuccessHandler(function(res) {
-        busy(false);
-        if (!res.success) { show(res.message, 'error'); return; }
-        show(res.message, 'success');
-        var name = payload.member; prefill = '';
-        load(name);
-      }).withFailureHandler(function(err) { busy(false); show(err.message || String(err), 'error'); }).saveMemberTenure(payload);
-    }
-
-    function endContract(member, startDate, endDate) {
+    function run(fn, payload, member) {
       show('Saving…', 'info');
+      $('saveBtn').disabled = true;
       google.script.run.withSuccessHandler(function(res) {
+        $('saveBtn').disabled = false;
         if (!res.success) { show(res.message, 'error'); return; }
-        show(res.message, 'success'); load(member);
-      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); })
-        .endMemberTenure({ member: member, startDate: startDate, endDate: endDate });
+        prefill = '';
+        load(member, true);
+        show(res.message, 'success');
+      }).withFailureHandler(function(err) { $('saveBtn').disabled = false; show(err.message || String(err), 'error'); })[fn](payload);
     }
 
     function saveContact() {
       var m = current(); if (!m) return;
-      google.script.run.withSuccessHandler(function(res) {
-        show(res.message, res.success ? 'success' : 'error'); if (res.success) load(m.name);
-      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); })
-        .saveMemberProfile({ member: m.name, email: $('email').value, phone: $('phone').value });
+      run('saveMemberProfile', { member: m.name, email: $('email').value, phone: $('phone').value }, m.name);
+    }
+
+    function saveContract() {
+      var m = current();
+      var start = $('startDate').value;
+      var payload = {
+        member: m ? m.name : $('newName').value.trim(),
+        role: $('role').value, department: $('department').value,
+        contractType: $('contractType').value, ftePercent: $('fte').value,
+        startDate: start, endDate: $('endDate').value
+      };
+      if (m && openTenure(m, start)) payload.previousEndDate = $('previousEnd').value;
+      if (!m) { payload.email = $('newEmail').value; payload.phone = $('newPhone').value; }
+      run('saveMemberTenure', payload, payload.member);
+    }
+
+    function endContract() {
+      var m = current();
+      if (!m || !endPick) { show('Choose a contract first.', 'error'); return; }
+      run('endMemberTenure', { member: m.name, startDate: endPick.startDate, endDate: $('endOn').value }, m.name);
     }
 
     load();

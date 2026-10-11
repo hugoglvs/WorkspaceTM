@@ -170,3 +170,42 @@ test('onEdit: editing an existing Member with a Tenure does not open anything', 
 
   assert.strictEqual(SpreadsheetApp.getUi().shownSidebar, null);
 });
+
+test('saveMemberTenure: ends the current contract on the date given in the form', () => {
+  seed([HUGO]);
+
+  var res = members.saveMemberTenure({
+    member: 'Hugo Gonçalves', role: 'Senior Data Analyst', department: 'FAL ME',
+    startDate: '2026-11-01', contractType: 'Permanent', ftePercent: 100, previousEndDate: '2026-10-31'
+  }, mockSpreadsheet);
+
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.gap, undefined);
+  assert.strictEqual(tenures()[0][4], '2026-10-31');
+});
+
+test('saveMemberTenure: refuses a current-contract end date that overlaps the new contract or precedes its start', () => {
+  seed([HUGO]);
+  var base = { member: 'Hugo Gonçalves', role: 'Senior Data Analyst', department: 'FAL ME', startDate: '2026-11-01', contractType: 'Permanent', ftePercent: 100 };
+
+  var overlap = members.saveMemberTenure(Object.assign({}, base, { previousEndDate: '2026-11-01' }), mockSpreadsheet);
+  var beforeStart = members.saveMemberTenure(Object.assign({}, base, { previousEndDate: '2025-01-01' }), mockSpreadsheet);
+
+  assert.strictEqual(overlap.success, false);
+  assert.ok(overlap.message.includes('2026-11-01'));
+  assert.strictEqual(beforeStart.success, false);
+  assert.deepStrictEqual(tenures().map(t => t[4]), [''], 'nothing written');
+});
+
+test('saveMemberTenure: allows a gap between contracts and warns about it', () => {
+  seed([HUGO]);
+
+  var res = members.saveMemberTenure({
+    member: 'Hugo Gonçalves', role: 'Senior Data Analyst', department: 'FAL ME',
+    startDate: '2026-11-15', contractType: 'Permanent', ftePercent: 100, previousEndDate: '2026-10-31'
+  }, mockSpreadsheet);
+
+  assert.strictEqual(res.success, true);
+  assert.deepStrictEqual(res.gap, { from: '2026-11-01', to: '2026-11-14' });
+  assert.ok(res.message.includes('2026-11-01') && res.message.includes('2026-11-14'));
+});

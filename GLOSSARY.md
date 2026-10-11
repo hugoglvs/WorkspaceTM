@@ -102,6 +102,14 @@ _Avoid_: Client sheet, Local spreadsheet, Workbook
 The per-Consumer Sheet lock (`LockService` document lock) that serialises the nightly sync and the script-side handling of live edits, so they never write from stale snapshots at the same time.
 _Avoid_: Mutex, Sync flag, Script lock
 
+**Presence Fact Table**:
+The hidden `fact_presence` sheet rebuilt by `refreshKpis`: one row per Member × date × Period with `worked_days`, `leave_days` and `capacity_days`, aggregated by Looker Studio. It never holds totals.
+_Avoid_: KPI export, Report data
+
+**FTE Rate**:
+A Tenure's share of full time. `fte_rate` accepts a fraction (`0.8`) or a percentage (`80`); both mean 80 %.
+_Avoid_: Allocation, Workload
+
 **Required Column**:
 A table column that must contain a valid, non-blank value for any active or populated row (e.g. `member`, `role`, `start_date` in `tbl_tenures`).
 _Avoid_: Mandatory field, Not null column

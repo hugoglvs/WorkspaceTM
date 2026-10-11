@@ -210,3 +210,135 @@ test('onOpen: registers Refresh Presence & Remote KPIs menu item', () => {
   var itemCaptions = ui.menu.items.map(function(item) { return item.caption; });
   assert.ok(itemCaptions.includes('Refresh Presence & Remote KPIs (calc_kpis)'));
 });
+
+function seedTeam(spreadsheet, tenureRows, logRows) {
+  freshInit(spreadsheet);
+  spreadsheet.getSheetByName('tbl_members').getRange(2, 1, tenureRows.length, 7).setValues(
+    tenureRows.map(t => [t[0], '', '', t[1], t[2], 'Active', ''])
+  );
+  spreadsheet.getSheetByName('tbl_tenures').getRange(2, 1, tenureRows.length, 7).setValues(tenureRows);
+  if (logRows.length) {
+    spreadsheet.getSheetByName('tbl_presence_log').getRange(2, 1, logRows.length, 6).setValues(logRows);
+  }
+}
+
+test('computePresenceKpis: reads fte_rate entered as a percentage', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Alice Smith', 'Senior Eng', 'Core Engineering', '2026-01-01', '', 'Permanent', 100],
+    ['Bob Jones', 'Lead Designer', 'Design', '2026-01-01', '', 'Contractor', 80]
+  ], [
+    ['log-1', '2026-01-05', 'Alice Smith', 'Remote', 'Remote', '2026-01-05 09:00:00'],
+    ['log-2', '2026-01-05', 'Bob Jones', 'Remote', 'Remote', '2026-01-05 09:00:00']
+  ]);
+
+  var kpis = kpiEngine.computePresenceKpis(mockSpreadsheet);
+
+  var alice = kpis.memberRows.find(r => r.member === 'Alice Smith');
+  var bob = kpis.memberRows.find(r => r.member === 'Bob Jones');
+  assert.strictEqual(alice.fteRate, 1.0);
+  assert.strictEqual(alice.contractCapacityDays, 22);
+  assert.strictEqual(bob.fteRate, 0.8);
+  assert.strictEqual(bob.contractCapacityDays, 17.6);
+});
+
+test('computePresenceKpis: weekend Off is not counted as leave', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Alice Smith', 'Senior Eng', 'Core Engineering', '2026-01-01', '', 'Permanent', 1.0]
+  ], [
+    // Saturday 2026-01-10: client site in the morning, off in the afternoon
+    ['log-1', '2026-01-10', 'Alice Smith', 'Client Site', 'Off', '2026-01-10 09:00:00']
+  ]);
+
+  var alice = kpiEngine.computePresenceKpis(mockSpreadsheet).memberRows.find(r => r.member === 'Alice Smith');
+
+  assert.strictEqual(alice.workedDays, 0.5);
+  assert.strictEqual(alice.leaveDays, 0);
+});
+
+function factsByKey(result) {
+  var map = {};
+  result.rows.forEach(function(row) {
+    var obj = {};
+    result.headers.forEach(function(h, i) { obj[h] = row[i]; });
+    map[obj.member + '|' + obj.date + '|' + obj.period] = obj;
+  });
+  return map;
+}
+
+test('buildPresenceFacts: one row per Member, date and Period with worked, leave and capacity days', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Bob Jones', 'Lead Designer', 'Design', '2026-01-01', '', 'Contractor', 80]
+  ], [
+    ['log-1', '2026-01-05', 'Bob Jones', 'Remote', 'Main Office', '2026-01-05 09:00:00'],   // Monday
+    ['log-2', '2026-01-07', 'Bob Jones', 'Main Office', 'Vacation', '2026-01-07 09:00:00'], // Wednesday
+    ['log-3', '2026-01-10', 'Bob Jones', 'Client Site', 'Off', '2026-01-10 09:00:00']       // Saturday
+  ]);
+
+  var facts = kpiEngine.buildPresenceFacts(mockSpreadsheet, { asOfDate: '2026-01-11' });
+  var f = factsByKey(facts);
+
+  assert.deepStrictEqual(facts.headers, ['date', 'month', 'iso_week', 'weekday', 'is_weekend', 'member', 'department', 'role', 'fte_rate', 'period', 'location', 'category', 'worked_days', 'leave_days', 'capacity_days']);
+  // Mon 5 → Fri 9 = 5 weekdays × 2 Periods, plus logged Saturday 10; unlogged Sunday 11 has no rows
+  assert.strictEqual(facts.rows.length, 12);
+
+  assert.deepStrictEqual(f['Bob Jones|2026-01-05|AM'], {
+    date: '2026-01-05', month: '2026-01', iso_week: '2026-W02', weekday: 'Mon', is_weekend: false,
+    member: 'Bob Jones', department: 'Design', role: 'Lead Designer', fte_rate: 0.8,
+    period: 'AM', location: 'Remote', category: 'remote',
+    worked_days: 0.5, leave_days: 0, capacity_days: 0.4
+  });
+  assert.strictEqual(f['Bob Jones|2026-01-05|PM'].category, 'office');
+  assert.strictEqual(f['Bob Jones|2026-01-06|AM'].category, 'not_logged');
+  assert.strictEqual(f['Bob Jones|2026-01-06|AM'].capacity_days, 0.4);
+  assert.strictEqual(f['Bob Jones|2026-01-07|PM'].category, 'leave');
+  assert.strictEqual(f['Bob Jones|2026-01-07|PM'].leave_days, 0.5);
+  assert.strictEqual(f['Bob Jones|2026-01-10|AM'].worked_days, 0.5);
+  assert.strictEqual(f['Bob Jones|2026-01-10|AM'].capacity_days, 0);
+  assert.strictEqual(f['Bob Jones|2026-01-10|PM'].category, 'off');
+  assert.strictEqual(f['Bob Jones|2026-01-10|PM'].worked_days + f['Bob Jones|2026-01-10|PM'].leave_days + f['Bob Jones|2026-01-10|PM'].capacity_days, 0);
+});
+
+test('buildPresenceFacts: capacity only within each Member tenure', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Alice Smith', 'Senior Eng', 'Core Engineering', '2026-01-07', '', 'Permanent', 1.0],
+    ['Bob Jones', 'Lead Designer', 'Design', '2026-01-01', '', 'Contractor', 80]
+  ], [
+    ['log-1', '2026-01-05', 'Bob Jones', 'Remote', 'Remote', '2026-01-05 09:00:00']
+  ]);
+
+  var facts = kpiEngine.buildPresenceFacts(mockSpreadsheet, { asOfDate: '2026-01-08' });
+  var aliceDates = facts.rows.filter(r => r[5] === 'Alice Smith').map(r => r[0]);
+
+  assert.deepStrictEqual(Array.from(new Set(aliceDates)), ['2026-01-07', '2026-01-08']);
+});
+
+test('refreshKpis: writes the hidden fact_presence sheet with no total rows', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Bob Jones', 'Lead Designer', 'Design', '2026-01-01', '', 'Contractor', 80]
+  ], [
+    ['log-1', '2026-01-05', 'Bob Jones', 'Remote', 'Remote', '2026-01-05 09:00:00']
+  ]);
+
+  kpiEngine.refreshKpis(mockSpreadsheet);
+
+  var sheet = mockSpreadsheet.getSheetByName('fact_presence');
+  assert.ok(sheet, 'fact_presence exists');
+  assert.strictEqual(sheet.isSheetHidden(), true);
+  var values = sheet.getRange(1, 1, sheet.getLastRow(), 15).getValues();
+  assert.strictEqual(values[0][0], 'date');
+  assert.ok(values.length > 1);
+  assert.ok(values.slice(1).every(r => r[5] === 'Bob Jones'), 'only Member rows, no totals');
+});
+
+test('buildPresenceFacts: a weekday Off keeps capacity because the FTE already covers it', () => {
+  seedTeam(mockSpreadsheet, [
+    ['Bob Jones', 'Lead Designer', 'Design', '2026-01-01', '', 'Contractor', 80]
+  ], [
+    ['log-1', '2026-01-09', 'Bob Jones', 'Off', 'Off', '2026-01-09 09:00:00'] // Friday
+  ]);
+
+  var f = factsByKey(kpiEngine.buildPresenceFacts(mockSpreadsheet, { asOfDate: '2026-01-09' }));
+
+  assert.strictEqual(f['Bob Jones|2026-01-09|AM'].category, 'off');
+  assert.strictEqual(f['Bob Jones|2026-01-09|AM'].capacity_days, 0.4);
+});

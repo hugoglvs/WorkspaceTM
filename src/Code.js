@@ -494,7 +494,7 @@ function installAllTriggers(targetSpreadsheet) {
     if (fnName === "installedTaskEditHandler") hasEditTrigger = true;
     if (fnName === "nightlySyncJob") hasNightlyTrigger = true;
     if (fnName === "mondayPresenceReminder") hasReminderTrigger = true;
-    if (fnName === "birthdayReminderJob") hasBirthdayTrigger = true;
+    if (fnName === "birthdayReminderJob" || fnName === "dailyRemindersJob") hasBirthdayTrigger = true;
   }
 
   var installed = [];
@@ -546,17 +546,17 @@ function installAllTriggers(targetSpreadsheet) {
 
   if (!hasBirthdayTrigger) {
     try {
-      ScriptApp.newTrigger("birthdayReminderJob")
+      ScriptApp.newTrigger("dailyRemindersJob")
         .timeBased()
         .everyDays(1)
         .atHour(9)
         .create();
-      installed.push("birthdayReminderJob (daily at 9:00 AM)");
+      installed.push("dailyRemindersJob (daily at 9:00 AM)");
     } catch (errBd) {
       Logger.log("installAllTriggers birthday trigger error: " + errBd);
     }
   } else {
-    alreadyActive.push("birthdayReminderJob (daily at 9:00 AM)");
+    alreadyActive.push("dailyRemindersJob (daily at 9:00 AM)");
   }
 
   try { refreshEditTriggerFlag(); } catch (eFlag) { Logger.log("Edit trigger flag note: " + eFlag); }
@@ -671,6 +671,8 @@ function runNightlySyncSteps(ss, res) {
     ["presenceCompile", function() { return (typeof compilePresence === "function") ? compilePresence(ss) : null; }],
     ["weeklyMatrix", function() { return (typeof refreshWeeklyMatrix === "function") ? refreshWeeklyMatrix(ss) : null; }],
     ["kpis", function() { return (typeof refreshKpis === "function") ? refreshKpis(ss) : null; }],
+    ["recurringTasks", function() { return (typeof generateRecurringTasks === "function") ? generateRecurringTasks(ss) : null; }],
+    ["taskCalendar", function() { return (typeof renderTaskCalendar === "function") ? renderTaskCalendar(ss) : null; }],
     ["backupConflicts", function() { return (typeof checkProjectBackupConflicts === "function") ? checkProjectBackupConflicts(ss) : null; }],
     ["tasks", function() { return (typeof syncTasks === "function") ? syncTasks(ss) : null; }],
     ["calendar", function() { return (typeof syncCalendarEvents === "function") ? syncCalendarEvents(ss) : null; }],
@@ -809,6 +811,28 @@ function handleSheetEdit(e) {
       }
     }
     return;
+  }
+
+  // Calendar tab: assign / mark done / cancel tasks (ADR 0045)
+  if (tableKey === "taskCalendar") {
+    if (typeof handleTaskCalendarEdit === "function") {
+      try { handleTaskCalendarEdit(e); } catch (errCal) { Logger.log("handleTaskCalendarEdit error: " + errCal); }
+    }
+    return;
+  }
+
+  // Tasks status: Done on / Done by, closed-month confirmation (ADR 0045)
+  if (tableKey === "tasks" && editedRow > 1 && typeof handleTaskStatusEdit === "function") {
+    try { if (handleTaskStatusEdit(e) === "kept") return; } catch (errSt) { Logger.log("handleTaskStatusEdit note: " + errSt); }
+  }
+
+  // Task Types or Recurring Tasks edited: refresh the type dropdowns, plan the rules
+  if ((tableKey === "taskTypes" || tableKey === "recurringTasks") && editedRow > 1) {
+    try {
+      var ttSs = sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet();
+      if (tableKey === "taskTypes" && typeof refreshLocationDropdowns === "function") refreshLocationDropdowns(ttSs);
+      if (tableKey === "recurringTasks" && typeof generateRecurringTasks === "function") generateRecurringTasks(ttSs);
+    } catch (errTT) { Logger.log("onEdit task types note: " + errTT); }
   }
 
   // Handle task row creation / editing in tbl_tasks immediately so task_id, status, and formatting are applied first!

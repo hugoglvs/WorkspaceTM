@@ -28,10 +28,14 @@ function onOpen(e) {
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
     .addItem("Members & Contracts", "showMembersSidebar")
     .addItem("Interim Backups", "showBackupSidebar")
+    .addItem("Assign Tasks", "showAssignSidebar")
+    .addItem("Calendar", "showTaskCalendar")
+    .addItem("Connect my Google Tasks", "connectMyGoogleTasks")
     .addSeparator()
     .addItem("Check Workspace", "showWorkspaceCheck")
     .addItem("Edit Locations", "showLocationsTab")
     .addItem("Edit Holidays", "showHolidaysTab")
+    .addItem("Edit Task Types", "showTaskTypesTab")
     .addToUi();
 
   // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
@@ -327,6 +331,44 @@ function birthdayReminderJob() {
   return safeInvokeLibrary("birthdayReminderJob");
 }
 
+/** Time trigger: birthdays, Team Birthdays calendar and task reminders (daily, 9 am). */
+function dailyRemindersJob() {
+  return safeInvokeLibrary("dailyRemindersJob");
+}
+
+function connectMyGoogleTasks() {
+  return safeInvokeLibrary("connectMyGoogleTasks");
+}
+
+/** Time trigger (one per connected person, hourly): their Google Tasks sync. */
+function myTasksSyncJob() {
+  return safeInvokeLibrary("myTasksSyncJob");
+}
+
+function showAssignSidebar() {
+  return safeInvokeLibrary("showAssignSidebar");
+}
+
+function showTaskCalendar() {
+  return safeInvokeLibrary("showTaskCalendar");
+}
+
+function showTaskTypesTab() {
+  return safeInvokeLibrary("showTaskTypesTab");
+}
+
+function getAssignSidebarData() {
+  return safeInvokeLibrary("getAssignSidebarData");
+}
+
+function assignTasks(payload) {
+  return safeInvokeLibrary("assignTasks", [payload]);
+}
+
+function stopRecurringRule(ruleId) {
+  return safeInvokeLibrary("stopRecurringRule", [ruleId]);
+}
+
 function getSidebarInitialData() {
   return safeInvokeLibrary("getSidebarInitialData");
 }
@@ -388,6 +430,15 @@ if (typeof module !== 'undefined' && module.exports) {
     removePresenceDuplicates: removePresenceDuplicates,
     mondayPresenceReminder: mondayPresenceReminder,
     birthdayReminderJob: birthdayReminderJob,
+    dailyRemindersJob: dailyRemindersJob,
+    connectMyGoogleTasks: connectMyGoogleTasks,
+    myTasksSyncJob: myTasksSyncJob,
+    showAssignSidebar: showAssignSidebar,
+    showTaskCalendar: showTaskCalendar,
+    showTaskTypesTab: showTaskTypesTab,
+    getAssignSidebarData: getAssignSidebarData,
+    assignTasks: assignTasks,
+    stopRecurringRule: stopRecurringRule,
     getMembersSidebarData: getMembersSidebarData,
     saveMemberTenure: saveMemberTenure,
     endMemberTenure: endMemberTenure,

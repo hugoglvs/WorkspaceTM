@@ -23,42 +23,62 @@ var GOOGLE_TASKS_LIST_ID_KEY = "GOOGLE_TASKS_LIST_ID";
  * @return {string} Tasklist ID
  */
 function getTasksListId(targetSpreadsheet) {
-  var props = PropertiesService.getDocumentProperties();
-  var savedId = props.getProperty(GOOGLE_TASKS_LIST_ID_KEY);
-  if (savedId && savedId.trim()) {
-    return savedId.trim();
+  // Each person syncs into their own list (ADR 0045): the ID lives in user properties
+  var userProps = null;
+  try { userProps = PropertiesService.getUserProperties(); } catch (eUp) {}
+  var saved = userProps ? userProps.getProperty(GOOGLE_TASKS_LIST_ID_KEY) : "";
+  if (saved && saved.trim()) return saved.trim();
+
+  // A list configured for the sheet (setTasksListId) is used when this person can open it
+  var docProps = null;
+  try { docProps = PropertiesService.getDocumentProperties(); } catch (eDp) {}
+  var configured = docProps ? docProps.getProperty(GOOGLE_TASKS_LIST_ID_KEY) : "";
+  if (configured && configured.trim() && typeof Tasks !== "undefined" && Tasks.Tasklists) {
+    try {
+      if (configured === "@default" || Tasks.Tasklists.get(configured.trim())) {
+        if (userProps) userProps.setProperty(GOOGLE_TASKS_LIST_ID_KEY, configured.trim());
+        return configured.trim();
+      }
+    } catch (eGet) {}
   }
 
-  // If Tasks API is available, find or create "Project Management Tasks"
+  // Otherwise find or create this person's "Project Management Tasks" list
   if (typeof Tasks !== "undefined" && Tasks.Tasklists) {
     try {
       var lists = Tasks.Tasklists.list();
       var items = (lists && lists.items) ? lists.items : [];
-
       for (var i = 0; i < items.length; i++) {
         if (items[i].title === "Project Management Tasks") {
-          props.setProperty(GOOGLE_TASKS_LIST_ID_KEY, items[i].id);
+          if (userProps) userProps.setProperty(GOOGLE_TASKS_LIST_ID_KEY, items[i].id);
           return items[i].id;
         }
       }
-
-      // Create new list
       var created = Tasks.Tasklists.insert({ title: "Project Management Tasks" });
       if (created && created.id) {
-        props.setProperty(GOOGLE_TASKS_LIST_ID_KEY, created.id);
+        if (userProps) userProps.setProperty(GOOGLE_TASKS_LIST_ID_KEY, created.id);
         return created.id;
       }
     } catch (eList) {
       Logger.log("getTasksListId discovery error: " + eList);
     }
   }
+  return "@default";
+}
 
-  // Fallback to default task list
-  var fallbackId = "@default";
-  try {
-    props.setProperty(GOOGLE_TASKS_LIST_ID_KEY, fallbackId);
-  } catch (eProp) {}
-  return fallbackId;
+/** Every task of a Google Tasks list (all pages, completed and hidden included). */
+function listAllGoogleTasks(tasklistId) {
+  var all = [];
+  var pageToken = null;
+  var guard = 0;
+  do {
+    var args = { showCompleted: true, showHidden: true, maxResults: 100 };
+    if (pageToken) args.pageToken = pageToken;
+    var page = Tasks.Tasks.list(tasklistId, args);
+    all = all.concat((page && page.items) ? page.items : []);
+    pageToken = page ? page.nextPageToken : null;
+    guard++;
+  } while (pageToken && guard < 50);
+  return all;
 }
 
 /**
@@ -67,8 +87,10 @@ function getTasksListId(targetSpreadsheet) {
  * @param {string} listId
  */
 function setTasksListId(listId) {
-  var props = PropertiesService.getDocumentProperties();
-  props.setProperty(GOOGLE_TASKS_LIST_ID_KEY, String(listId || "@default").trim());
+  var id = String(listId || "@default").trim();
+  PropertiesService.getDocumentProperties().setProperty(GOOGLE_TASKS_LIST_ID_KEY, id);
+  // The person configuring it uses it right away; others adopt it if they can open it
+  try { PropertiesService.getUserProperties().setProperty(GOOGLE_TASKS_LIST_ID_KEY, id); } catch (e) {}
 }
 
 /**
@@ -299,19 +321,18 @@ function syncGoogleTasks(targetSpreadsheet, options) {
   var pulledUpdatesCount = 0;
   var pushedUpdates = []; // { row, col, googleTaskId }
   var statusUpdates = []; // { row, col, status }
+  var removedRows = [];     // rows whose Google Task was removed from this person's list
+  var myReferencedIds = {}; // Google Task IDs still referenced by this person's rows
 
   // 1. First, retrieve current tasks from Google Tasks for reconciliation
   var existingGoogleTasksMap = {};
+  var listedOk = false;
   try {
-    var gTasksList = Tasks.Tasks.list(tasklistId, {
-      showCompleted: true,
-      showHidden: true,
-      maxResults: 100
-    });
-    var gItems = (gTasksList && gTasksList.items) ? gTasksList.items : [];
+    var gItems = listAllGoogleTasks(tasklistId);
     for (var g = 0; g < gItems.length; g++) {
       existingGoogleTasksMap[gItems[g].id] = gItems[g];
     }
+    listedOk = true;
   } catch (eGList) {
     Logger.log("Error listing Google Tasks: " + eGList);
   }
@@ -360,8 +381,24 @@ function syncGoogleTasks(targetSpreadsheet, options) {
       }
     }
 
+    var isCancelled = status.toLowerCase() === "cancelled";
+    var inMyList = !!(googleTaskId && existingGoogleTasksMap[googleTaskId]);
+
+    // Reassigned away from me, or cancelled: remove it from my list (ADR 0045)
+    if (inMyList && (!isAssignedToActiveUser || isCancelled)) {
+      try { Tasks.Tasks.remove(tasklistId, googleTaskId); } catch (eRm) { Logger.log("Google Task removal note: " + eRm); }
+      delete existingGoogleTasksMap[googleTaskId];
+      removedRows.push({ row: sheetRowIndex, col: colMap.googleTaskId });
+      continue;
+    }
+    if (isCancelled) continue;
+    // Mine but its Google Task is in someone else's list (it was reassigned to me): push a new one
+    if (isAssignedToActiveUser && googleTaskId && listedOk && !inMyList) googleTaskId = "";
+    if (googleTaskId && isAssignedToActiveUser) myReferencedIds[googleTaskId] = true;
+
     // A. Unsynced task: Push to Google Tasks (only if assigned to current user)
     if (!googleTaskId) {
+      if (status.toLowerCase() === "done") continue; // nothing to remind about
       if (!isAssignedToActiveUser) {
         // Skip tasks that belong to other team members
         continue;
@@ -398,6 +435,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
           });
           // Track in map
           existingGoogleTasksMap[createdTask.id] = createdTask;
+          myReferencedIds[createdTask.id] = true;
         }
       } catch (eInsert) {
         Logger.log("Failed to insert task (Row " + sheetRowIndex + "): " + eInsert);
@@ -421,7 +459,8 @@ function syncGoogleTasks(targetSpreadsheet, options) {
           statusUpdates.push({
             row: sheetRowIndex,
             col: colMap.status,
-            status: "Done"
+            status: "Done",
+            by: assignedMember
           });
           pulledUpdatesCount++;
         } else if (gStatus !== targetGStatus) {
@@ -477,11 +516,30 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     }
   }
 
-  // 4. Batch write back status updates
+  // 4. Batch write back status updates (ticked in Google Tasks: Done on / Done by, ADR 0045)
   if (statusUpdates.length > 0) {
     for (var s = 0; s < statusUpdates.length; s++) {
       var sUpdate = statusUpdates[s];
       tasksSheet.getRange(sUpdate.row, sUpdate.col).setValue(sUpdate.status);
+      if (typeof stampTaskDone === "function" && typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC.tasks.columns.indexOf("done_on") !== -1) {
+        try { stampTaskDone(tasksSheet, sUpdate.row, sUpdate.status, sUpdate.by || ""); } catch (eStamp) {}
+      }
+    }
+  }
+
+  // 5. Clear the IDs of Google Tasks removed from my list
+  for (var rr = 0; rr < removedRows.length; rr++) {
+    tasksSheet.getRange(removedRows[rr].row, removedRows[rr].col).setValue("");
+  }
+
+  // 6. Tasks this app made in my list that no row of mine points to any more
+  var orphansRemoved = 0;
+  if (listedOk && !options.allUsers) {
+    for (var gid in existingGoogleTasksMap) {
+      if (myReferencedIds[gid]) continue;
+      var notes = String(existingGoogleTasksMap[gid].notes || "");
+      if (notes.indexOf("Task ID: ") === -1) continue;
+      try { Tasks.Tasks.remove(tasklistId, gid); orphansRemoved++; } catch (eOr) {}
     }
   }
 
@@ -491,6 +549,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     pushedCount: pushedCount,
     pushedFieldUpdatesCount: pushedFieldUpdatesCount,
     pulledUpdatesCount: pulledUpdatesCount,
+    removedCount: removedRows.length + orphansRemoved,
     totalTasks: values.length
   };
 }
@@ -1110,9 +1169,72 @@ function installTaskSyncTrigger(targetSpreadsheet) {
   return { success: true, installed: true };
 }
 
+// ---------------------------------------------------------------------------
+// Each person's own Google Tasks (ADR 0045)
+// A script writes only into the Google Tasks of the account it runs as, so each
+// member connects once: an hourly job under their own account syncs the tasks
+// assigned to them (both ways).
+// ---------------------------------------------------------------------------
+
+var TASKS_CONNECTED_PROP = "TASKS_CONNECTED_USERS";
+
+function tsEffectiveEmail() {
+  try { var u = Session.getEffectiveUser(); if (u && u.getEmail()) return u.getEmail(); } catch (e1) {}
+  try { var a = Session.getActiveUser(); if (a && a.getEmail()) return a.getEmail(); } catch (e2) {}
+  return "";
+}
+
+/** Emails of the people who connected their Google Tasks. */
+function connectedTaskUsers() {
+  try {
+    return JSON.parse(PropertiesService.getDocumentProperties().getProperty(TASKS_CONNECTED_PROP) || "[]") || [];
+  } catch (e) { return []; }
+}
+
+/** Menu: Connect my Google Tasks. Installs the hourly job for the person who clicks, then syncs once. */
+function connectMyGoogleTasks() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var email = tsEffectiveEmail();
+  var has = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === "myTasksSyncJob"; });
+  if (!has) ScriptApp.newTrigger("myTasksSyncJob").timeBased().everyHours(1).create();
+  if (email) {
+    var list = connectedTaskUsers();
+    if (list.indexOf(email.toLowerCase()) === -1) {
+      list.push(email.toLowerCase());
+      PropertiesService.getDocumentProperties().setProperty(TASKS_CONNECTED_PROP, JSON.stringify(list));
+    }
+  }
+  var res = myTasksSyncJob();
+  try {
+    ss.toast("Your tasks now sync with your Google Tasks every hour (list \"Project Management Tasks\")." +
+      (res && res.pushedCount ? " " + res.pushedCount + " task(s) added." : ""), "Google Tasks connected", 8);
+  } catch (eT) {}
+  return { success: true, email: email, alreadyConnected: has, sync: res };
+}
+
+/** Hourly, under each connected person's account: sync their tasks with their Google Tasks. */
+function myTasksSyncJob() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var lock = (typeof acquireSyncLock === "function") ? acquireSyncLock(20000) : null;
+  if (typeof acquireSyncLock === "function" && !lock) return { success: false, reason: "sync_in_progress" };
+  try {
+    var res = syncGoogleTasks(ss, { userEmail: tsEffectiveEmail() });
+    if (res && res.pulledUpdatesCount && typeof renderTaskCalendar === "function") {
+      try { renderTaskCalendar(ss); } catch (eCal) {}
+    }
+    return res;
+  } finally {
+    if (lock) lock.releaseLock();
+  }
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     GOOGLE_TASKS_LIST_ID_KEY: GOOGLE_TASKS_LIST_ID_KEY,
+    listAllGoogleTasks: listAllGoogleTasks,
+    connectedTaskUsers: connectedTaskUsers,
+    connectMyGoogleTasks: connectMyGoogleTasks,
+    myTasksSyncJob: myTasksSyncJob,
     generateTaskId: generateTaskId,
     getIncrementedTaskId: getIncrementedTaskId,
     getTasksListId: getTasksListId,

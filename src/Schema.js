@@ -204,14 +204,20 @@ var SCHEMA_SPEC = {
       description: "Description",
       due_date: "Due date",
       status: "Status",
-      google_task_id: "Google Task ID"
+      google_task_id: "Google Task ID",
+      task_type: "Type",
+      done_on: "Done on",
+      done_by: "Done by",
+      recurrence: "Recurring"
     },
-    columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id"],
+    // Type / Done on / Done by / Recurring: ADR 0045 (task types, calendar, recurring tasks, audit)
+    columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "recurrence"],
     requiredColumns: ["task_id", "title", "status"],
-    nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id"],
-    strictlyProtectedColumns: ["task_id", "google_task_id"],
+    nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id", "task_type", "done_on", "done_by", "recurrence"],
+    strictlyProtectedColumns: ["task_id", "google_task_id", "recurrence"],
     warningProtectedColumns: [],
-    protectedColumns: ["task_id", "google_task_id"],
+    protectedColumns: ["task_id", "google_task_id", "recurrence"],
+    taskTypeColumns: { task_type: true },
     columnTypes: {
       task_id: "TEXT",
       project_id: "TEXT",
@@ -220,10 +226,14 @@ var SCHEMA_SPEC = {
       description: "TEXT",
       due_date: "DATE",
       status: "DROPDOWN",
-      google_task_id: "TEXT"
+      google_task_id: "TEXT",
+      task_type: "DROPDOWN",
+      done_on: "DATE",
+      done_by: "TEXT",
+      recurrence: "TEXT"
     },
     validations: {
-      status: ["Todo", "In Progress", "Done", "Blocked"]
+      status: ["Todo", "In Progress", "Done", "Blocked", "Cancelled"]
     }
   },
   events: {
@@ -290,6 +300,33 @@ var SCHEMA_SPEC = {
     protectedColumns: [],
     columnTypes: { date: "DATE", name: "TEXT" },
     validations: {}
+  },
+  taskTypes: {
+    sheetName: "Task Types",
+    legacyName: "tbl_task_types",
+    headers: { type: "Type", frequency: "Frequency", due: "Due", mandatory: "Mandatory", active: "Active" },
+    columns: ["type", "frequency", "due", "mandatory", "active"],
+    requiredColumns: ["type", "frequency"],
+    nullableColumns: ["due", "mandatory", "active"],
+    strictlyProtectedColumns: [],
+    warningProtectedColumns: [],
+    protectedColumns: [],
+    columnTypes: { type: "TEXT", frequency: "DROPDOWN", due: "TEXT", mandatory: "BOOLEAN", active: "BOOLEAN" },
+    validations: { frequency: ["Weekly", "Monthly", "One-off"] }
+  },
+  recurringTasks: {
+    sheetName: "Recurring Tasks",
+    legacyName: "tbl_recurring_tasks",
+    headers: { rule_id: "ID", task_type: "Type", project_id: "Project ID", mode: "Who", applies_to: "Applies to", start_date: "Start", end_date: "End", active: "Active" },
+    columns: ["rule_id", "task_type", "project_id", "mode", "applies_to", "start_date", "end_date", "active"],
+    requiredColumns: ["rule_id", "task_type", "mode"],
+    nullableColumns: ["project_id", "applies_to", "start_date", "end_date", "active"],
+    strictlyProtectedColumns: [],
+    warningProtectedColumns: [],
+    protectedColumns: [],
+    columnTypes: { rule_id: "TEXT", task_type: "DROPDOWN", project_id: "TEXT", mode: "DROPDOWN", applies_to: "TEXT", start_date: "DATE", end_date: "DATE", active: "BOOLEAN" },
+    taskTypeColumns: { task_type: true },
+    validations: { mode: ["Rotation", "Each person"] }
   }
 };
 

@@ -46,8 +46,12 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Check Workspace'));
   assert.ok(captions.includes('Edit Locations'));
   assert.ok(captions.includes('Edit Holidays'));
+  assert.ok(captions.includes('Assign Tasks'));
+  assert.ok(captions.includes('Calendar'));
+  assert.ok(captions.includes('Edit Task Types'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 7);
+  assert.strictEqual(actionItems.length, 11);
+  assert.ok(captions.includes('Connect my Google Tasks'));
 });
 
 test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {
@@ -197,7 +201,7 @@ test('installAllTriggers: installs the edit trigger, the nightly 2:00 AM sync an
   var res = code.installAllTriggers(mockSpreadsheet);
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.installed.length, 4);
-  assert.ok(ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'birthdayReminderJob' && t.hour === 9));
+  assert.ok(ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dailyRemindersJob' && t.hour === 9));
   var reminder = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'mondayPresenceReminder')[0];
   assert.strictEqual(reminder.weekDay, 'MONDAY');
   assert.strictEqual(reminder.hour, 8);

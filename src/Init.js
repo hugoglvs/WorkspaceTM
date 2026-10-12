@@ -109,6 +109,11 @@ function freshInit(targetSpreadsheet) {
     try { seedDefaultLocations(ss); } catch (eSeed) { Logger.log("Locations seed note: " + eSeed); }
   }
 
+  // Default task types in a new Task Types tab (ADR 0045)
+  if (typeof seedDefaultTaskTypes === "function") {
+    try { seedDefaultTaskTypes(ss); } catch (eTT) { Logger.log("Task types seed note: " + eTT); }
+  }
+
   // French public holidays of this year and next in a new Holidays tab (ADR 0043)
   if (typeof seedPublicHolidays === "function") {
     try { seedPublicHolidays(ss); } catch (eHol) { Logger.log("Holidays seed note: " + eHol); }

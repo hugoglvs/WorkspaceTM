@@ -168,6 +168,9 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
       this.merged = true;
       return this;
     },
+    setBackgrounds: function(m) { this.backgrounds = m; return this; },
+    setNotes: function(m) { this.notes = m; return this; },
+    setNote: function(n) { this.note = n; return this; },
     setDataValidation: function(rule) {
       this.dataValidation = rule;
       return this;
@@ -262,6 +265,8 @@ function createMockSheet(name, parent) {
     },
     getFrozenRows: function() { return this.frozenRows; },
     setFrozenRows: function(rows) { this.frozenRows = rows; },
+    setFrozenColumns: function(cols) { this.frozenColumns = cols; },
+    clear: function() { this.grid = {}; return this; },
     getMaxRows: function() { return this.maxRows; },
     getMaxColumns: function() { return this.maxCols; },
     insertRowsAfter: function(after, count) { this.maxRows += count; },
@@ -861,6 +866,7 @@ function setupGasGlobals(mockSpreadsheet) {
         onEdit: function() { return this; },
         timeBased: function() { return this; },
         everyDays: function(days) { return this; },
+        everyHours: function(h) { this.everyHoursValue = h; return this; },
         everyWeeks: function(weeks) { return this; },
         onWeekDay: function(day) { this.weekDay = day; return this; },
         atHour: function(hour) { this.hour = hour; return this; },

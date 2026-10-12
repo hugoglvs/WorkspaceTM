@@ -158,3 +158,15 @@ _Avoid_: Birth date, Date of birth (they imply the year)
 **Public Holiday**:
 A day in the hidden Holidays tab (French public holidays pre-filled, team days added by hand). Treated like a weekend by presence, Weekly Presence, KPIs, coverage, reminders and birthdays (ADR 0043).
 _Avoid_: Holiday (a personal leave type), Bank holiday
+
+**Task Type**:
+A kind of task (Quiz, Onboarding, Time & expenses…) with a frequency (weekly, monthly, one-off), a due rule and a Mandatory flag for audited tasks. Listed in the hidden Task Types tab (ADR 0045).
+_Avoid_: Category, Task kind
+
+**Recurring Task**:
+A rule that creates dated tasks of one Task Type every period, either for each person it applies to or for one person in rotation (ADR 0045).
+_Avoid_: Routine (that is presence), Template
+
+**Rotation**:
+A Recurring Task given to one person per period, the one whose last turn is the oldest, skipping people on approved leave.
+_Avoid_: Round robin, Duty roster

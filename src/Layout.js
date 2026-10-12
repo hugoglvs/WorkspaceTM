@@ -3,7 +3,7 @@
  * restore of the short-lived merged presence table (ADR 0035, reverted).
  */
 
-var VISIBLE_WORKSPACE_TABLES = ["members", "weeklyMatrix", "projects", "tasks", "events"];
+var VISIBLE_WORKSPACE_TABLES = ["members", "weeklyMatrix", "projects", "tasks", "taskCalendar", "events"];
 var MANAGED_SHEET_PREFIXES = ["tbl_", "view_", "fact_", "calc_", "archive_", "Archive – "];
 var RETIRED_SHEETS = ["calc_kpis", "view_active_responsibles"];
 

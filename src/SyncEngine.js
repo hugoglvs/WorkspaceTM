@@ -395,6 +395,10 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
         }
         tasksSheet.getRange(targetTaskRow, tkColDue).setValue(dueDateStr);
         tasksSheet.getRange(targetTaskRow, tkColStatus).setValue("Todo");
+        // Task type (ADR 0045), so onboarding shows in the Calendar
+        if (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC.tasks && SCHEMA_SPEC.tasks.columns.indexOf("task_type") !== -1) {
+          tasksSheet.getRange(targetTaskRow, SCHEMA_SPEC.tasks.columns.indexOf("task_type") + 1).setValue("Onboarding");
+        }
         if (tkColGTask <= tasksSheet.getLastColumn()) {
           tasksSheet.getRange(targetTaskRow, tkColGTask).setValue("");
         }
@@ -588,7 +592,8 @@ function findNextAvailableRow(sheet) {
   var maxCols = Math.max(sheet.getLastColumn(), 1);
   if (maxRows <= 1) return 2;
 
-  var checkLimit = Math.min(maxRows, 500);
+  // Scan to just past the last row with data (never stop at a fixed cap: Tasks grows)
+  var checkLimit = Math.min(maxRows, (typeof readRowLimit === "function" ? readRowLimit(sheet, 500) : Math.min(maxRows, 500)) + 1);
   var range = sheet.getRange(2, 1, checkLimit - 1, maxCols);
   var values = range.getValues();
   var richValues = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : null;
@@ -607,6 +612,9 @@ function findNextAvailableRow(sheet) {
     if (!hasContent) {
       return r + 2;
     }
+  }
+  if (checkLimit + 1 > maxRows && typeof sheet.insertRowsAfter === "function") {
+    try { sheet.insertRowsAfter(maxRows, 50); } catch (eIns) {}
   }
   return checkLimit + 1;
 }

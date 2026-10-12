@@ -363,9 +363,20 @@ function syncBirthdayCalendar(targetSpreadsheet, asOf) {
 
 /** Time trigger entry point (every day, 9 am; does nothing at weekends). */
 function birthdayReminderJob() {
+  return dailyRemindersJob();
+}
+
+/**
+ * The 9 am job: birthday reminders and the Team Birthdays calendar (ADR 0042),
+ * then task reminders (ADR 0045).
+ */
+function dailyRemindersJob() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var res = {};
   try { syncBirthdayCalendar(ss); } catch (eCal) { Logger.log("Birthday calendar sync note: " + eCal); }
-  return sendBirthdayReminders(ss);
+  try { res.birthdays = sendBirthdayReminders(ss); } catch (eB) { Logger.log("Birthday reminders note: " + eB); }
+  try { if (typeof sendTaskReminders === "function") res.tasks = sendTaskReminders(ss); } catch (eT) { Logger.log("Task reminders note: " + eT); }
+  return res;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -380,6 +391,7 @@ if (typeof module !== 'undefined' && module.exports) {
     birthdayCalendarLink: birthdayCalendarLink,
     sendBirthdayReminders: sendBirthdayReminders,
     syncBirthdayCalendar: syncBirthdayCalendar,
-    birthdayReminderJob: birthdayReminderJob
+    birthdayReminderJob: birthdayReminderJob,
+    dailyRemindersJob: dailyRemindersJob
   };
 }

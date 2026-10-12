@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+    body { margin: 0; padding: 16px; font-size: 13px; color: #202124; background: #fff; }
+    h2 { font-size: 18px; margin: 0 0 4px; font-weight: 500; color: #1a73e8; }
+    .sub { margin: 0 0 16px; font-size: 12px; color: #5f6368; }
+    h3 { font-size: 13px; font-weight: 500; margin: 18px 0 8px; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #5f6368; margin-bottom: 6px; }
+    .form-group { margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; }
+    .row .form-group { flex: 1; min-width: 0; }
+    select, input[type=date] { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
+    select:focus, input:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .seg { display: flex; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+    .seg button { flex: 1; background: #fff; border: none; border-right: 1px solid #dadce0; padding: 8px 4px; font-size: 12px; color: #3c4043; cursor: pointer; }
+    .seg button:last-child { border-right: none; }
+    .seg button.on { background: #e8f0fe; color: #1a73e8; font-weight: 500; }
+    .checks { border: 1px solid #dadce0; border-radius: 8px; padding: 6px 10px; max-height: 160px; overflow-y: auto; margin-bottom: 12px; }
+    .checks label { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; color: #202124; margin: 4px 0; cursor: pointer; }
+    .checks .meta { color: #5f6368; font-size: 11px; margin-left: auto; }
+    .hint { font-size: 12px; color: #5f6368; margin: -4px 0 12px; }
+    .btn-primary { width: 100%; background: #1a73e8; color: #fff; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; }
+    .btn-primary:disabled { background: #dadce0; cursor: not-allowed; }
+    .btn-link { background: none; border: none; color: #1a73e8; font-size: 12px; cursor: pointer; padding: 0; }
+    .card { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+    .card .meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+    .card.off { opacity: .55; }
+    .status-msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none; margin-bottom: 12px; }
+    .status-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; display: block; }
+    .status-msg.error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; display: block; }
+    .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
+    .hidden { display: none !important; }
+    .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+  <h2>Assign Tasks</h2>
+  <p class="sub">Give a task to several people at once, or make it recurring.</p>
+  <div id="status" class="status-msg info">Loading…</div>
+
+  <div class="row">
+    <div class="form-group"><label for="type">Type</label><select id="type" onchange="refresh()"></select></div>
+    <div class="form-group"><label for="project">Project</label><select id="project"></select></div>
+  </div>
+
+  <label>Who</label>
+  <div class="seg" id="modeSeg">
+    <button data-mode="Each person" class="on" onclick="setMode('Each person')">Each selected person</button>
+    <button data-mode="Rotation" onclick="setMode('Rotation')">Rotation</button>
+  </div>
+  <p id="modeHint" class="hint"></p>
+
+  <label>Roles</label>
+  <div class="checks" id="roles"></div>
+  <label>Members <span class="optional">(added to the roles)</span></label>
+  <div class="checks" id="members"></div>
+
+  <label>When</label>
+  <div class="seg" id="whenSeg">
+    <button data-when="once" class="on" onclick="setWhen('once')">Once</button>
+    <button data-when="repeat" onclick="setWhen('repeat')">Every period</button>
+  </div>
+  <div id="oncePanel" class="form-group"><label for="date" id="dateLabel">Week of</label><input id="date" type="date"></div>
+  <div id="repeatPanel" class="row hidden">
+    <div class="form-group"><label for="start">From</label><input id="start" type="date"></div>
+    <div class="form-group"><label for="end">Until <span class="optional">(optional)</span></label><input id="end" type="date"></div>
+  </div>
+  <button id="saveBtn" class="btn-primary" onclick="save()">Assign</button>
+
+  <h3>Recurring tasks</h3>
+  <div id="rules"></div>
+
+  <script>
+    var data = { types: [], projects: [], roles: [], members: [], rules: [] };
+    var mode = 'Each person';
+    var when = 'once';
+    function $(id) { return document.getElementById(id); }
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+    function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
+    function currentType() { var n = $('type').value; return data.types.filter(function(t) { return t.name === n; })[0]; }
+
+    function load(msg) {
+      google.script.run.withSuccessHandler(function(res) {
+        data = res;
+        var keepType = $('type').value;
+        $('type').innerHTML = '';
+        data.types.forEach(function(t) { var o = el('option', '', t.name + (t.mandatory ? ' (mandatory)' : '')); o.value = t.name; $('type').appendChild(o); });
+        if (keepType) $('type').value = keepType;
+        $('project').innerHTML = '';
+        var none = el('option', '', 'No project'); none.value = ''; $('project').appendChild(none);
+        data.projects.forEach(function(p) { var o = el('option', '', p.name); o.value = p.id; $('project').appendChild(o); });
+        fillChecks('roles', data.roles.map(function(r) { return { value: 'Role: ' + r, label: r }; }));
+        fillChecks('members', data.members.map(function(m) { return { value: m.name, label: m.name, meta: m.role }; }));
+        $('date').value = data.today; $('start').value = data.today;
+        renderRules();
+        refresh();
+        msg ? show(msg, 'success') : show('', '') ;
+        if (!msg) $('status').className = 'status-msg';
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getAssignSidebarData();
+    }
+
+    function fillChecks(id, items) {
+      var box = $(id); box.innerHTML = '';
+      if (!items.length) box.appendChild(el('div', 'hint', 'None'));
+      items.forEach(function(it) {
+        var l = el('label'); var c = el('input'); c.type = 'checkbox'; c.value = it.value;
+        l.appendChild(c); l.appendChild(el('span', '', it.label)); if (it.meta) l.appendChild(el('span', 'meta', it.meta));
+        box.appendChild(l);
+      });
+    }
+    function checked(id) { return Array.prototype.filter.call($(id).querySelectorAll('input'), function(c) { return c.checked; }).map(function(c) { return c.value; }); }
+
+    function setMode(m) {
+      mode = m;
+      Array.prototype.forEach.call(document.querySelectorAll('#modeSeg button'), function(b) { b.classList.toggle('on', b.getAttribute('data-mode') === m); });
+      if (m === 'Rotation') setWhen('repeat');
+      refresh();
+    }
+    function setWhen(w) {
+      if (mode === 'Rotation') w = 'repeat';
+      when = w;
+      Array.prototype.forEach.call(document.querySelectorAll('#whenSeg button'), function(b) { b.classList.toggle('on', b.getAttribute('data-when') === w); });
+      $('oncePanel').classList.toggle('hidden', w !== 'once');
+      $('repeatPanel').classList.toggle('hidden', w !== 'repeat');
+      refresh();
+    }
+    function refresh() {
+      var t = currentType();
+      var monthly = t && t.frequency === 'Monthly';
+      $('dateLabel').textContent = monthly ? 'Month of' : 'Week of';
+      $('modeHint').textContent = mode === 'Rotation'
+        ? 'One person per ' + (monthly ? 'month' : 'week') + ', in turn. People on approved leave are skipped and go first next time.'
+        : 'Everyone selected gets their own task' + (when === 'repeat' ? ' every ' + (monthly ? 'month' : 'week') : '') + '. Nobody selected = every member.';
+      $('saveBtn').textContent = when === 'repeat' ? 'Save recurring task' : 'Assign';
+    }
+
+    function save() {
+      var applies = checked('roles').concat(checked('members')).join('; ');
+      var payload = { type: $('type').value, projectId: $('project').value, mode: mode, appliesTo: applies,
+        repeat: when === 'repeat', date: $('date').value, start: $('start').value, end: $('end').value };
+      $('saveBtn').disabled = true; show('Saving…', 'info');
+      google.script.run.withSuccessHandler(function(res) {
+        $('saveBtn').disabled = false;
+        if (!res || !res.success) { show((res && res.message) || 'Could not save.', 'error'); return; }
+        load(res.message);
+      }).withFailureHandler(function(err) { $('saveBtn').disabled = false; show(err.message || String(err), 'error'); }).assignTasks(payload);
+    }
+
+    function renderRules() {
+      var box = $('rules'); box.innerHTML = '';
+      if (!data.rules.length) { box.appendChild(el('div', 'hint', 'No recurring task yet.')); return; }
+      data.rules.forEach(function(r) {
+        var card = el('div', 'card' + (r.active ? '' : ' off'));
+        var txt = el('div'); txt.style.flex = '1';
+        txt.appendChild(el('div', '', r.type + (r.project ? ' · ' + r.project : '')));
+        txt.appendChild(el('div', 'meta', r.mode + ' · ' + r.appliesTo + ' · from ' + (r.start || '?') + (r.end ? ' to ' + r.end : '') + (r.active ? '' : ' · stopped')));
+        card.appendChild(txt);
+        if (r.active) {
+          var b = el('button', 'btn-link', 'Stop');
+          b.onclick = function() {
+            b.disabled = true;
+            google.script.run.withSuccessHandler(function(res) { load(res.message); })
+              .withFailureHandler(function(err) { b.disabled = false; show(err.message || String(err), 'error'); }).stopRecurringRule(r.id);
+          };
+          card.appendChild(b);
+        }
+        box.appendChild(card);
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -4,9 +4,9 @@
 
 - **WorkspacePM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
 - No build, no `package.json`. Each `src/*.js` and `consumer/Code.js` is a global script in Apps Script and ends with a `if (typeof module !== 'undefined') module.exports = {...}` guard so Node tests can `require` it. Keep that guard when adding files or exports.
-- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-12: **214 pass, 0 fail**.
+- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-12: **227 pass, 0 fail**.
 - Spec and tickets: `.scratch/workspace-pm-library/` (`spec.md`, `issues/NN-*.md`). Status words in use: `resolved`/`closed` = done, `open`, `ready-for-agent`.
-- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0045); new domain terms land in `GLOSSARY.md`.
+- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0046); new domain terms land in `GLOSSARY.md`.
 - Product principles (ADR 0034): every grid stays editable, and there is no privacy model; data tables are hidden for declutter, never locked; sidebars are an extra entry path; KPIs go to Looker Studio through `fact_presence`.
 - **Never hard-code a tab name** (ADR 0039): look tabs up with `getTable(ss, "<key>")` / `tableKeyOfSheet(sheet)` from `src/Tables.js`; keys: locations ("Locations"), members, tenures (tab "Contracts"), baselines ("Routines"), leaves, presenceLog, projects, tasks, events, backups, weeklyMatrix ("Weekly Presence"), kpiData ("KPI Data"). `SCHEMA_SPEC` is keyed the same way; visible tables have readable `headers` labels, so match header text normalised (key or label).
 - Work Locations come from the Locations tab via `src/Locations.js` (`activeLocationNames`, `allLocationNames`, `locationCategory`, `defaultOfficeLocation`); never hard-code a location (ADR 0040).

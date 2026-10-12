@@ -190,6 +190,12 @@ function schemaValidationsFor(ss, config) {
     if (dyn[col] === "withLeaves") values = values.concat(LEAVE_LOCATIONS);
     validations[col] = values;
   }
+  // Task type dropdowns follow the Task Types tab (ADR 0045)
+  var tt = config.taskTypeColumns || {};
+  for (var tcol in tt) {
+    if (!tt.hasOwnProperty(tcol)) continue;
+    validations[tcol] = (typeof taskTypeNames === "function") ? taskTypeNames(ss) : [];
+  }
   return validations;
 }
 
@@ -197,7 +203,7 @@ function schemaValidationsFor(ss, config) {
 function refreshLocationDropdowns(ss) {
   var updated = [];
   for (var key in SCHEMA_SPEC) {
-    if (!SCHEMA_SPEC.hasOwnProperty(key) || !SCHEMA_SPEC[key].locationColumns) continue;
+    if (!SCHEMA_SPEC.hasOwnProperty(key) || !(SCHEMA_SPEC[key].locationColumns || SCHEMA_SPEC[key].taskTypeColumns)) continue;
     var config = SCHEMA_SPEC[key];
     var sheet = getTable(ss, key);
     if (!sheet) continue;

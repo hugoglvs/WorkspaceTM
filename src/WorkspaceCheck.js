@@ -138,7 +138,23 @@ function removePresenceDuplicates(targetSpreadsheet) {
     return { success: false, message: "A sync is running. Try again in a minute." };
   }
   try {
-    var dup = findPresenceDuplicates(ss);
+    // Tasks (ADR 0045)
+  if (typeof findOverdueTasks === "function") {
+    sections.push({ key: "overdueTasks", title: "Overdue tasks", ok: "No open task past its due date.", action: "calendar",
+      items: findOverdueTasks(ss, today) });
+    sections.push({ key: "tasksOnLeave", title: "Tasks falling on a leave", ok: "Nobody has a task on a day off.", action: "calendar",
+      items: findTasksOnLeave(ss, today) });
+  }
+  if (typeof connectedTaskUsers === "function" && typeof rtMembers === "function") {
+    var connected = connectedTaskUsers();
+    sections.push({ key: "googleTasks", title: "Not connected to Google Tasks", ok: "Everyone receives their tasks in Google Tasks.",
+      items: rtMembers(ss).filter(function(m) {
+        if (m.status !== "active") return false;
+        return connected.indexOf(String(m.email || "").toLowerCase()) === -1 && connected.indexOf(String(m.googleEmail || "").toLowerCase()) === -1;
+      }).map(function(m) { return m.name + " (Project Management → Connect my Google Tasks)"; }) });
+  }
+
+  var dup = findPresenceDuplicates(ss);
     var sheet = getTable(ss, "presenceLog");
     dup.rows.sort(function(a, b) { return b - a; }).forEach(function(r) { sheet.deleteRow(r); });
     if (dup.count && typeof refreshWeeklyMatrix === "function") {

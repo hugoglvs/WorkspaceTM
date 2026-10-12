@@ -1,6 +1,6 @@
 # WorkspacePM: Distribution & Deployment Guide
 
-_Last updated 2026-10-12 (library state: ADR 0044, tag `deploy-20261012-0813`)._
+_Last updated 2026-10-12 (library state: ADR 0045)._
 
 ## Overview
 
@@ -56,9 +56,9 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | Group | Functions |
 | :--- | :--- |
 | Menu & lifecycle | `onOpen` (builds the menu), `onEdit` (forwards; steps aside when the installable trigger exists) |
-| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showMembersSidebar`, `showBackupSidebar`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab` |
-| Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `birthdayReminderJob` (daily 9 am) |
-| Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getMembersSidebarData`, `saveMemberTenure`, `endMemberTenure`, `saveMemberProfile`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `runWorkspaceCheck`, `removePresenceDuplicates` |
+| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showMembersSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab` |
+| Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `dailyRemindersJob` (daily 9 am; `birthdayReminderJob` kept as an alias), `myTasksSyncJob` (hourly, one per connected person) |
+| Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getMembersSidebarData`, `saveMemberTenure`, `endMemberTenure`, `saveMemberProfile`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `getAssignSidebarData`, `assignTasks`, `stopRecurringRule`, `runWorkspaceCheck`, `removePresenceDuplicates` |
 
 > A sidebar or dialog served by the library calls the **consumer** script. When a new library feature adds a sidebar call, a menu item or a trigger, the wrapper must be updated and pushed too, or the button fails with "function not found".
 
@@ -71,14 +71,14 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 3. Approve Google's authorization prompt (Sheets, Drive, Calendar, Tasks, Gmail sending, triggers). It appears again whenever a release adds a scope (e.g. the Calendar API for birthdays).
 4. The run takes about 2 minutes and:
    - creates the tables with readable names, validations, typography and protections;
-   - fills **Locations** with OneRoof (Office), Remote, JLL, C04, C60 (Client site) and **Holidays** with the French public holidays of this year and next;
+   - fills **Locations** with OneRoof (Office), Remote, JLL, C04, C60 (Client site), **Task Types** with the default types and **Holidays** with the French public holidays of this year and next;
    - shows the working tabs and hides the data tabs;
    - installs the four triggers (§6);
    - runs a first full nightly sync.
 
 | Visible tabs (daily use) | Hidden tabs (data; menu items open some of them) |
 | :--- | :--- |
-| Members, Weekly Presence, Projects, Tasks, Events | Locations, Holidays, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
+| Members, Weekly Presence, Projects, Tasks, Calendar, Events | Locations, Holidays, Task Types, Recurring Tasks, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
 
 ---
 
@@ -90,9 +90,13 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Declare Presence & Leaves** | Sidebar: weekly routine (AM/PM per weekday) and leave requests. |
 | **Members & Contracts** | Sidebar: add a member, edit contact details and birthday, add or end a contract. Typing a new name in Members opens it automatically. |
 | **Interim Backups** | Sidebar: cover a project for given dates. Shows coverage gaps (click one to fill the dates) and lets you cancel a planned backup. |
-| **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, duplicate presence rows. |
+| **Assign Tasks** | Sidebar: give a task type to several people (by role and/or name), once or every week/month (each person, or a rotation that skips people on leave). Lists and stops recurring tasks. |
+| **Calendar** | Opens the Calendar tab: pick a Type and a Project, then members × weeks (or months). *To do* assigns, *Done* marks done, clearing cancels. Refuses someone on approved leave. |
+| **Connect my Google Tasks** | Each member clicks it once: their own tasks then sync every hour with their Google Tasks (both ways). |
+| **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, overdue tasks, tasks falling on a leave, members not connected to Google Tasks, duplicate presence rows. |
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
+| **Edit Task Types** | Shows the hidden Task Types tab (Type, Frequency, Due rule, Mandatory, Active). |
 
 ---
 
@@ -101,11 +105,12 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | Job | Trigger | What it does |
 | :--- | :--- | :--- |
 | Edit handling | Installable on-edit (`installedTaskEditHandler`) | Every grid edit: IDs, validation toasts, Google Tasks / Calendar push, Weekly Presence saves, member sync, birthday format, location warnings, coverage re-check. The simple `onEdit` steps aside once this trigger exists (one run per edit). |
-| Nightly sync | Daily, 2 am (`nightlySyncJob`) | Member sync, presence compile, Weekly Presence, KPI Data, coverage check (emails + tasks for conflicts), Google Tasks and Calendar sync, next year's holidays, Team Birthdays calendar. Each step is timed in the log and the run stops cleanly before Apps Script's 6-minute limit. |
+| Nightly sync | Daily, 2 am (`nightlySyncJob`) | Member sync, presence compile, Weekly Presence, KPI Data, recurring tasks planned ahead (rotation turns moved off approved leaves), Calendar refresh, coverage check (emails + tasks for conflicts), Google Tasks and Calendar sync, next year's holidays, Team Birthdays calendar. Each step is timed in the log and the run stops cleanly before Apps Script's 6-minute limit. |
 | Monday reminder | Mondays, 8 am (`mondayPresenceReminder`) | Emails each Active member who has a working day this week with no presence, routine or leave. |
-| Birthdays | Daily, 9 am (`birthdayReminderJob`) | On the working day before a birthday (Friday for Sat–Mon), emails every other Active member with an "Add to my Google Calendar" link and a subscribe link to the Team Birthdays calendar. |
+| Daily reminders | Daily, 9 am (`dailyRemindersJob`) | Birthdays: on the working day before (Friday for Sat–Mon), every other Active member gets an "Add to my Google Calendar" link. Tasks: an email 3 working days before a typed task is due and on the first working day after if still open. |
+| My Google Tasks | Hourly, one per connected member (`myTasksSyncJob`) | Syncs that person's tasks with their own Google Tasks list, both ways. |
 
-All four are installed (once each) by *Initialize / Upgrade*. Check them in the Apps Script editor → **Triggers**.
+The first four are installed (once each) by *Initialize / Upgrade*; `myTasksSyncJob` by each member's *Connect my Google Tasks*. Check them in the Apps Script editor → **Triggers**.
 
 ---
 

@@ -18,7 +18,10 @@ var TABLE_REGISTRY = {
   backups:      { sheetName: "Backups",         legacyName: "tbl_backups" },
   weeklyMatrix: { sheetName: "Weekly Presence", legacyName: "view_weekly_matrix" },
   kpiData:      { sheetName: "KPI Data",        legacyName: "fact_presence" },
-  holidays:     { sheetName: "Holidays",        legacyName: "tbl_holidays" }
+  holidays:     { sheetName: "Holidays",        legacyName: "tbl_holidays" },
+  taskTypes:    { sheetName: "Task Types",      legacyName: "tbl_task_types" },
+  recurringTasks: { sheetName: "Recurring Tasks", legacyName: "tbl_recurring_tasks" },
+  taskCalendar: { sheetName: "Calendar",        legacyName: "view_task_calendar" }
 };
 
 var ARCHIVE_PREFIX = "Archive – ";

@@ -65,6 +65,49 @@ function msToFtePercent(raw) {
   return n <= 1 ? Math.round(n * 1000) / 10 : n;
 }
 
+function msIsEmail(str) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(str || "").trim());
+}
+
+/**
+ * An email typed for a person who is already a Member (their chip or their
+ * Accenture email) returns that Member's name, so no duplicate is created.
+ */
+function msMemberByEmail(ss, email) {
+  var key = String(email || "").trim().toLowerCase();
+  var sheet = getTable(ss, "members");
+  var rows = msReadRows(sheet, 7);
+  if (!rows.length) return "";
+  var chips = (typeof fetchMemberChipEmails === "function" && ss.getId)
+    ? fetchMemberChipEmails(ss.getId(), sheet.getName(), 2, rows[rows.length - 1].row - 1) : {};
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].key === key || chips[rows[i].row] === key || String(rows[i].values[1] || "").trim().toLowerCase() === key) return rows[i].name;
+  }
+  return "";
+}
+
+/**
+ * Turns a cell into a People chip for `email` (Sheets API chipRuns) and returns
+ * the name the chip shows, or "" when the chip could not be written.
+ */
+function msWritePersonChip(ss, sheet, row, col, email) {
+  if (typeof Sheets === "undefined" || !Sheets.Spreadsheets || !ss.getId) return "";
+  try {
+    if (typeof SpreadsheetApp.flush === "function") SpreadsheetApp.flush();
+    Sheets.Spreadsheets.batchUpdate({ requests: [{ updateCells: {
+      range: { sheetId: sheet.getSheetId(), startRowIndex: row - 1, endRowIndex: row, startColumnIndex: col - 1, endColumnIndex: col },
+      rows: [{ values: [{ userEnteredValue: { stringValue: "@" }, chipRuns: [{ startIndex: 0, chip: { personProperties: { email: email } } }] }] }],
+      fields: "userEnteredValue,chipRuns"
+    } }] }, ss.getId());
+    var cell = sheet.getRange(row, col);
+    var shown = msName(cell.getValue(), typeof cell.getRichTextValue === "function" ? cell.getRichTextValue() : null);
+    return (shown && shown !== "@") ? shown : email;
+  } catch (eChip) {
+    Logger.log("People chip for " + email + " not written: " + eChip);
+    return "";
+  }
+}
+
 function msSync(ss) {
   if (typeof syncMembersAndTenures === "function") {
     try { syncMembersAndTenures(ss); } catch (eSync) { Logger.log("Members sidebar sync note: " + eSync); }
@@ -157,11 +200,26 @@ function saveMemberTenure(payload, targetSpreadsheet) {
   var tenuresSheet = getTable(ss, "tenures");
   if (!tenuresSheet) return { success: false, message: "The Contracts tab was not found. Run Initialize / Upgrade first." };
 
-  var existing = msTenuresOf(ss, member);
+  // A new person declared by email gets a People chip in the Contracts row
+  // before any check, so the checks use the name the chip shows.
+  var typedEmail = msIsEmail(member) ? member.toLowerCase() : "";
+  if (typedEmail) member = msMemberByEmail(ss, typedEmail) || member;
+  var chipRow = 0;
+  if (typedEmail && member.toLowerCase() === typedEmail) {
+    var freeRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tenuresSheet) : tenuresSheet.getLastRow() + 1;
+    var shown = msWritePersonChip(ss, tenuresSheet, freeRow, 1, typedEmail);
+    if (shown) { member = shown; chipRow = freeRow; }
+  }
+  function refuse(message) {
+    if (chipRow) tenuresSheet.getRange(chipRow, 1).clearContent();
+    return { success: false, message: message };
+  }
+
+  var existing = msTenuresOf(ss, member).filter(function(t) { return t.row !== chipRow; });
   for (var i = 0; i < existing.length; i++) {
     var exStart = msIsoDate(existing[i].values[3]);
     if (exStart && exStart >= startDate) {
-      return { success: false, message: member + " already has a contract starting " + exStart + ". Choose a later start date, or edit that contract." };
+      return refuse(member + " already has a contract starting " + exStart + ". Choose a later start date, or edit that contract.");
     }
   }
 
@@ -174,12 +232,12 @@ function saveMemberTenure(payload, targetSpreadsheet) {
   });
   if (open.length > 0) {
     if (previousEndDate >= startDate) {
-      return { success: false, message: "The current contract must end before the new one starts (" + startDate + ")." };
+      return refuse("The current contract must end before the new one starts (" + startDate + ").");
     }
     for (var o = 0; o < open.length; o++) {
       var openStart = msIsoDate(open[o].values[3]);
       if (openStart && previousEndDate < openStart) {
-        return { success: false, message: "The current contract cannot end before it started (" + openStart + ")." };
+        return refuse("The current contract cannot end before it started (" + openStart + ").");
       }
     }
   }
@@ -199,13 +257,17 @@ function saveMemberTenure(payload, targetSpreadsheet) {
     ? { from: msShiftDays(latestEnd, 1), to: msDayBefore(startDate) }
     : undefined;
 
-  var targetRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tenuresSheet) : tenuresSheet.getLastRow() + 1;
-  tenuresSheet.getRange(targetRow, 1, 1, 7).setValues([[member, role, department, startDate, endDate, contractType, fte]]);
-
-  var membersSheet = getTable(ss, "members");
-  var memberRow = msReadRows(membersSheet, 7).filter(function(m) { return m.key === member.toLowerCase(); })[0];
-  if (memberRow && typeof copyCellChip === "function") {
-    try { copyCellChip(membersSheet, memberRow.row, 1, tenuresSheet, targetRow, 1, member, ss.getId ? ss.getId() : ""); } catch (eChip) {}
+  var targetRow = chipRow || ((typeof findNextAvailableRow === "function") ? findNextAvailableRow(tenuresSheet) : tenuresSheet.getLastRow() + 1);
+  if (chipRow) {
+    // The chip stays in column A; the sync copies it into Members, Routines and the onboarding task.
+    tenuresSheet.getRange(targetRow, 2, 1, 6).setValues([[role, department, startDate, endDate, contractType, fte]]);
+  } else {
+    tenuresSheet.getRange(targetRow, 1, 1, 7).setValues([[member, role, department, startDate, endDate, contractType, fte]]);
+    var membersSheet = getTable(ss, "members");
+    var memberRow = msReadRows(membersSheet, 7).filter(function(m) { return m.key === member.toLowerCase(); })[0];
+    if (memberRow && typeof copyCellChip === "function") {
+      try { copyCellChip(membersSheet, memberRow.row, 1, tenuresSheet, targetRow, 1, member, ss.getId ? ss.getId() : ""); } catch (eChip) {}
+    }
   }
   if (typeof applyTypography === "function") applyTypography(tenuresSheet.getRange(targetRow, 1, 1, 7));
 

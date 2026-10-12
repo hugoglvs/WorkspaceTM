@@ -213,3 +213,59 @@ test('saveMemberTenure: allows a gap between contracts and warns about it', () =
   assert.deepStrictEqual(res.gap, { from: '2026-11-01', to: '2026-11-14' });
   assert.ok(res.message.includes('2026-11-01') && res.message.includes('2026-11-14'));
 });
+
+test('saveMemberTenure: a new Member declared by email gets a People chip in Contracts', () => {
+  seed([]);
+  global.Sheets.batchUpdateCalls.length = 0;
+
+  var res = members.saveMemberTenure({
+    member: 'Ines.Martin@gmail.com', role: 'Consultant', department: 'FAL ME', startDate: '2026-11-02',
+    contractType: 'Contractor', ftePercent: 100
+  }, mockSpreadsheet);
+
+  assert.strictEqual(res.success, true, res.message);
+  var chipCall = global.Sheets.batchUpdateCalls.find(c => c.resource.requests.some(r => r.updateCells && r.updateCells.rows[0].values[0].chipRuns));
+  assert.ok(chipCall, 'a chipRuns write is sent');
+  var cell = chipCall.resource.requests[0].updateCells.rows[0].values[0];
+  assert.strictEqual(cell.chipRuns[0].chip.personProperties.email, 'ines.martin@gmail.com');
+  assert.strictEqual(tenures()[0][0], 'ines.martin@gmail.com');
+  assert.ok(memberRow('ines.martin@gmail.com'), 'the chip is copied into Members');
+});
+
+test('saveMemberTenure: the email of an existing Member adds a contract to that Member, not a new one', () => {
+  seed([['Hugo Gonçalves', 'Data Analyst', 'FAL ME', '2025-09-02', '', 'Permanent', 100]]);
+  members.saveMemberProfile({ member: 'Hugo Gonçalves', email: 'hugo@accenture.com' }, mockSpreadsheet);
+
+  var res = members.saveMemberTenure({
+    member: 'HUGO@accenture.com', role: 'Manager', department: 'FAL ME', startDate: '2026-11-02',
+    contractType: 'Permanent', ftePercent: 100
+  }, mockSpreadsheet);
+
+  assert.strictEqual(res.success, true, res.message);
+  assert.strictEqual(res.closedPrevious, true);
+  assert.deepStrictEqual(tenures().map(t => t[0]), ['Hugo Gonçalves', 'Hugo Gonçalves']);
+});
+
+test('saveMemberTenure: a chip that resolves to an existing Member goes through the contract checks', () => {
+  seed([['Hugo Gonçalves', 'Data Analyst', 'FAL ME', '2025-09-02', '', 'Permanent', 100]]);
+  var api = global.Sheets.Spreadsheets.batchUpdate;
+  global.Sheets.Spreadsheets.batchUpdate = function(resource, id) {
+    var res = api.call(this, resource, id);
+    var uc = resource.requests[0].updateCells;
+    if (uc && uc.rows[0].values[0].chipRuns) {
+      mockSpreadsheet.getSheetByName('Contracts').getRange(uc.range.startRowIndex + 1, 1).setValue('Hugo Gonçalves');
+    }
+    return res;
+  };
+  try {
+    var res = members.saveMemberTenure({
+      member: 'other.address@gmail.com', role: 'Manager', department: 'FAL ME', startDate: '2025-01-01',
+      contractType: 'Permanent', ftePercent: 100
+    }, mockSpreadsheet);
+    assert.strictEqual(res.success, false);
+    assert.match(res.message, /Hugo Gonçalves already has a contract/);
+    assert.strictEqual(tenures().length, 1, 'the chip cell is cleared again');
+  } finally {
+    global.Sheets.Spreadsheets.batchUpdate = api;
+  }
+});

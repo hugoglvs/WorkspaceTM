@@ -274,12 +274,25 @@ function highlightInvalidCells(sheetName, targetSpreadsheet) {
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
  * @param {Object} config
  */
+/** True for a rule written by applyRequiredValidationFormatting. */
+function isRequiredCellRule(rule) {
+  var cond = (rule && typeof rule.getBooleanCondition === "function") ? rule.getBooleanCondition() : null;
+  if (!cond || String(cond.getCriteriaType()) !== "CUSTOM_FORMULA") return false;
+  var vals = (typeof cond.getCriteriaValues === "function") ? cond.getCriteriaValues() : [];
+  return String(vals && vals[0] || "").replace(/\s/g, "").indexOf("=AND(COUNTA($A") === 0;
+}
+
 function applyRequiredValidationFormatting(sheet, config) {
   if (!sheet || !config || !config.requiredColumns) return;
   if (typeof SpreadsheetApp === "undefined" || !SpreadsheetApp.newConditionalFormatRule) return;
 
   try {
-    var rules = sheet.getConditionalFormatRules ? sheet.getConditionalFormatRules() : [];
+    // Replace earlier required-cell rules instead of stacking copies: when a table
+    // widens, Sheets stretches a rule onto the new column (a blank optional
+    // Birthday turned red), and every upgrade used to add another set.
+    var rules = (sheet.getConditionalFormatRules ? sheet.getConditionalFormatRules() : []).filter(function(r) {
+      return !isRequiredCellRule(r);
+    });
     var maxRows = Math.max(sheet.getMaxRows(), 50);
     var cols = config.columns;
     var required = config.requiredColumns;

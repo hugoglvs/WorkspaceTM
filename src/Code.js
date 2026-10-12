@@ -652,98 +652,50 @@ function nightlySyncJob(targetSpreadsheet) {
   return res;
 }
 
+var NIGHTLY_TIME_BUDGET_MS = 300000; // Apps Script stops a run at 6 minutes
+
 /**
- * The six nightly maintenance steps. Each step is isolated so one failure
- * does not stop the others. Must only run while holding the sync lock.
+ * The nightly maintenance steps. Each step is isolated so one failure does not
+ * stop the others, timed in the log, and skipped once the run nears the
+ * 6-minute limit (so a slow step never kills the whole run silently).
+ * Must only run while holding the sync lock.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  * @param {Object} res Status report to fill
  */
 function runNightlySyncSteps(ss, res) {
-  // 0. Restore the reverted merged presence table on sheets not upgraded by hand
-  try {
-    if (typeof restorePresenceTablesFromRanges === "function") {
-      res.steps.presenceRestore = restorePresenceTablesFromRanges(ss);
+  var started = Date.now();
+  var steps = [
+    ["presenceRestore", function() { return (typeof restorePresenceTablesFromRanges === "function") ? restorePresenceTablesFromRanges(ss) : null; }],
+    ["directorySync", function() { return (typeof sync === "function") ? sync(ss) : null; }],
+    ["presenceCompile", function() { return (typeof compilePresence === "function") ? compilePresence(ss) : null; }],
+    ["weeklyMatrix", function() { return (typeof refreshWeeklyMatrix === "function") ? refreshWeeklyMatrix(ss) : null; }],
+    ["kpis", function() { return (typeof refreshKpis === "function") ? refreshKpis(ss) : null; }],
+    ["backupConflicts", function() { return (typeof checkProjectBackupConflicts === "function") ? checkProjectBackupConflicts(ss) : null; }],
+    ["tasks", function() { return (typeof syncTasks === "function") ? syncTasks(ss) : null; }],
+    ["calendar", function() { return (typeof syncCalendarEvents === "function") ? syncCalendarEvents(ss) : null; }],
+    ["holidays", function() { return (typeof seedPublicHolidays === "function") ? seedPublicHolidays(ss) : null; }],
+    ["birthdayCalendar", function() { return (typeof syncBirthdayCalendar === "function") ? syncBirthdayCalendar(ss) : null; }]
+  ];
+  res.timings = {};
+  res.skipped = [];
+  for (var i = 0; i < steps.length; i++) {
+    var name = steps[i][0];
+    if (Date.now() - started > NIGHTLY_TIME_BUDGET_MS) {
+      res.skipped.push(name);
+      continue;
     }
-  } catch (e0) {
-    Logger.log("[nightlySyncJob] Presence restore note: " + e0);
-    res.steps.presenceRestore = { error: String(e0) };
-  }
-
-
-  // 1. Sync Directory & Tenures
-  try {
-    if (typeof sync === "function") {
-      res.steps.directorySync = sync(ss);
+    var t0 = Date.now();
+    try {
+      res.steps[name] = steps[i][1]();
+    } catch (err) {
+      Logger.log("[nightlySyncJob] " + name + " note: " + err);
+      res.steps[name] = { error: String(err) };
     }
-  } catch (e1) {
-    Logger.log("[nightlySyncJob] Directory sync note: " + e1);
-    res.steps.directorySync = { error: String(e1) };
+    res.timings[name] = Date.now() - t0;
+    Logger.log("[nightlySyncJob] " + name + ": " + res.timings[name] + " ms");
   }
-
-  // 2. Compile Daily Presence Logs
-  try {
-    if (typeof compilePresence === "function") {
-      res.steps.presenceCompile = compilePresence(ss);
-    }
-  } catch (e2) {
-    Logger.log("[nightlySyncJob] Compile presence note: " + e2);
-    res.steps.presenceCompile = { error: String(e2) };
-  }
-
-  // 3. Refresh Dashboards (Matrix, Responsibles, KPIs)
-  try {
-    if (typeof refreshWeeklyMatrix === "function") res.steps.weeklyMatrix = refreshWeeklyMatrix(ss);
-    if (typeof refreshKpis === "function") res.steps.kpis = refreshKpis(ss);
-  } catch (e3) {
-    Logger.log("[nightlySyncJob] Dashboard refresh note: " + e3);
-    res.steps.dashboards = { error: String(e3) };
-  }
-
-  // 4. Synchronize Google Tasks (pull completed status, push any pending)
-  try {
-    if (typeof syncTasks === "function") {
-      res.steps.tasks = syncTasks(ss);
-    }
-  } catch (e4) {
-    Logger.log("[nightlySyncJob] Tasks sync note: " + e4);
-    res.steps.tasks = { error: String(e4) };
-  }
-
-  // 5. Synchronize Google Calendar Events
-  try {
-    if (typeof syncCalendarEvents === "function") {
-      res.steps.calendar = syncCalendarEvents(ss);
-    }
-  } catch (e5) {
-    Logger.log("[nightlySyncJob] Calendar sync note: " + e5);
-    res.steps.calendar = { error: String(e5) };
-  }
-
-  // 5a. Public holidays of next year, once (ADR 0043)
-  try {
-    if (typeof seedPublicHolidays === "function") res.steps.holidays = seedPublicHolidays(ss);
-  } catch (e5a) {
-    Logger.log("[nightlySyncJob] Holidays seed note: " + e5a);
-  }
-
-  // 5b. Team Birthdays calendar (ADR 0042)
-  try {
-    if (typeof syncBirthdayCalendar === "function") res.steps.birthdayCalendar = syncBirthdayCalendar(ss);
-  } catch (e5b) {
-    Logger.log("[nightlySyncJob] Birthday calendar note: " + e5b);
-    res.steps.birthdayCalendar = { error: String(e5b) };
-  }
-
-  // 6. Check Project Backup Absence Conflicts
-  try {
-    if (typeof checkProjectBackupConflicts === "function") {
-      res.steps.backupConflicts = checkProjectBackupConflicts(ss);
-    }
-  } catch (e6) {
-    Logger.log("[nightlySyncJob] Backup conflicts check note: " + e6);
-    res.steps.backupConflicts = { error: String(e6) };
-  }
+  if (res.skipped.length) Logger.log("[nightlySyncJob] Out of time, skipped: " + res.skipped.join(", "));
 }
 
 /**

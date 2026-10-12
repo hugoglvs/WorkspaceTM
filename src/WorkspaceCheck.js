@@ -265,13 +265,12 @@ function findLeaverHandovers(ss, today, members) {
 
 /** Menu: Check Workspace. Shows the report in a dialog. */
 function showWorkspaceCheck() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var report = runWorkspaceCheck(ss);
+  // Opens at once; the dialog runs the check itself (runWorkspaceCheck)
   var template = HtmlService.createTemplateFromFile("WorkspaceCheckDialog");
-  template.reportJson = JSON.stringify(report).replace(/</g, "\\u003c");
+  template.reportJson = "null";
   var html = template.evaluate().setWidth(520).setHeight(560);
   SpreadsheetApp.getUi().showModalDialog(html, "Check Workspace");
-  return report;
+  return { success: true };
 }
 
 /**

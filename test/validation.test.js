@@ -408,3 +408,18 @@ test('onEdit: should prompt user with blocking alert asking to snooze notificati
 });
 
 
+
+test('required-cell rules are replaced on upgrade, not stacked, and never cover optional columns', () => {
+  const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+  const ss = createMockSpreadsheet();
+  setupGasGlobals(ss);
+  const vm = require('../src/ValidationManager');
+  const spec = require('../src/Schema').SCHEMA_SPEC.members;
+  const sheet = ss.insertSheet('Members');
+  vm.applyRequiredValidationFormatting(sheet, spec);
+  const first = sheet.getConditionalFormatRules().length;
+  vm.applyRequiredValidationFormatting(sheet, spec);
+  assert.strictEqual(sheet.getConditionalFormatRules().length, first, 'no duplicates');
+  assert.strictEqual(first, spec.requiredColumns.length);
+  assert.ok(sheet.getConditionalFormatRules().every(r => !/H2/.test(r.formula.split(',')[1])), 'Birthday (H) is not required');
+});

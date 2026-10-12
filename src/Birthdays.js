@@ -152,10 +152,9 @@ function normalizeBirthdayEdit(e) {
     return "invalid";
   }
   var text = formatBirthday(b);
-  if (raw !== text) {
-    if (typeof cell.setNumberFormat === "function") cell.setNumberFormat("@");
-    cell.setValue(text);
-  }
+  // The Birthday column is a typed TEXT column, so the text stays text (and
+  // Sheets refuses number formats there)
+  if (raw !== text) cell.setValue(text);
   return text;
 }
 
@@ -168,7 +167,6 @@ function writeMemberBirthday(ss, row, value) {
   if (!String(value || "").trim()) { cell.setValue(""); return { success: true, text: "" }; }
   var b = parseBirthday(value);
   if (!b) return { success: false, message: "Write the birthday as day and month, e.g. 14 Mar." };
-  if (typeof cell.setNumberFormat === "function") cell.setNumberFormat("@");
   cell.setValue(formatBirthday(b));
   return { success: true, text: formatBirthday(b) };
 }

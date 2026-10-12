@@ -92,7 +92,7 @@ test('Check Workspace opens as a dialog', () => {
   showWorkspaceCheck();
   var dlg = SpreadsheetApp.getUi().shownDialog;
   assert.strictEqual(dlg.title, 'Check Workspace');
-  assert.ok(JSON.parse(dlg.html.template.reportJson).sections.length >= 6);
+  assert.strictEqual(dlg.html.template.reportJson, 'null', 'the dialog loads the report itself');
 });
 
 test('Monday reminder emails members with undeclared days, linking to Weekly Presence', () => {

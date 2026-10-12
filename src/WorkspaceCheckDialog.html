@@ -6,7 +6,7 @@
   <style>
     * { box-sizing: border-box; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
     body { margin: 0; padding: 4px 4px 16px; font-size: 13px; color: #202124; background: #fff; }
-    .summary { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-weight: 500; }
+    .summary { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-weight: 500; background: #e8f0fe; color: #1a73e8; }
     .summary.good { background: #e6f4ea; color: #137333; }
     .summary.todo { background: #fef7e0; color: #b06000; }
     .section { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
@@ -93,7 +93,13 @@
         .runWorkspaceCheck();
     }
 
-    render();
+    // The dialog opens at once; the check runs in the background
+    if (report) render();
+    else {
+      $('summary').className = 'summary';
+      $('summary').textContent = 'Checking the workspace… this can take up to half a minute.';
+      recheck();
+    }
   </script>
 </body>
 </html>

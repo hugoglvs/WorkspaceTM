@@ -596,6 +596,9 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     }
     membersSheet.getRange(uMem.row, 7).setValue(todayVal);
   }
+  if (typeof applyTodayPresenceColours === "function") {
+    try { applyTodayPresenceColours(ss); } catch (eTc) { Logger.log("Today colours note: " + eTc); }
+  }
 
   // 9. Reapply protections so newly created log rows are protected while keeping empty rows open
   if (typeof applyProtections === "function") {

@@ -16,6 +16,71 @@ var DEFAULT_LOCATIONS = [
 var OFF_LOCATION = "Off";
 var LEAVE_LOCATIONS = ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"];
 
+/**
+ * Presence colours, shared by Weekly Presence and the Members "Today" column:
+ * Office purple (Accenture), Client site blue, Remote green, leaves red, Off grey.
+ * Each entry is [background, font].
+ */
+var PRESENCE_STYLES = {
+  office: ["#F3E8FD", "#7500C0"],
+  client_site: ["#E8F0FE", "#1967D2"],
+  remote: ["#E6F4EA", "#137333"],
+  leave: ["#FCE8E6", "#C5221F"],
+  off: ["#F1F3F4", "#5F6368"],
+  not_logged: ["#FEF7E0", "#B06000"]
+};
+
+/**
+ * The value → style list for presence cells: every listed location by its type,
+ * leave types and Off.
+ * @return {Array<{text: string, style: string[]}>}
+ */
+function presenceStyleEntries(ss) {
+  var list = (typeof readLocations === "function" && ss) ? readLocations(ss) : [];
+  var entries = list.map(function(l) {
+    return { text: l.name, style: PRESENCE_STYLES[l.type === "Remote" ? "remote" : (l.type === "Client site" ? "client_site" : "office")] };
+  });
+  LEAVE_LOCATIONS.forEach(function(t) { entries.push({ text: t, style: PRESENCE_STYLES.leave }); });
+  entries.push({ text: OFF_LOCATION, style: PRESENCE_STYLES.off });
+  return entries;
+}
+
+function isPresenceTextRule(rule) {
+  var cond = (rule && typeof rule.getBooleanCondition === "function") ? rule.getBooleanCondition() : null;
+  if (!cond) return false;
+  var type = String(cond.getCriteriaType());
+  return type === "TEXT_EQUAL_TO" || type === "TEXT_STARTS_WITH";
+}
+
+/**
+ * Colours the Members "Today" column like Weekly Presence. "Weekend" is grey,
+ * "Not Logged" amber, and a split day ("C04 / Remote") takes its morning colour.
+ * Other rules on the tab (such as the required-cell warnings) are kept.
+ */
+function applyTodayPresenceColours(ss) {
+  if (!ss || typeof SpreadsheetApp === "undefined" || !SpreadsheetApp.newConditionalFormatRule) return false;
+  var sheet = getTable(ss, "members");
+  var config = SCHEMA_SPEC.members;
+  if (!sheet || !config) return false;
+  var col = config.columns.indexOf("today_presence") + 1;
+  if (col < 1) return false;
+  var range = sheet.getRange(2, col, Math.max(sheet.getMaxRows(), 50) - 1, 1);
+
+  var entries = presenceStyleEntries(ss);
+  var make = function(style) {
+    return SpreadsheetApp.newConditionalFormatRule().setBackground(style[0]).setFontColor(style[1]).setRanges([range]);
+  };
+  var rules = [];
+  entries.forEach(function(en) { rules.push(make(en.style).whenTextEqualTo(en.text).build()); });
+  rules.push(make(PRESENCE_STYLES.off).whenTextEqualTo("Weekend").build());
+  rules.push(make(PRESENCE_STYLES.not_logged).whenTextEqualTo("Not Logged").build());
+  entries.forEach(function(en) { rules.push(make(en.style).whenTextStartsWith(en.text + " /").build()); });
+
+  var kept = (sheet.getConditionalFormatRules() || []).filter(function(r) { return !isPresenceTextRule(r); });
+  sheet.setConditionalFormatRules(rules.concat(kept));
+  return true;
+}
+
 function isTruthyCell(v) {
   if (v === true) return true;
   if (v === false) return false;
@@ -139,6 +204,7 @@ function refreshLocationDropdowns(ss) {
       schemaValidationsFor(ss, config), Math.min(Math.max(sheet.getMaxRows(), 50), 25), schemaHeaderRow(config));
     updated.push(config.sheetName);
   }
+  try { applyTodayPresenceColours(ss); } catch (eCol) { Logger.log("Today colours note: " + eCol); }
   return updated;
 }
 
@@ -260,6 +326,9 @@ if (typeof module !== 'undefined' && module.exports) {
     refreshLocationDropdowns: refreshLocationDropdowns,
     showLocationsTab: showLocationsTab,
     findLocationUsage: findLocationUsage,
-    warnRetiredLocation: warnRetiredLocation
+    warnRetiredLocation: warnRetiredLocation,
+    PRESENCE_STYLES: PRESENCE_STYLES,
+    presenceStyleEntries: presenceStyleEntries,
+    applyTodayPresenceColours: applyTodayPresenceColours
   };
 }

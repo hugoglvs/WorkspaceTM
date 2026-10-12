@@ -119,7 +119,7 @@ function getAllMatrixDays(startDate, endDate) {
 
 /**
  * Colour-codes the matrix cells by Work Location type (Locations tab, ADR 0040):
- * Office green, Client site blue, Remote purple, leaves red, Off grey.
+ * Office purple, Client site blue, Remote green, leaves red, Off grey (PRESENCE_STYLES).
  *
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
  * @param {GoogleAppsScript.Spreadsheet.Range} targetRange
@@ -127,20 +127,7 @@ function getAllMatrixDays(startDate, endDate) {
  */
 function applyMatrixConditionalFormatting(sheet, targetRange, ss) {
   if (!sheet || !targetRange) return;
-  var styles = {
-    office: ["#E6F4EA", "#137333"],
-    client_site: ["#E8F0FE", "#1967D2"],
-    remote: ["#F3E8FD", "#7627BB"],
-    leave: ["#FCE8E6", "#C5221F"],
-    off: ["#F1F3F4", "#5F6368"]
-  };
-  var list = (typeof readLocations === "function") ? readLocations(ss || sheet.getParent()) : [];
-  var entries = list.map(function(l) {
-    return { text: l.name, style: styles[l.type === "Remote" ? "remote" : (l.type === "Client site" ? "client_site" : "office")] };
-  });
-  ["Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"].forEach(function(t) { entries.push({ text: t, style: styles.leave }); });
-  entries.push({ text: "Off", style: styles.off });
-
+  var entries = presenceStyleEntries(ss || sheet.getParent());
   var rules = entries.map(function(en) {
     return SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo(en.text)

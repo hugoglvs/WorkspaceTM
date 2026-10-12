@@ -470,6 +470,13 @@ function setupGasGlobals(mockSpreadsheet) {
         whenFormulaSatisfied: function(f) { this.formula = f; return this; },
         whenTextEqualTo: function(text) { this.textEqualTo = text; return this; },
         whenTextContains: function(text) { this.textContains = text; return this; },
+        whenTextStartsWith: function(text) { this.textStartsWith = text; return this; },
+        getBooleanCondition: function() {
+          var self = this;
+          var type = self.formula ? "CUSTOM_FORMULA" : (self.textEqualTo !== undefined ? "TEXT_EQUAL_TO" : (self.textStartsWith !== undefined ? "TEXT_STARTS_WITH" : (self.textContains !== undefined ? "TEXT_CONTAINS" : null)));
+          return type ? { getCriteriaType: function() { return type; } } : null;
+        },
+        getRanges: function() { return this.ranges; },
         setBackground: function(bg) { this.bg = bg; return this; },
         setFontColor: function(c) { this.color = c; return this; },
         setBold: function(b) { this.bold = b; return this; },

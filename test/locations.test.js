@@ -208,3 +208,30 @@ test('retiring an unused location shows no warning', () => {
 
   assert.ok(!mockSpreadsheet.lastToast || !mockSpreadsheet.lastToast.msg.includes('C60'));
 });
+
+test('presence colours: Office purple, Remote green, Client site blue', () => {
+  freshInit(mockSpreadsheet);
+  const byText = Object.fromEntries(presenceStyleEntries(mockSpreadsheet).map(e => [e.text, e.style]));
+  assert.deepStrictEqual(byText.OneRoof, PRESENCE_STYLES.office);
+  assert.strictEqual(PRESENCE_STYLES.office[1], '#7500C0');
+  assert.deepStrictEqual(byText.Remote, PRESENCE_STYLES.remote);
+  assert.strictEqual(PRESENCE_STYLES.remote[1], '#137333');
+  assert.deepStrictEqual(byText.C04, PRESENCE_STYLES.client_site);
+});
+
+test('Members Today is coloured like Weekly Presence, keeping the required-cell rules', () => {
+  freshInit(mockSpreadsheet);
+  const sheet = getTable(mockSpreadsheet, 'members');
+  const before = sheet.getConditionalFormatRules().filter(r => r.formula).length;
+  applyTodayPresenceColours(mockSpreadsheet);
+  applyTodayPresenceColours(mockSpreadsheet); // idempotent
+  const rules = sheet.getConditionalFormatRules();
+  const eq = t => rules.filter(r => r.textEqualTo === t);
+  assert.strictEqual(eq('OneRoof').length, 1);
+  assert.strictEqual(eq('OneRoof')[0].bg, PRESENCE_STYLES.office[0]);
+  assert.strictEqual(eq('Not Logged')[0].bg, PRESENCE_STYLES.not_logged[0]);
+  assert.strictEqual(eq('Weekend')[0].bg, PRESENCE_STYLES.off[0]);
+  assert.ok(rules.some(r => r.textStartsWith === 'Remote /'), 'split days take the morning colour');
+  assert.strictEqual(eq('OneRoof')[0].ranges[0].getColumn ? eq('OneRoof')[0].ranges[0].getColumn() : 7, 7);
+  assert.strictEqual(rules.filter(r => r.formula).length, before);
+});

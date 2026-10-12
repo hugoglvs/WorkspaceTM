@@ -18,4 +18,4 @@ _2026-10-12 — 9 new tests in `test/locations.test.js`; suite 174 pass._
 ## Follow-up (2026-10-12)
 - [x] Toast when a location is unticked but ongoing Routines or future days still use it (`warnRetiredLocation`).
 - [x] Members Status column shown as a dropdown.
-- [ ] "Today" column: colours vs dropdown, awaiting decision.
+- [x] "Today" column coloured like Weekly Presence (Office purple, Remote green).

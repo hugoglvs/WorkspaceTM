@@ -423,3 +423,42 @@ test('required-cell rules are replaced on upgrade, not stacked, and never cover 
   assert.strictEqual(first, spec.requiredColumns.length);
   assert.ok(sheet.getConditionalFormatRules().every(r => !/H2/.test(r.formula.split(',')[1])), 'Birthday (H) is not required');
 });
+
+test('applyProtections keeps protections that are already right instead of rebuilding them', () => {
+  freshInit(mockSpreadsheet);
+  var tenures = getTable(mockSpreadsheet, 'tenures');
+  tenures.getRange(2, 1, 1, 7).setValues([['Alice', 'Dev', 'Eng', '2026-01-01', '', 'Permanent', 1]]);
+  applyProtections(mockSpreadsheet);
+  var before = tenures.getProtections().slice();
+  applyProtections(mockSpreadsheet);
+  var after = tenures.getProtections();
+  assert.strictEqual(after.length, before.length);
+  assert.ok(after.every(p => before.indexOf(p) !== -1), 'same protection objects kept');
+
+  tenures.getRange(3, 1, 1, 7).setValues([['Bob', 'Dev', 'Eng', '2026-01-01', '', 'Permanent', 1]]);
+  applyProtections(mockSpreadsheet);
+  var grown = tenures.getProtections();
+  assert.strictEqual(grown.length, before.length, 'no duplicates');
+  assert.ok(grown.every(p => p.getRange().getNumRows() === 2), 'ranges follow the new row');
+});
+
+test('onEdit: typing a new name in an empty Members row adds a member without the protected-column dialog', () => {
+  freshInit(mockSpreadsheet);
+  clearProtectionWarningSnooze();
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  var ui = SpreadsheetApp.getUi();
+  ui.lastAlert = null;
+  membersSheet.getRange(3, 1).setValue('New Person');
+  onEdit({ range: membersSheet.getRange(3, 1), value: 'New Person', source: mockSpreadsheet });
+  assert.notStrictEqual(ui.lastAlert && ui.lastAlert.title, 'Strictly Protected Column Edited');
+});
+
+test('onEdit: deleting a name in Members clears the rest of that row', () => {
+  freshInit(mockSpreadsheet);
+  clearProtectionWarningSnooze();
+  SpreadsheetApp.getUi().alertResponse = 'NO';
+  var membersSheet = mockSpreadsheet.getSheetByName('Members');
+  membersSheet.getRange(3, 1, 1, 8).setValues([['', 'x@accenture.com', '0600', 'Dev', 'Eng', 'No Contract', 'Not Logged', '2 Jul']]);
+  onEdit({ range: membersSheet.getRange(3, 1), oldValue: 'Old Person', source: mockSpreadsheet });
+  assert.deepStrictEqual(membersSheet.getRange(3, 1, 1, 8).getValues()[0].filter(v => v !== ''), []);
+});

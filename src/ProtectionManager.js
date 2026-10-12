@@ -184,25 +184,39 @@ function applyProtections(targetSpreadsheet) {
     var lastCreatedRow = getLastCreatedRow(sheet, config);
     var numCreatedRows = lastCreatedRow > 1 ? (lastCreatedRow - 1) : 0;
 
-    // Clean up existing protections previously installed for this sheet
+    // Existing protections installed by this function, by description. A
+    // protection already on the right range is kept as it is: recreating every
+    // protection on every edit took ~40 s (ADR 0044).
+    var existing = {};
     try {
       var existingProtections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
       for (var i = 0; i < existingProtections.length; i++) {
         var desc = existingProtections[i].getDescription();
-        if (desc && desc.indexOf("_protected") !== -1) {
-          existingProtections[i].remove();
-        }
+        if (!desc || desc.indexOf("_protected") === -1) continue;
+        if (existing[desc]) existingProtections[i].remove(); // duplicate
+        else existing[desc] = existingProtections[i];
       }
     } catch (err) {
       // Protection querying may vary by mock/environment
     }
+    var keepOrRemove = function(desc, startRow, col, numRows, warningOnly) {
+      var p = existing[desc];
+      if (!p) return false;
+      delete existing[desc];
+      try {
+        var r = p.getRange();
+        if (r.getRow() === startRow && r.getColumn() === col && r.getNumRows() === numRows &&
+            (typeof p.isWarningOnly !== "function" || p.isWarningOnly() === warningOnly)) return true;
+      } catch (eR) {}
+      try { p.remove(); } catch (eRm) {}
+      return false;
+    };
 
     var strictCols = config.strictlyProtectedColumns || config.protectedColumns || [];
     var warnCols = config.warningProtectedColumns || [];
 
-    // 1. Apply Strict Protections (setWarningOnly: false, restricted to admins)
-    // For tbl_members: locks read-only columns across maxRows so users cannot manually add/edit member records.
-    // For other tables: locks strictly protected system ID columns once rows are created.
+    // 1. Strict protections (warningOnly false, admins only). Members: the whole
+    // column, so rows cannot be added by hand; other tables: created rows only.
     for (var s = 0; s < strictCols.length; s++) {
       var sColName = strictCols[s];
       if (warnCols.indexOf(sColName) !== -1) continue;
@@ -212,9 +226,10 @@ function applyProtections(targetSpreadsheet) {
         var sRows = (tableKey === "members") ? maxRows : (numCreatedRows > 0 ? numCreatedRows : 0);
         if (sRows > 0) {
           var sStartRow = (tableKey === "members") ? 1 : 2;
-          var sRange = sheet.getRange(sStartRow, sColIdx, sRows, 1);
-          var sProtection = sRange.protect().setDescription(config.sheetName + "_" + sColName + "_protected");
-
+          var sDesc = config.sheetName + "_" + sColName + "_protected";
+          strictCount++;
+          if (keepOrRemove(sDesc, sStartRow, sColIdx, sRows, false)) continue;
+          var sProtection = sheet.getRange(sStartRow, sColIdx, sRows, 1).protect().setDescription(sDesc);
           sProtection.setWarningOnly(false);
 
           for (var sa = 0; sa < adminList.length; sa++) {
@@ -222,47 +237,40 @@ function applyProtections(targetSpreadsheet) {
               sProtection.addEditor(adminList[sa]);
             } catch (addErr) {}
           }
-
           try {
             var currentEditors = sProtection.getEditors();
             var toRemove = [];
             for (var e = 0; e < currentEditors.length; e++) {
               var edEmail = currentEditors[e].getEmail().toLowerCase();
-              if (!adminMap[edEmail]) {
-                toRemove.push(currentEditors[e]);
-              }
+              if (!adminMap[edEmail]) toRemove.push(currentEditors[e]);
             }
-            if (toRemove.length > 0) {
-              sProtection.removeEditors(toRemove);
-            }
+            if (toRemove.length > 0) sProtection.removeEditors(toRemove);
           } catch (remErr) {}
-
           try {
-            if (sProtection.canDomainEdit && sProtection.canDomainEdit()) {
-              sProtection.setDomainEdit(false);
-            }
+            if (sProtection.canDomainEdit && sProtection.canDomainEdit()) sProtection.setDomainEdit(false);
           } catch (domErr) {}
-
-          strictCount++;
         }
       }
     }
 
-    // 2. Apply Warning Protections (setWarningOnly: true)
-    // Applied ONLY once rows are created (rows 2 to lastCreatedRow).
-    // Empty rows remain completely unprotected so registering new rows (e.g. new tenures) never triggers a warning.
+    // 2. Warning protections (warningOnly true), on created rows only, so
+    // registering a new row never triggers a warning.
     if (numCreatedRows > 0) {
       for (var w = 0; w < warnCols.length; w++) {
         var wColName = warnCols[w];
         var wColIdx = config.columns.indexOf(wColName) + 1;
         if (wColIdx > 0) {
-          var wRange = sheet.getRange(2, wColIdx, numCreatedRows, 1);
-          var wProtection = wRange.protect().setDescription(config.sheetName + "_" + wColName + "_protected");
-
-          wProtection.setWarningOnly(true);
+          var wDesc = config.sheetName + "_" + wColName + "_protected";
           warningCount++;
+          if (keepOrRemove(wDesc, 2, wColIdx, numCreatedRows, true)) continue;
+          sheet.getRange(2, wColIdx, numCreatedRows, 1).protect().setDescription(wDesc).setWarningOnly(true);
         }
       }
+    }
+
+    // Protections no longer wanted (column renamed, table emptied)
+    for (var stale in existing) {
+      try { existing[stale].remove(); } catch (eSt) {}
     }
   }
 

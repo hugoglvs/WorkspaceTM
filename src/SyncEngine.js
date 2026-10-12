@@ -56,8 +56,11 @@ function safeFormatDateIso(dateVal) {
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object} Summary report of additions and updates.
  */
-function syncMembersAndTenures(targetSpreadsheet) {
+function syncMembersAndTenures(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
+  // From an edit: skip the slow whole-workspace upkeep (chips in every Routine
+  // row, all protections); the nightly sync does it (ADR 0044)
+  var fromEdit = !!(options && options.fromEdit);
   if (!ss) return { success: false, message: "No active spreadsheet" };
 
   var membersSheet = getTable(ss, "members");
@@ -408,7 +411,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
   // 5b. Synchronize People Chips into tbl_presence_baselines
   // -------------------------------------------------------------
   try {
-    syncBaselinesPeopleChips(ss);
+    if (!fromEdit) syncBaselinesPeopleChips(ss);
   } catch (chipErr) {
     Logger.log("syncBaselinesPeopleChips note: " + chipErr);
   }
@@ -416,7 +419,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
   // -------------------------------------------------------------
   // 6. Ensure column protections are applied
   // -------------------------------------------------------------
-  if (typeof applyProtections === "function") {
+  if (typeof applyProtections === "function" && !fromEdit) {
     try {
       applyProtections(ss);
     } catch (protErr) {

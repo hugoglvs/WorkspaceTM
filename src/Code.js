@@ -795,6 +795,9 @@ function handleSheetEdit(e) {
   var sheetName = sheet.getName();
   var tableKey = tableKeyOfSheet(sheet);
   var editedRow = e.range.getRow();
+  var editStart = Date.now();
+  var editMarks = [];
+  var mark = function(label) { editMarks.push(label + " " + (Date.now() - editStart) + "ms"); };
 
   // Handle in-sheet presence declaration in view_weekly_matrix
   if (tableKey === "weeklyMatrix") {
@@ -857,13 +860,19 @@ function handleSheetEdit(e) {
     }
   }
 
+  mark("validate");
+
   // Check if edited cell falls into an actively protected range
   if (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC[tableKey]) {
     var tblConfig = SCHEMA_SPEC[tableKey];
     var editedCol = e.range.getColumn();
     var colName = (tblConfig.columns && editedCol <= tblConfig.columns.length) ? tblConfig.columns[editedCol - 1] : "";
 
-    var protInfo = (typeof isCellProtected === "function") ? isCellProtected(sheet, editedRow, editedCol) : null;
+    // Typing a new name in an empty Members row is the way to add someone: no
+    // warning dialog there (ADR 0044)
+    var addingMember = tableKey === "members" && colName === "member" &&
+      (e.oldValue === undefined || e.oldValue === "") && e.value !== undefined && e.value !== "";
+    var protInfo = (!addingMember && typeof isCellProtected === "function") ? isCellProtected(sheet, editedRow, editedCol) : null;
 
     if (protInfo && protInfo.isProtected) {
       var protHandler = (typeof handleProtectedCellEdit === "function")
@@ -878,6 +887,17 @@ function handleSheetEdit(e) {
         }
       }
     }
+  }
+
+  mark("protections");
+
+  // A name deleted from Members removes that member's row content (ADR 0044)
+  if (tableKey === "members" && editedRow > 1 && e.range.getColumn() === 1 &&
+      e.oldValue !== undefined && e.oldValue !== "" && (e.value === undefined || e.value === "") &&
+      e.range.getNumRows() === 1 && e.range.getNumColumns() === 1 && SCHEMA_SPEC.members) {
+    try {
+      sheet.getRange(editedRow, 2, 1, SCHEMA_SPEC.members.columns.length - 1).clearContent();
+    } catch (errClr) { Logger.log("onEdit member row clear note: " + errClr); }
   }
 
   // Birthday typed in Members: store it as "14 Mar" (ADR 0042)
@@ -902,12 +922,14 @@ function handleSheetEdit(e) {
         : (typeof require !== "undefined" ? (function() { try { return require("./SyncEngine").syncMembersAndTenures; } catch(e) { return null; } })() : null);
 
       if (syncFn) {
-        syncFn(syncTargetSs);
+        syncFn(syncTargetSs, { fromEdit: true });
       }
     } catch (err) {
       Logger.log("onEdit sync error: " + err);
     }
   }
+
+  mark("members");
 
   // Locations tab edited: refresh the location dropdowns and Weekly Presence (ADR 0040)
   if (tableKey === "locations" && editedRow > 1 && typeof refreshLocationDropdowns === "function") {
@@ -930,6 +952,8 @@ function handleSheetEdit(e) {
     }
   }
 
+  mark("locations+projects");
+
   // Real-time simultaneous absence conflict re-evaluation
   if (tableKey === "projects" || tableKey === "leaves" || tableKey === "backups") {
     if (typeof checkProjectBackupConflicts === "function") {
@@ -940,6 +964,8 @@ function handleSheetEdit(e) {
       }
     }
   }
+  mark("coverage");
+  if (Date.now() - editStart > 3000) Logger.log("[edit timing] " + (tableKey || sheetName) + ": " + editMarks.join(", "));
 }
 
 if (typeof module !== 'undefined' && module.exports) {

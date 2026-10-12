@@ -20,6 +20,8 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
     getSheet: function() { return this.sheet; },
     getRow: function() { return this.startRow; },
     getColumn: function() { return this.startCol; },
+    getNumRows: function() { return this.numRows; },
+    getNumColumns: function() { return this.numCols; },
     getLastRow: function() { return this.startRow + this.numRows - 1; },
     getLastColumn: function() { return this.startCol + this.numCols - 1; },
 
@@ -184,6 +186,7 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
         range: this,
         setDescription: function(d) { this.description = d; return this; },
         getDescription: function() { return this.description; },
+        getRange: function() { return this.range; },
         setWarningOnly: function(w) { this.warningOnly = w; return this; },
         isWarningOnly: function() { return this.warningOnly; },
         getEditors: function() { return this.editors.slice(); },

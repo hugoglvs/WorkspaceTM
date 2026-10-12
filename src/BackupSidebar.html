@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+    body { margin: 0; padding: 16px; font-size: 13px; color: #202124; background: #fff; }
+    h2 { font-size: 18px; margin: 0 0 4px; font-weight: 500; color: #1a73e8; }
+    .sub { margin: 0 0 16px; font-size: 12px; color: #5f6368; }
+    h3 { font-size: 13px; font-weight: 500; margin: 18px 0 8px; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #5f6368; margin-bottom: 6px; }
+    .form-group { margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; }
+    .row .form-group { flex: 1; min-width: 0; }
+    select, input { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
+    select:focus, input:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .btn-primary { width: 100%; background: #1a73e8; color: #fff; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; }
+    .btn-primary:hover { background: #1765cc; }
+    .btn-primary:disabled { background: #dadce0; cursor: not-allowed; }
+    .btn-link { background: none; border: none; color: #1a73e8; font-size: 12px; cursor: pointer; padding: 0; }
+    .card { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .card .meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+    .people { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12px; }
+    .people span:nth-child(odd) { color: #5f6368; }
+    .gap { display: block; width: 100%; text-align: left; border: 1px solid #f5c2c0; background: #fce8e6; color: #c5221f; border-radius: 6px; padding: 7px 10px; margin-bottom: 6px; font-size: 12px; cursor: pointer; }
+    .gap.warning { border-color: #fbe2a1; background: #fef7e0; color: #b06000; }
+    .gap:hover { filter: brightness(.97); }
+    .interim { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .hint { font-size: 12px; color: #5f6368; margin: -4px 0 12px; }
+    .hint.warn { color: #b06000; }
+    .none { font-size: 12px; color: #5f6368; }
+    .status-msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none; margin-bottom: 12px; }
+    .status-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; display: block; }
+    .status-msg.error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; display: block; }
+    .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
+    .hidden { display: none !important; }
+    .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+  <h2>Interim Backups</h2>
+  <p class="sub">Cover a project for a few days when its lead and backup are away.</p>
+
+  <div id="status" class="status-msg info">Loading projects…</div>
+
+  <div class="form-group">
+    <label for="projectSelect">Project</label>
+    <select id="projectSelect" onchange="onProjectChange()"></select>
+  </div>
+
+  <div id="details" class="hidden">
+    <div class="card people">
+      <span>Lead</span><span id="lead"></span>
+      <span>Backup</span><span id="permanent"></span>
+    </div>
+
+    <h3>Coverage gaps</h3>
+    <div id="gaps"></div>
+
+    <h3>New interim backup</h3>
+    <div class="form-group">
+      <label for="backupMember">Backup</label>
+      <select id="backupMember" onchange="checkLeave()"></select>
+    </div>
+    <div class="row">
+      <div class="form-group"><label for="startDate">From</label><input id="startDate" type="date" oninput="checkLeave()"></div>
+      <div class="form-group"><label for="endDate">To</label><input id="endDate" type="date" oninput="checkLeave()"></div>
+    </div>
+    <p id="leaveHint" class="hint warn hidden"></p>
+    <div class="form-group"><label for="notes">Notes <span class="optional">(optional)</span></label><input id="notes"></div>
+    <button id="saveBtn" class="btn-primary" onclick="save()">Add interim backup</button>
+
+    <h3>Current and planned</h3>
+    <div id="interims"></div>
+  </div>
+
+  <script>
+    var data = { projects: [], members: [], leaves: {}, today: '' };
+
+    function $(id) { return document.getElementById(id); }
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+    function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
+    function clearStatus() { $('status').className = 'status-msg'; }
+    function current() { var id = $('projectSelect').value; return data.projects.filter(function(p) { return p.id === id; })[0]; }
+    function period(g) { return g.start === g.end ? g.start : g.start + ' → ' + g.end; }
+
+    function load(keepProject, msg) {
+      google.script.run.withSuccessHandler(function(res) {
+        data = res;
+        var sel = $('projectSelect');
+        var previous = keepProject || sel.value;
+        sel.innerHTML = '';
+        data.projects.forEach(function(p) {
+          var o = document.createElement('option'); o.value = p.id;
+          o.textContent = p.name + (p.gaps.length ? ' · ⚠ ' + p.gaps.length + ' gap(s)' : '');
+          sel.appendChild(o);
+        });
+        if (!data.projects.length) { show('No open project yet. Add one in the Projects tab.', 'info'); return; }
+        if (previous && data.projects.some(function(p) { return p.id === previous; })) sel.value = previous;
+        msg ? show(msg, 'success') : clearStatus();
+        onProjectChange(true);
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getBackupSidebarData();
+    }
+
+    function onProjectChange(keepStatus) {
+      var p = current();
+      $('details').classList.toggle('hidden', !p);
+      if (!p) return;
+      if (keepStatus !== true) clearStatus();
+      $('lead').textContent = p.lead || '—';
+      $('permanent').textContent = p.backup || 'none';
+
+      var gaps = $('gaps'); gaps.innerHTML = '';
+      if (!p.gaps.length) gaps.appendChild(el('div', 'none', 'None: someone is available every working day.'));
+      p.gaps.forEach(function(g) {
+        var b = el('button', 'gap' + (g.kind === 'warning' ? ' warning' : ''),
+          'Nobody: ' + period(g) + (g.kind === 'warning' ? ' (if a leave request is approved)' : '') + ' · use these dates');
+        b.onclick = function() { $('startDate').value = g.start; $('endDate').value = g.end; checkLeave(); };
+        gaps.appendChild(b);
+      });
+
+      var bm = $('backupMember'); bm.innerHTML = '';
+      data.members.filter(function(m) { return m !== p.lead; }).forEach(function(m) {
+        var o = document.createElement('option'); o.value = m; o.textContent = m; bm.appendChild(o);
+      });
+      var first = p.gaps[0];
+      $('startDate').value = first ? first.start : data.today;
+      $('endDate').value = first ? first.end : '';
+      $('notes').value = '';
+      checkLeave();
+
+      var list = $('interims'); list.innerHTML = '';
+      if (!p.interims.length) list.appendChild(el('div', 'none', 'No interim backup.'));
+      p.interims.forEach(function(b) {
+        var card = el('div', 'card interim');
+        var txt = el('div');
+        txt.appendChild(el('div', '', b.backup));
+        txt.appendChild(el('div', 'meta', b.start + ' → ' + b.end + ' · ' + b.status + (b.notes ? ' · ' + b.notes : '')));
+        card.appendChild(txt);
+        var cancel = el('button', 'btn-link', 'Cancel');
+        cancel.onclick = function() { cancelBackup(b, cancel); };
+        card.appendChild(cancel);
+        list.appendChild(card);
+      });
+    }
+
+    // Warn when the chosen backup is on leave during the period
+    function checkLeave() {
+      var who = ($('backupMember').value || '').toLowerCase();
+      var s = $('startDate').value, e = $('endDate').value || s;
+      var clash = (data.leaves[who] || []).filter(function(l) { return s && l.start <= e && l.end >= s; });
+      var hint = $('leaveHint');
+      hint.classList.toggle('hidden', !clash.length);
+      if (clash.length) hint.textContent = $('backupMember').value + ' is on leave ' + clash.map(function(l) { return period(l) + (l.status === 'requested' ? ' (requested)' : ''); }).join(', ') + '.';
+    }
+
+    function save() {
+      var p = current();
+      var payload = { projectId: p.id, backupMember: $('backupMember').value, startDate: $('startDate').value, endDate: $('endDate').value, notes: $('notes').value };
+      if (!payload.startDate || !payload.endDate) { show('Fill in both dates.', 'error'); return; }
+      if (payload.endDate < payload.startDate) { show('The end date is before the start date.', 'error'); return; }
+      $('saveBtn').disabled = true;
+      show('Saving…', 'info');
+      google.script.run.withSuccessHandler(function(res) {
+        $('saveBtn').disabled = false;
+        if (!res || !res.success) { show((res && res.message) || 'Could not save.', 'error'); return; }
+        load(p.id, res.message);
+      }).withFailureHandler(function(err) { $('saveBtn').disabled = false; show(err.message || String(err), 'error'); }).saveInterimBackup(payload);
+    }
+
+    function cancelBackup(b, button) {
+      button.disabled = true;
+      google.script.run.withSuccessHandler(function(res) {
+        if (!res || !res.success) { button.disabled = false; show((res && res.message) || 'Could not cancel.', 'error'); return; }
+        load(current().id, res.message);
+      }).withFailureHandler(function(err) { button.disabled = false; show(err.message || String(err), 'error'); }).cancelInterimBackup(b.id);
+    }
+
+    load();
+  </script>
+</body>
+</html>

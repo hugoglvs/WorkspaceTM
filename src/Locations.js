@@ -107,7 +107,7 @@ function readLocations(ss) {
   var sheet = (typeof getTable === "function") ? getTable(ss, "locations") : null;
   var list = [];
   if (sheet && sheet.getMaxRows() > 1) {
-    var vals = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 200) - 1, 3).getValues();
+    var vals = sheet.getRange(2, 1, readRowLimit(sheet, 200) - 1, 3).getValues();
     for (var r = 0; r < vals.length; r++) {
       var name = String(vals[r][0] || "").trim();
       if (!name) continue;
@@ -233,7 +233,7 @@ function findLocationUsage(ss, name, asOf) {
   var res = { routineMembers: [], routineCount: 0, futureDays: 0 };
   var read = function(sheet, numCols) {
     if (!sheet || sheet.getMaxRows() < 2) return { vals: [], rich: [] };
-    var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 2000) - 1, numCols);
+    var range = sheet.getRange(2, 1, readRowLimit(sheet, 2000) - 1, numCols);
     return { vals: range.getValues(), rich: (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [] };
   };
   var memberOf = function(data, r, c) {

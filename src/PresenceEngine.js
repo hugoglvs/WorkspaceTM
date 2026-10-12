@@ -112,7 +112,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   // 1. Check tbl_tenures (Col 4: start_date)
   var tenuresSheet = getTable(ss, "tenures");
   if (tenuresSheet) {
-    var tMax = Math.min(tenuresSheet.getMaxRows(), 500);
+    var tMax = readRowLimit(tenuresSheet, 500);
     if (tMax > 1) {
       var tVals = tenuresSheet.getRange(2, 4, tMax - 1, 1).getValues();
       for (var t = 0; t < tVals.length; t++) {
@@ -124,7 +124,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   // 2. Check tbl_presence_baselines (Col 3: start_date)
   var baselinesSheet = getTable(ss, "baselines");
   if (baselinesSheet) {
-    var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
+    var bMax = readRowLimit(baselinesSheet, 500);
     if (bMax > 1) {
       var bVals = baselinesSheet.getRange(2, 3, bMax - 1, 1).getValues();
       for (var b = 0; b < bVals.length; b++) {
@@ -136,7 +136,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   // 3. Check tbl_leaves (Col 3: start_date)
   var leavesSheet = getTable(ss, "leaves");
   if (leavesSheet) {
-    var lMax = Math.min(leavesSheet.getMaxRows(), 500);
+    var lMax = readRowLimit(leavesSheet, 500);
     if (lMax > 1) {
       var lVals = leavesSheet.getRange(2, 3, lMax - 1, 1).getValues();
       for (var l = 0; l < lVals.length; l++) {
@@ -148,7 +148,7 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   // 4. Check tbl_presence_log (Col 2: date)
   var logSheet = getTable(ss, "presenceLog");
   if (logSheet) {
-    var lgMax = Math.min(logSheet.getMaxRows(), 2000);
+    var lgMax = readRowLimit(logSheet, 2000);
     if (lgMax > 1) {
       var lgVals = logSheet.getRange(2, 2, lgMax - 1, 1).getValues();
       for (var lg = 0; lg < lgVals.length; lg++) {
@@ -228,7 +228,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
 
   // 2. Read Active Members from tbl_members
   // Columns: member(1), accenture_email(2), phone_number(3), current_role(4), current_department(5), tenure_status(6), today_presence(7)
-  var membersMaxRows = Math.min(membersSheet.getMaxRows(), 300);
+  var membersMaxRows = readRowLimit(membersSheet, 300);
   var membersList = [];
 
   if (membersMaxRows > 1) {
@@ -266,7 +266,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   // Columns: baseline_id(1), member(2), start_date(3), end_date(4), day_of_week(5), location_am(6), location_pm(7)
   var baselinesByMember = {};
   if (baselinesSheet) {
-    var bMaxRows = Math.min(baselinesSheet.getMaxRows(), 500);
+    var bMaxRows = readRowLimit(baselinesSheet, 500);
     if (bMaxRows > 1) {
       var bValues = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7).getValues();
       for (var b = 0; b < bValues.length; b++) {
@@ -303,7 +303,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     var lColMap = (typeof getLeaveColumnMap === "function")
       ? getLeaveColumnMap(leavesSheet)
       : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
-    var lMaxRows = Math.min(leavesSheet.getMaxRows(), 500);
+    var lMaxRows = readRowLimit(leavesSheet, 500);
     if (lMaxRows > 1) {
       var lValues = leavesSheet.getRange(2, 1, lMaxRows - 1, Math.max(leavesSheet.getLastColumn(), 6)).getValues();
       for (var l = 0; l < lValues.length; l++) {
@@ -344,7 +344,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
 
   // 5. Read Existing tbl_presence_log to Ensure Idempotence and Preserve Manual Edits
   // Columns: log_id(1), date(2), member(3), location_am(4), location_pm(5), timestamp(6)
-  var logMaxRows = Math.min(logSheet.getMaxRows(), 2000);
+  var logMaxRows = readRowLimit(logSheet, 2000);
   var existingLogMap = {}; // key: "YYYY-MM-DD|memberLower" -> { row, locationAm, locationPm }
   var preservedCount = 0;
 

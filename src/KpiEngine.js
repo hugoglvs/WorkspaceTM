@@ -197,7 +197,7 @@ function readCellName(vals, rich, r, c) {
 
 function readSheetRows(sheet, numCols, maxRows) {
   if (!sheet || sheet.getMaxRows() < 2) return { vals: [], rich: [] };
-  var n = Math.min(sheet.getMaxRows(), maxRows) - 1;
+  var n = readRowLimit(sheet, maxRows) - 1;
   var range = sheet.getRange(2, 1, n, Math.max(sheet.getLastColumn(), numCols));
   return {
     vals: range.getValues(),

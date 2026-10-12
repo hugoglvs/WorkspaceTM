@@ -27,7 +27,9 @@ function onOpen(e) {
     .addSeparator()
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
     .addItem("Members & Contracts", "showMembersSidebar")
+    .addItem("Interim Backups", "showBackupSidebar")
     .addSeparator()
+    .addItem("Check Workspace", "showWorkspaceCheck")
     .addItem("Edit Locations", "showLocationsTab")
     .addToUi();
 
@@ -282,6 +284,39 @@ function saveMemberProfile(payload) {
   return safeInvokeLibrary("saveMemberProfile", [payload]);
 }
 
+function showBackupSidebar() {
+  return safeInvokeLibrary("showBackupSidebar");
+}
+
+function getBackupSidebarData() {
+  return safeInvokeLibrary("getBackupSidebarData");
+}
+
+function saveInterimBackup(payload) {
+  return safeInvokeLibrary("saveInterimBackup", [payload]);
+}
+
+function cancelInterimBackup(backupId) {
+  return safeInvokeLibrary("cancelInterimBackup", [backupId]);
+}
+
+function showWorkspaceCheck() {
+  return safeInvokeLibrary("showWorkspaceCheck");
+}
+
+function runWorkspaceCheck() {
+  return safeInvokeLibrary("runWorkspaceCheck");
+}
+
+function removePresenceDuplicates() {
+  return safeInvokeLibrary("removePresenceDuplicates");
+}
+
+/** Time trigger: Monday presence reminder (installed by Initialize / Upgrade). */
+function mondayPresenceReminder() {
+  return safeInvokeLibrary("mondayPresenceReminder");
+}
+
 function getSidebarInitialData() {
   return safeInvokeLibrary("getSidebarInitialData");
 }
@@ -333,6 +368,14 @@ if (typeof module !== 'undefined' && module.exports) {
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
     showLocationsTab: showLocationsTab,
     showMembersSidebar: showMembersSidebar,
+    showBackupSidebar: showBackupSidebar,
+    getBackupSidebarData: getBackupSidebarData,
+    saveInterimBackup: saveInterimBackup,
+    cancelInterimBackup: cancelInterimBackup,
+    showWorkspaceCheck: showWorkspaceCheck,
+    runWorkspaceCheck: runWorkspaceCheck,
+    removePresenceDuplicates: removePresenceDuplicates,
+    mondayPresenceReminder: mondayPresenceReminder,
     getMembersSidebarData: getMembersSidebarData,
     saveMemberTenure: saveMemberTenure,
     endMemberTenure: endMemberTenure,

@@ -37,6 +37,21 @@ function tableDocProps() {
   }
 }
 
+/**
+ * How many rows to read from a sheet: never fewer than the last row holding data,
+ * so a growing table (Presence Log gets a row per Member per day) is never cut
+ * short. The cap only limits how far empty rows are scanned.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} cap Rows to scan when the sheet is mostly empty
+ * @return {number} Last row number to read (1 = header only)
+ */
+function readRowLimit(sheet, cap) {
+  if (!sheet) return 1;
+  var last = (typeof sheet.getLastRow === "function") ? (sheet.getLastRow() || 1) : 1;
+  return Math.max(last, Math.min(sheet.getMaxRows(), cap));
+}
+
 /** Readable tab name of a table key ("tenures" -> "Contracts"). */
 function tableSheetName(key) {
   return TABLE_REGISTRY[key] ? TABLE_REGISTRY[key].sheetName : key;
@@ -145,6 +160,7 @@ function renameLegacySheets(ss) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    readRowLimit: readRowLimit,
     TABLE_REGISTRY: TABLE_REGISTRY,
     ARCHIVE_PREFIX: ARCHIVE_PREFIX,
     tableSheetName: tableSheetName,

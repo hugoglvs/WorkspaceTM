@@ -130,3 +130,33 @@ test('installedTaskEditHandler: releases the lock after handling the edit', () =
   assert.ok(taskRow(mockSpreadsheet)[7], 'Google Task is created');
   assert.strictEqual(LockService.__state.document.held, false);
 });
+
+test('one run per edit: once the installable trigger exists, the simple onEdit steps aside', () => {
+  var editEvent = typeTaskTitle(mockSpreadsheet, 'Build authentication modal');
+  assert.strictEqual(code.editTriggerActive(), false);
+
+  code.installAllTriggers(mockSpreadsheet);
+  assert.strictEqual(code.editTriggerActive(), true, 'installing records the trigger');
+
+  var simple = code.onEdit(editEvent);
+  assert.strictEqual(simple.reason, 'handled_by_installed_trigger');
+  assert.strictEqual(taskRow(mockSpreadsheet)[0], '', 'the simple trigger did nothing');
+
+  code.installedTaskEditHandler(editEvent);
+  assert.ok(taskRow(mockSpreadsheet)[0].startsWith('TSK-'), 'the installed trigger handled it');
+});
+
+test('one run per edit: the flag clears when the trigger is removed, so the simple onEdit takes over again', () => {
+  code.installAllTriggers(mockSpreadsheet);
+  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+  code.refreshEditTriggerFlag();
+  assert.strictEqual(code.editTriggerActive(), false);
+});
+
+test('the installed trigger also handles non-task edits (Locations warning)', () => {
+  freshInit(mockSpreadsheet);
+  var sheet = getTable(mockSpreadsheet, 'locations');
+  sheet.getRange(4, 3).setValue(false); // JLL unused
+  var res = code.installedTaskEditHandler({ range: sheet.getRange(4, 3), value: 'FALSE', source: mockSpreadsheet });
+  assert.notStrictEqual(res && res.reason, 'sync_in_progress');
+});

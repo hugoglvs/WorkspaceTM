@@ -356,7 +356,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
   }
 
   var lastRow = membersSheet.getLastRow();
-  var maxRows = Math.min(membersSheet.getMaxRows(), 300);
+  var maxRows = readRowLimit(membersSheet, 300);
   logMsg("[Members] Sheet found. Last row: " + lastRow + ", Max rows examined: " + maxRows);
 
   var ssId = "";
@@ -426,7 +426,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
   var baselinesSheet = getTable(ss, "baselines");
   var baselinesCount = 0;
   if (baselinesSheet && matchingMemberRow) {
-    var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
+    var bMax = readRowLimit(baselinesSheet, 500);
     if (bMax > 1) {
       var bChipEmails = ssId ? fetchMemberChipEmails(ssId, baselinesSheet.getName(), 2, bMax - 1) : {};
       var bRange = baselinesSheet.getRange(2, 1, bMax - 1, 2);
@@ -457,7 +457,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
 
   if (tasksSheet) {
     var tLast = tasksSheet.getLastRow();
-    var tMax = Math.min(tasksSheet.getMaxRows(), 500);
+    var tMax = readRowLimit(tasksSheet, 500);
     logMsg("[Tasks] Sheet found. Last row: " + tLast + ", Max rows examined: " + tMax);
 
     if (tMax > 1) {
@@ -681,7 +681,7 @@ function getSidebarInitialData() {
   var members = [];
 
   if (membersSheet) {
-    var maxRows = Math.min(membersSheet.getMaxRows(), 100);
+    var maxRows = readRowLimit(membersSheet, 100);
     if (maxRows > 1) {
       var ssId = "";
       try {
@@ -783,7 +783,7 @@ function getMemberBaselines(memberIdentifier) {
     return result;
   }
 
-  var maxRows = Math.min(sheet.getMaxRows(), 500);
+  var maxRows = readRowLimit(sheet, 500);
   if (maxRows <= 1) return result;
 
   // Columns: baseline_id(0), member(1), start_date(2), end_date(3), day_of_week(4), location_am(5), location_pm(6)
@@ -868,7 +868,7 @@ function saveMemberBaselines(payload) {
   var adjustPreviousEnd = payload.adjustPreviousEnd === true;
 
   // 1. Scan existing rows in tbl_presence_baselines for target member and detect overlaps
-  var maxRows = Math.min(sheet.getMaxRows(), 500);
+  var maxRows = readRowLimit(sheet, 500);
   var overlappingRows = [];
   var existingMemberRows = 0;
 
@@ -959,7 +959,7 @@ function saveMemberBaselines(payload) {
 
   // Copy People Chip from tbl_members if available
   if (membersSheet && typeof copyCellChip === "function") {
-    var mMax = Math.min(membersSheet.getMaxRows(), 300);
+    var mMax = readRowLimit(membersSheet, 300);
     var mRange = membersSheet.getRange(2, 1, mMax - 1, Math.max(membersSheet.getLastColumn(), 6));
     var mVals = mRange.getValues();
     var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
@@ -1139,7 +1139,7 @@ function submitMemberLeave(payload, targetSpreadsheet) {
   var colMap = getLeaveColumnMap(leavesSheet);
 
   // Find next empty row in tbl_leaves starting at row 2
-  var maxRows = Math.min(leavesSheet.getMaxRows(), 1000);
+  var maxRows = readRowLimit(leavesSheet, 1000);
   var targetRow = 2;
   if (maxRows > 1) {
     var existingVals = leavesSheet.getRange(2, 1, maxRows - 1, 1).getValues();
@@ -1180,7 +1180,7 @@ function submitMemberLeave(payload, targetSpreadsheet) {
 
   // Copy People Chip from tbl_members if available
   if (membersSheet && typeof copyCellChip === "function") {
-    var mMax = Math.min(membersSheet.getMaxRows(), 200);
+    var mMax = readRowLimit(membersSheet, 200);
     var mValues = membersSheet.getRange(2, 1, mMax - 1, 1).getValues();
     var sourceMRow = -1;
     for (var m = 0; m < mValues.length; m++) {

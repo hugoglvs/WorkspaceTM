@@ -42,9 +42,11 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Initialize / Upgrade Spreadsheet'));
   assert.ok(captions.includes('Declare Presence & Leaves'));
   assert.ok(captions.includes('Members & Contracts'));
+  assert.ok(captions.includes('Interim Backups'));
+  assert.ok(captions.includes('Check Workspace'));
   assert.ok(captions.includes('Edit Locations'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 4);
+  assert.strictEqual(actionItems.length, 6);
 });
 
 test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {
@@ -190,15 +192,18 @@ test('ConsumerWrapper: client actions forward correctly to linked library', () =
   assert.ok(invokedMethods.includes('submitMemberLeave'));
 });
 
-test('installAllTriggers: installs real-time edit trigger and nightly 2:00 AM sync trigger', () => {
+test('installAllTriggers: installs the edit trigger, the nightly 2:00 AM sync and the Monday 8:00 AM reminder', () => {
   var res = code.installAllTriggers(mockSpreadsheet);
   assert.strictEqual(res.success, true);
-  assert.strictEqual(res.installed.length, 2);
+  assert.strictEqual(res.installed.length, 3);
+  var reminder = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'mondayPresenceReminder')[0];
+  assert.strictEqual(reminder.weekDay, 'MONDAY');
+  assert.strictEqual(reminder.hour, 8);
 
-  // Re-running should detect both triggers already active
+  // Re-running should detect all triggers already active
   var res2 = code.installAllTriggers(mockSpreadsheet);
   assert.strictEqual(res2.success, true);
-  assert.strictEqual(res2.alreadyActive.length, 2);
+  assert.strictEqual(res2.alreadyActive.length, 3);
 });
 
 test('nightlySyncJob: runs automated maintenance across all engines', () => {

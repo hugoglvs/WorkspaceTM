@@ -374,6 +374,7 @@ function createMockSpreadsheet() {
     },
 
     getId: function() { return this.id; },
+    getUrl: function() { return "https://docs.google.com/spreadsheets/d/" + this.id + "/edit"; },
     getOwner: function() {
       return {
         getEmail: function() { return "owner@example.com"; }
@@ -432,6 +433,9 @@ function setupGasGlobals(mockSpreadsheet) {
     },
     showSidebar: function(htmlOutput) {
       this.shownSidebar = htmlOutput;
+    },
+    showModalDialog: function(htmlOutput, title) {
+      this.shownDialog = { html: htmlOutput, title: title };
     },
     lastAlert: null,
     alertResponse: null,
@@ -517,7 +521,8 @@ function setupGasGlobals(mockSpreadsheet) {
             title: "",
             width: 300,
             setTitle: function(t) { this.title = t; return this; },
-            setWidth: function(w) { this.width = w; return this; }
+            setWidth: function(w) { this.width = w; return this; },
+            setHeight: function(h) { this.height = h; return this; }
           };
         }
       };
@@ -836,6 +841,7 @@ function setupGasGlobals(mockSpreadsheet) {
 
   var mockTriggers = [];
   global.ScriptApp = {
+    WeekDay: { MONDAY: "MONDAY", TUESDAY: "TUESDAY", WEDNESDAY: "WEDNESDAY", THURSDAY: "THURSDAY", FRIDAY: "FRIDAY", SATURDAY: "SATURDAY", SUNDAY: "SUNDAY" },
     getProjectTriggers: function() { return mockTriggers.slice(); },
     deleteTrigger: function(trigger) {
       var idx = mockTriggers.indexOf(trigger);
@@ -849,7 +855,9 @@ function setupGasGlobals(mockSpreadsheet) {
         onEdit: function() { return this; },
         timeBased: function() { return this; },
         everyDays: function(days) { return this; },
-        atHour: function(hour) { return this; },
+        everyWeeks: function(weeks) { return this; },
+        onWeekDay: function(day) { this.weekDay = day; return this; },
+        atHour: function(hour) { this.hour = hour; return this; },
         create: function() {
           mockTriggers.push(this);
           return this;

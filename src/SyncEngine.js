@@ -151,7 +151,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
   // -------------------------------------------------------------
   // 1. Read tbl_tenures
   // -------------------------------------------------------------
-  var tenuresMaxRows = Math.min(tenuresSheet.getMaxRows(), 300);
+  var tenuresMaxRows = readRowLimit(tenuresSheet, 300);
   var tenuresByMember = {}; // memberKey -> array of tenure records
   var uniqueTenureMembers = [];
   var validationWarnings = [];
@@ -245,7 +245,7 @@ function syncMembersAndTenures(targetSpreadsheet) {
   // -------------------------------------------------------------
   // 2. Read tbl_members
   // -------------------------------------------------------------
-  var membersMaxRows = Math.min(membersSheet.getMaxRows(), 300);
+  var membersMaxRows = readRowLimit(membersSheet, 300);
   var existingMembers = [];
   var existingMemberMap = {};
 
@@ -650,7 +650,7 @@ function syncBaselinesPeopleChips(targetSpreadsheet) {
   var baselinesSheet = getTable(ss, "baselines");
   if (!membersSheet || !baselinesSheet || typeof copyCellChip !== "function") return 0;
 
-  var mMax = Math.min(membersSheet.getMaxRows(), 300);
+  var mMax = readRowLimit(membersSheet, 300);
   if (mMax <= 1) return 0;
   var mRange = membersSheet.getRange(2, 1, mMax - 1, Math.max(membersSheet.getLastColumn(), 6));
   var mVals = mRange.getValues();
@@ -674,7 +674,7 @@ function syncBaselinesPeopleChips(targetSpreadsheet) {
 
   if (membersRoster.length === 0) return 0;
 
-  var bMax = Math.min(baselinesSheet.getMaxRows(), 500);
+  var bMax = readRowLimit(baselinesSheet, 500);
   if (bMax <= 1) return 0;
   var bRange = baselinesSheet.getRange(2, 2, bMax - 1, 1);
   var bVals = bRange.getValues();

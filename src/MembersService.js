@@ -38,7 +38,7 @@ function msName(val, rich) {
 
 function msReadRows(sheet, numCols) {
   if (!sheet || sheet.getMaxRows() < 2) return [];
-  var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 500) - 1, numCols);
+  var range = sheet.getRange(2, 1, readRowLimit(sheet, 500) - 1, numCols);
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   var out = [];

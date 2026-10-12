@@ -166,7 +166,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
 
   // 1. Extract active members
   var activeMembers = [];
-  var mMax = Math.min(membersSheet.getMaxRows(), 300);
+  var mMax = readRowLimit(membersSheet, 300);
   if (mMax > 1) {
     var mRange = membersSheet.getRange(2, 1, mMax - 1, Math.max(membersSheet.getLastColumn(), 6));
     var mVals = mRange.getValues();
@@ -204,7 +204,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
   var maxLoggedDate = null;
 
   if (logSheet) {
-    var lMax = Math.min(logSheet.getMaxRows(), 2000);
+    var lMax = readRowLimit(logSheet, 2000);
     if (lMax > 1) {
       var lRange = logSheet.getRange(2, 1, lMax - 1, 5);
       var lVals = lRange.getValues();
@@ -637,7 +637,7 @@ function handleWeeklyMatrixEdit(e) {
     var membersSheet = getTable(ss, "members");
     var chipCopied = false;
     if (membersSheet && typeof copyCellChip === "function") {
-      var mMax = Math.min(membersSheet.getMaxRows(), 200);
+      var mMax = readRowLimit(membersSheet, 200);
       var mVals = membersSheet.getRange(2, 1, mMax - 1, 1).getValues();
       for (var mi = 0; mi < mVals.length; mi++) {
         var mRowName = (typeof extractCellValue === "function") ? extractCellValue(mVals[mi][0]) : String(mVals[mi][0]).trim();
@@ -668,7 +668,7 @@ function handleWeeklyMatrixEdit(e) {
   if (dateIso === todayIso) {
     var membersSheet2 = getTable(ss, "members");
     if (membersSheet2) {
-      var mMax2 = Math.min(membersSheet2.getMaxRows(), 200);
+      var mMax2 = readRowLimit(membersSheet2, 200);
       var mRange2 = membersSheet2.getRange(2, 1, mMax2 - 1, 7);
       var mVals2 = mRange2.getValues();
       for (var m2 = 0; m2 < mVals2.length; m2++) {

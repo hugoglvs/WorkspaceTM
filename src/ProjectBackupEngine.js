@@ -86,7 +86,7 @@ function readCoverageLeaves(ss) {
   var colMap = (typeof getLeaveColumnMap === "function")
     ? getLeaveColumnMap(sheet)
     : { member: 2, start_date: 3, end_date: 5, leave_type: 7, status: 8 };
-  var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 1000) - 1, Math.max(sheet.getLastColumn(), 6));
+  var range = sheet.getRange(2, 1, readRowLimit(sheet, 1000) - 1, Math.max(sheet.getLastColumn(), 6));
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   for (var r = 0; r < vals.length; r++) {
@@ -114,7 +114,7 @@ function readBackupAssignments(ss) {
   var sheet = getTable(ss, "backups");
   var byProject = {};
   if (!sheet || sheet.getMaxRows() < 2) return byProject;
-  var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 1000) - 1, 8);
+  var range = sheet.getRange(2, 1, readRowLimit(sheet, 1000) - 1, 8);
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   for (var r = 0; r < vals.length; r++) {
@@ -149,7 +149,7 @@ function syncProjectBackups(ss, todayDate) {
   var backupsSheet = getTable(ss, "backups");
   if (!projectsSheet || !backupsSheet || projectsSheet.getMaxRows() < 2) return res;
 
-  var pRange = projectsSheet.getRange(2, 1, Math.min(projectsSheet.getMaxRows(), 500) - 1, 7);
+  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, 7);
   var pVals = pRange.getValues();
   var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
   var assignments = readBackupAssignments(ss);
@@ -222,7 +222,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
   var membersRoster = {};
   var managerEmail = opt.managerEmail || "";
   if (membersSheet && membersSheet.getMaxRows() > 1) {
-    var mRange = membersSheet.getRange(2, 1, Math.min(membersSheet.getMaxRows(), 300) - 1, 7);
+    var mRange = membersSheet.getRange(2, 1, readRowLimit(membersSheet, 300) - 1, 7);
     var mVals = mRange.getValues();
     var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
     for (var m = 0; m < mVals.length; m++) {
@@ -294,7 +294,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
   // Existing open interim-backup tasks, so each project gets at most one
   var openBackupTasks = {};
   if (tasksSheet && tasksSheet.getMaxRows() > 1) {
-    var tVals = tasksSheet.getRange(2, 1, Math.min(tasksSheet.getMaxRows(), 1000) - 1, 7).getValues();
+    var tVals = tasksSheet.getRange(2, 1, readRowLimit(tasksSheet, 1000) - 1, 7).getValues();
     for (var t = 0; t < tVals.length; t++) {
       var tProj = String(tVals[t][1] || "").trim();
       if (tProj && String(tVals[t][3] || "").toLowerCase().indexOf("organize interim backup") !== -1 && String(tVals[t][6] || "").toLowerCase() !== "done") {
@@ -303,7 +303,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     }
   }
 
-  var pRange = projectsSheet.getRange(2, 1, Math.min(projectsSheet.getMaxRows(), 500) - 1, 8);
+  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, 8);
   var pVals = pRange.getValues();
   var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
   var conflicts = [], warnings = [], resolvedCount = 0, audited = 0;
@@ -382,7 +382,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
             "Project Lead: " + project.lead + "\n" +
             "Permanent backup: " + (project.backup || "none") + "\n" +
             "Uncovered: " + startStr + " to " + endStr + "\n\n" +
-            "Add an interim backup for these dates in the hidden Backups tab, or adjust the leaves."
+            "Add an interim backup for these dates with Project Management → Interim Backups, or adjust the leaves."
         });
         emailSent = true;
       } catch (eMail) { Logger.log("Backup coverage email note: " + eMail); }
@@ -396,7 +396,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
         tasksSheet.getRange(tRow, 1, 1, 8).setValues([[
           "task_" + Math.random().toString(36).substring(2, 9), project.id, assignee,
           "Organize interim backup for project " + project.name,
-          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates in the hidden Backups tab (right-click the tab bar → Unhide).",
+          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates with Project Management → Interim Backups.",
           startStr, "Todo", ""
         ]]);
         var assigneeRoster = membersRoster[String(assignee).toLowerCase()];
@@ -508,7 +508,7 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 
   // Copy People Chips from tbl_members if available
   if (membersSheet && typeof copyCellChip === "function") {
-    var mMax = Math.min(membersSheet.getMaxRows(), 300);
+    var mMax = readRowLimit(membersSheet, 300);
     var mVals = membersSheet.getRange(2, 1, mMax - 1, 1).getValues();
     var primaryRow = -1;
     var backupRow = -1;
@@ -534,7 +534,8 @@ function assignProjectBackup(payload, targetSpreadsheet) {
   // Re-evaluate conflicts across projects to clear alert red formatting if resolved
   var conflictReport = null;
   try {
-    conflictReport = checkProjectBackupConflicts(ss);
+    // Formatting and "In charge today" only: the nightly check sends the emails
+    conflictReport = checkProjectBackupConflicts(ss, { sendNotifications: false, createTasks: false });
   } catch (eConf) {
     Logger.log("Conflict re-check note: " + eConf);
   }
@@ -554,11 +555,13 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    backupCellName: backupCellName,
+    parseBackupDate: parseBackupDate,
+    formatBackupDateIso: formatBackupDateIso,
+    readCoverageLeaves: readCoverageLeaves,
     checkProjectBackupConflicts: checkProjectBackupConflicts,
     syncProjectBackups: syncProjectBackups,
     promptProjectBackup: promptProjectBackup,
-    assignProjectBackup: assignProjectBackup,
-    formatBackupDateIso: formatBackupDateIso,
-    parseBackupDate: parseBackupDate
+    assignProjectBackup: assignProjectBackup
   };
 }

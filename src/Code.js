@@ -410,52 +410,63 @@ function syncCalendarEvents(targetSpreadsheet) {
 function installLiveTaskSync(targetSpreadsheet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (typeof TaskSyncService !== "undefined" && typeof TaskSyncService.installTaskSyncTrigger === "function") {
-    return TaskSyncService.installTaskSyncTrigger(ss);
+    var r1 = TaskSyncService.installTaskSyncTrigger(ss);
+    refreshEditTriggerFlag();
+    return r1;
   }
   if (typeof installTaskSyncTrigger === "function") {
-    return installTaskSyncTrigger(ss);
+    var r2 = installTaskSyncTrigger(ss);
+    refreshEditTriggerFlag();
+    return r2;
   }
   return { success: false, message: "installTaskSyncTrigger not available" };
 }
 
 /**
- * Handler invoked by installable onEdit trigger with full OAuth authorization.
+ * Handler invoked by the installable onEdit trigger, with full OAuth
+ * authorization. Once that trigger exists it handles every edit (ADR 0041), so
+ * the simple onEdit steps aside and an edit runs once.
  *
  * @param {Object} e Apps Script onEdit event object
  * @return {Object|null}
  */
 function installedTaskEditHandler(e) {
   if (!e || !e.range) return null;
-  return runWithEditLock(e, handleInstalledEdit);
+  return runWithEditLock(e, handleSheetEdit);
+}
+
+var EDIT_TRIGGER_FLAG = "EDIT_TRIGGER_ACTIVE";
+
+function editTriggerProps() {
+  try {
+    return (typeof PropertiesService !== "undefined") ? PropertiesService.getDocumentProperties() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** True when the installable onEdit trigger is known to exist (document property). */
+function editTriggerActive() {
+  var props = editTriggerProps();
+  return !!(props && props.getProperty(EDIT_TRIGGER_FLAG) === "1");
 }
 
 /**
- * Routes an installable onEdit event to the Tasks / Calendar sync handlers.
- * Must only run while holding the sync lock.
+ * Records whether the installable onEdit trigger exists. Needs authorization, so
+ * it runs from the installers and the nightly job, never from the simple onEdit.
  *
- * @param {Object} e Apps Script onEdit event object
- * @return {Object|null}
+ * @return {boolean} Whether the trigger exists
  */
-function handleInstalledEdit(e) {
-  var sheet = e.range.getSheet();
-  if (!sheet) return null;
-  var tableKey = tableKeyOfSheet(sheet);
-  if (tableKey === "tasks") {
-    if (typeof TaskSyncService !== "undefined" && typeof TaskSyncService.handleTaskEdit === "function") {
-      return TaskSyncService.handleTaskEdit(e);
-    }
-    if (typeof handleTaskEdit === "function") {
-      return handleTaskEdit(e);
-    }
-  } else if (tableKey === "events") {
-    if (typeof CalendarSyncService !== "undefined" && typeof CalendarSyncService.handleEventEdit === "function") {
-      return CalendarSyncService.handleEventEdit(e);
-    }
-    if (typeof handleEventEdit === "function") {
-      return handleEventEdit(e);
-    }
-  }
-  return null;
+function refreshEditTriggerFlag() {
+  var props = editTriggerProps();
+  if (!props || typeof ScriptApp === "undefined" || !ScriptApp.getProjectTriggers) return false;
+  var active = ScriptApp.getProjectTriggers().some(function(t) {
+    var fn = t.getHandlerFunction();
+    return fn === "installedTaskEditHandler" || fn === "installedConsumerTriggerHandler";
+  });
+  if (active) props.setProperty(EDIT_TRIGGER_FLAG, "1");
+  else props.deleteProperty(EDIT_TRIGGER_FLAG);
+  return active;
 }
 
 /**
@@ -475,11 +486,13 @@ function installAllTriggers(targetSpreadsheet) {
   var existing = ScriptApp.getProjectTriggers();
   var hasEditTrigger = false;
   var hasNightlyTrigger = false;
+  var hasReminderTrigger = false;
 
   for (var i = 0; i < existing.length; i++) {
     var fnName = existing[i].getHandlerFunction();
     if (fnName === "installedTaskEditHandler") hasEditTrigger = true;
     if (fnName === "nightlySyncJob") hasNightlyTrigger = true;
+    if (fnName === "mondayPresenceReminder") hasReminderTrigger = true;
   }
 
   var installed = [];
@@ -513,6 +526,23 @@ function installAllTriggers(targetSpreadsheet) {
   } else {
     alreadyActive.push("nightlySyncJob (daily at 2:00 AM)");
   }
+
+  if (!hasReminderTrigger) {
+    try {
+      ScriptApp.newTrigger("mondayPresenceReminder")
+        .timeBased()
+        .onWeekDay(ScriptApp.WeekDay.MONDAY)
+        .atHour(8)
+        .create();
+      installed.push("mondayPresenceReminder (Mondays at 8:00 AM)");
+    } catch (errRem) {
+      Logger.log("installAllTriggers reminder trigger error: " + errRem);
+    }
+  } else {
+    alreadyActive.push("mondayPresenceReminder (Mondays at 8:00 AM)");
+  }
+
+  try { refreshEditTriggerFlag(); } catch (eFlag) { Logger.log("Edit trigger flag note: " + eFlag); }
 
   return {
     success: true,
@@ -595,6 +625,7 @@ function nightlySyncJob(targetSpreadsheet) {
     return res;
   }
   try {
+    try { refreshEditTriggerFlag(); } catch (eFlag) {}
     runNightlySyncSteps(ss, res);
   } finally {
     lock.releaseLock();
@@ -763,6 +794,8 @@ function debugUserIdentity() {
  */
 function onEdit(e) {
   if (!e || !e.range) return null;
+  // The installable trigger handles the edit when it exists (ADR 0041)
+  if (editTriggerActive()) return { skipped: true, reason: "handled_by_installed_trigger" };
   return runWithEditLock(e, handleSheetEdit);
 }
 
@@ -947,6 +980,8 @@ if (typeof module !== 'undefined' && module.exports) {
     installAllTriggers: installAllTriggers,
     nightlySyncJob: nightlySyncJob,
     installedTaskEditHandler: installedTaskEditHandler,
+    editTriggerActive: editTriggerActive,
+    refreshEditTriggerFlag: refreshEditTriggerFlag,
     showBaselineSidebar: function() {
       if (typeof showBaselineSidebar === "function") return showBaselineSidebar();
       if (_SidebarMod && typeof _SidebarMod.showBaselineSidebar === "function") return _SidebarMod.showBaselineSidebar();

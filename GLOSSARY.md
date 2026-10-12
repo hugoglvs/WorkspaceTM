@@ -142,3 +142,11 @@ _Avoid_: Hard locked column, Read-only field
 A table column containing sensitive business keys or attributes where edits are allowed only after the user acknowledges a native Google Sheets confirmation dialog (`setWarningOnly(true)`).
 _Avoid_: Soft protected column, Alert column
 
+
+**Undeclared Day**:
+A working day of the current week for which an Active Member has no Weekly Presence entry, no Routine for that weekday and no leave. Listed by Check Workspace and sent in the Monday reminder.
+_Avoid_: Missing presence, Unlogged day (that is "Not Logged", today only)
+
+**Check Workspace**:
+The menu report of everything that needs attention (contracts, backups, Project Backup Conflicts, Not Logged, Undeclared Days, duplicate Presence Log rows), each with a link to its fix (ADR 0041).
+_Avoid_: Health check, Audit

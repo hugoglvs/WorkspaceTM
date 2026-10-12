@@ -932,6 +932,17 @@ function setupGasGlobals(mockSpreadsheet) {
       getEventById: function(evtId) {
         return eventsStore[evtId] || null;
       },
+      createAllDayEventSeries: function(title, date, recurrence, options) {
+        var series = this.createAllDayEvent(title, date, options);
+        series.recurrence = recurrence;
+        series.isSeries = true;
+        series.deleteEventSeries = function() { delete eventsStore[this.id]; };
+        return series;
+      },
+      getEventSeriesById: function(evtId) {
+        var e = eventsStore[evtId];
+        return e && e.isSeries ? e : null;
+      },
       getEvents: function() {
         var res = [];
         for (var k in eventsStore) res.push(eventsStore[k]);
@@ -942,6 +953,21 @@ function setupGasGlobals(mockSpreadsheet) {
 
   var defaultCal = createMockCalendar("primary", "Team Calendar");
   mockCalendars["primary"] = defaultCal;
+
+  var mockAcl = {};
+  global.Calendar = {
+    Acl: {
+      insert: function(rule, calendarId, optionalArgs) {
+        mockAcl[calendarId] = mockAcl[calendarId] || {};
+        mockAcl[calendarId][rule.scope.value] = { rule: rule, args: optionalArgs || {} };
+        return rule;
+      },
+      remove: function(calendarId, ruleId) {
+        if (mockAcl[calendarId]) delete mockAcl[calendarId][String(ruleId).replace(/^user:/, "")];
+      },
+      __entries: function(calendarId) { return mockAcl[calendarId] || {}; }
+    }
+  };
 
   global.CalendarApp = {
     getDefaultCalendar: function() { return defaultCal; },
@@ -954,6 +980,9 @@ function setupGasGlobals(mockSpreadsheet) {
         mockCalendars[id] = createMockCalendar(id, "Custom Calendar " + id);
       }
       return mockCalendars[id];
+    },
+    newRecurrence: function() {
+      return { rules: [], addYearlyRule: function() { this.rules.push("YEARLY"); return this; } };
     },
     createCalendar: function(name) {
       var id = "cal_" + Math.random().toString(36).substring(2, 9);

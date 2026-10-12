@@ -317,6 +317,11 @@ function mondayPresenceReminder() {
   return safeInvokeLibrary("mondayPresenceReminder");
 }
 
+/** Time trigger: birthday reminders and the Team Birthdays calendar (daily, 9 am). */
+function birthdayReminderJob() {
+  return safeInvokeLibrary("birthdayReminderJob");
+}
+
 function getSidebarInitialData() {
   return safeInvokeLibrary("getSidebarInitialData");
 }
@@ -376,6 +381,7 @@ if (typeof module !== 'undefined' && module.exports) {
     runWorkspaceCheck: runWorkspaceCheck,
     removePresenceDuplicates: removePresenceDuplicates,
     mondayPresenceReminder: mondayPresenceReminder,
+    birthdayReminderJob: birthdayReminderJob,
     getMembersSidebarData: getMembersSidebarData,
     saveMemberTenure: saveMemberTenure,
     endMemberTenure: endMemberTenure,

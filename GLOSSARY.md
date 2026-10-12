@@ -150,3 +150,7 @@ _Avoid_: Missing presence, Unlogged day (that is "Not Logged", today only)
 **Check Workspace**:
 The menu report of everything that needs attention (contracts, backups, Project Backup Conflicts, Not Logged, Undeclared Days, duplicate Presence Log rows), each with a link to its fix (ADR 0041).
 _Avoid_: Health check, Audit
+
+**Birthday**:
+A Member's day and month of birth ("14 Mar"), never the year, in the last Members column. Drives the birthday reminder and the Team Birthdays calendar (ADR 0042).
+_Avoid_: Birth date, Date of birth (they imply the year)

@@ -38,11 +38,12 @@ var SCHEMA_SPEC = {
       current_role: "Role",
       current_department: "Department",
       tenure_status: "Status",
-      today_presence: "Today"
+      today_presence: "Today",
+      birthday: "Birthday"
     },
-    columns: ["member", "accenture_email", "phone_number", "current_role", "current_department", "tenure_status", "today_presence"],
+    columns: ["member", "accenture_email", "phone_number", "current_role", "current_department", "tenure_status", "today_presence", "birthday"],
     requiredColumns: ["member", "current_role", "current_department", "tenure_status", "today_presence"],
-    nullableColumns: ["accenture_email", "phone_number"],
+    nullableColumns: ["accenture_email", "phone_number", "birthday"],
     strictlyProtectedColumns: ["member", "current_role", "current_department", "tenure_status", "today_presence"],
     warningProtectedColumns: [],
     protectedColumns: ["member", "current_role", "current_department", "tenure_status", "today_presence"],
@@ -53,7 +54,8 @@ var SCHEMA_SPEC = {
       current_role: "TEXT",
       current_department: "TEXT",
       tenure_status: "DROPDOWN",
-      today_presence: "TEXT"
+      today_presence: "TEXT",
+      birthday: "TEXT" // day and month only, e.g. "14 Mar" (ADR 0042)
     },
     validations: {
       // The four values syncMembersAndTenures writes (shown as coloured chips)

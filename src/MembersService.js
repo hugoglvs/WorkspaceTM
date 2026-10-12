@@ -95,7 +95,7 @@ function getMembersSidebarData(targetSpreadsheet) {
     (byMember[t.key] = byMember[t.key] || []).push(tenure);
   });
 
-  var members = msReadRows(getTable(ss, "members"), 7).map(function(m) {
+  var members = msReadRows(getTable(ss, "members"), 8).map(function(m) {
     var list = (byMember[m.key] || []).sort(function(a, b) { return a.startDate < b.startDate ? -1 : 1; });
     return {
       name: m.name,
@@ -104,6 +104,7 @@ function getMembersSidebarData(targetSpreadsheet) {
       role: String(m.values[3] || "").trim(),
       department: String(m.values[4] || "").trim(),
       status: String(m.values[5] || "").trim(),
+      birthday: (typeof parseBirthday === "function") ? formatBirthday(parseBirthday(m.values[7])) : "",
       tenures: list
     };
   });
@@ -142,6 +143,9 @@ function saveMemberTenure(payload, targetSpreadsheet) {
 
   if (!member || !role || !department || !startDate || !contractType) {
     return { success: false, message: "Member, role, department, start date and contract type are required." };
+  }
+  if (p.birthday && typeof parseBirthday === "function" && !parseBirthday(p.birthday)) {
+    return { success: false, message: "Write the birthday as day and month, e.g. 14 Mar." };
   }
   if (isNaN(fte) || fte <= 0 || fte > 100) {
     return { success: false, message: "FTE must be between 1 and 100 %." };
@@ -206,7 +210,7 @@ function saveMemberTenure(payload, targetSpreadsheet) {
   if (typeof applyTypography === "function") applyTypography(tenuresSheet.getRange(targetRow, 1, 1, 7));
 
   msSync(ss);
-  if (p.email || p.phone) saveMemberProfile({ member: member, email: p.email, phone: p.phone }, ss);
+  if (p.email || p.phone || p.birthday) saveMemberProfile({ member: member, email: p.email, phone: p.phone, birthday: p.birthday || undefined }, ss);
 
   var message = closedPrevious
     ? "Contract saved. The previous contract now ends " + previousEndDate + "."
@@ -244,7 +248,7 @@ function endMemberTenure(payload, targetSpreadsheet) {
 /**
  * Updates a Member's contact details in tbl_members.
  *
- * @param {{member: string, email: (string|undefined), phone: (string|undefined)}} payload
+ * @param {{member: string, email: (string|undefined), phone: (string|undefined), birthday: (string|undefined)}} payload
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {{success: boolean, message: string}}
  */
@@ -255,6 +259,10 @@ function saveMemberProfile(payload, targetSpreadsheet) {
   var sheet = getTable(ss, "members");
   var row = msReadRows(sheet, 7).filter(function(m) { return m.key === key; })[0];
   if (!row) return { success: false, message: "Member not found in the directory." };
+  if (p.birthday !== undefined && typeof writeMemberBirthday === "function") {
+    var bd = writeMemberBirthday(ss, row.row, p.birthday);
+    if (!bd.success) return bd;
+  }
   if (p.email !== undefined) sheet.getRange(row.row, MEMBER_COLS.email).setValue(String(p.email || "").trim());
   if (p.phone !== undefined) sheet.getRange(row.row, MEMBER_COLS.phone).setValue(String(p.phone || "").trim());
   return { success: true, message: "Contact details saved." };

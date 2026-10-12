@@ -66,6 +66,7 @@
   <div id="contactPanel" class="hidden">
     <div class="form-group"><label for="email">Accenture email</label><input id="email" type="email"></div>
     <div class="form-group"><label for="phone">Phone</label><input id="phone" type="tel"></div>
+    <div class="form-group"><label for="birthday">Birthday <span class="optional">(day and month, optional)</span></label><input id="birthday" placeholder="e.g. 14 Mar"></div>
     <button class="btn-primary" onclick="saveContact()">Save contact details</button>
   </div>
 
@@ -78,6 +79,7 @@
       </div>
       <div class="row">
         <div class="form-group"><label for="newPhone">Phone <span class="optional">(optional)</span></label><input id="newPhone" type="tel"></div>
+        <div class="form-group"><label for="newBirthday">Birthday <span class="optional">(optional)</span></label><input id="newBirthday" placeholder="e.g. 14 Mar"></div>
       </div>
       <h3>First contract</h3>
     </div>
@@ -182,7 +184,7 @@
       $('contactPanel').classList.toggle('hidden', action !== 'contact');
       $('contractPanel').classList.toggle('hidden', action !== 'contract');
       $('endPanel').classList.toggle('hidden', action !== 'end');
-      if (action === 'contact') { $('email').value = m ? m.email : ''; $('phone').value = m ? m.phone : ''; }
+      if (action === 'contact') { $('email').value = m ? m.email : ''; $('phone').value = m ? m.phone : ''; $('birthday').value = m ? (m.birthday || '') : ''; }
       if (action === 'contract') prepareContract(m);
       if (action === 'end') prepareEnd(m);
     }
@@ -263,7 +265,7 @@
 
     function saveContact() {
       var m = current(); if (!m) return;
-      run('saveMemberProfile', { member: m.name, email: $('email').value, phone: $('phone').value }, m.name);
+      run('saveMemberProfile', { member: m.name, email: $('email').value, phone: $('phone').value, birthday: $('birthday').value }, m.name);
     }
 
     function saveContract() {
@@ -276,7 +278,7 @@
         startDate: start, endDate: $('endDate').value
       };
       if (m && openTenure(m, start)) payload.previousEndDate = $('previousEnd').value;
-      if (!m) { payload.email = $('newEmail').value; payload.phone = $('newPhone').value; }
+      if (!m) { payload.email = $('newEmail').value; payload.phone = $('newPhone').value; payload.birthday = $('newBirthday').value; }
       run('saveMemberTenure', payload, payload.member);
     }
 

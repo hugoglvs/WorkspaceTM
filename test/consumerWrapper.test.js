@@ -195,7 +195,8 @@ test('ConsumerWrapper: client actions forward correctly to linked library', () =
 test('installAllTriggers: installs the edit trigger, the nightly 2:00 AM sync and the Monday 8:00 AM reminder', () => {
   var res = code.installAllTriggers(mockSpreadsheet);
   assert.strictEqual(res.success, true);
-  assert.strictEqual(res.installed.length, 3);
+  assert.strictEqual(res.installed.length, 4);
+  assert.ok(ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'birthdayReminderJob' && t.hour === 9));
   var reminder = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'mondayPresenceReminder')[0];
   assert.strictEqual(reminder.weekDay, 'MONDAY');
   assert.strictEqual(reminder.hour, 8);
@@ -203,7 +204,7 @@ test('installAllTriggers: installs the edit trigger, the nightly 2:00 AM sync an
   // Re-running should detect all triggers already active
   var res2 = code.installAllTriggers(mockSpreadsheet);
   assert.strictEqual(res2.success, true);
-  assert.strictEqual(res2.alreadyActive.length, 3);
+  assert.strictEqual(res2.alreadyActive.length, 4);
 });
 
 test('nightlySyncJob: runs automated maintenance across all engines', () => {

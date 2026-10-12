@@ -487,12 +487,14 @@ function installAllTriggers(targetSpreadsheet) {
   var hasEditTrigger = false;
   var hasNightlyTrigger = false;
   var hasReminderTrigger = false;
+  var hasBirthdayTrigger = false;
 
   for (var i = 0; i < existing.length; i++) {
     var fnName = existing[i].getHandlerFunction();
     if (fnName === "installedTaskEditHandler") hasEditTrigger = true;
     if (fnName === "nightlySyncJob") hasNightlyTrigger = true;
     if (fnName === "mondayPresenceReminder") hasReminderTrigger = true;
+    if (fnName === "birthdayReminderJob") hasBirthdayTrigger = true;
   }
 
   var installed = [];
@@ -540,6 +542,21 @@ function installAllTriggers(targetSpreadsheet) {
     }
   } else {
     alreadyActive.push("mondayPresenceReminder (Mondays at 8:00 AM)");
+  }
+
+  if (!hasBirthdayTrigger) {
+    try {
+      ScriptApp.newTrigger("birthdayReminderJob")
+        .timeBased()
+        .everyDays(1)
+        .atHour(9)
+        .create();
+      installed.push("birthdayReminderJob (daily at 9:00 AM)");
+    } catch (errBd) {
+      Logger.log("installAllTriggers birthday trigger error: " + errBd);
+    }
+  } else {
+    alreadyActive.push("birthdayReminderJob (daily at 9:00 AM)");
   }
 
   try { refreshEditTriggerFlag(); } catch (eFlag) { Logger.log("Edit trigger flag note: " + eFlag); }
@@ -701,6 +718,14 @@ function runNightlySyncSteps(ss, res) {
   } catch (e5) {
     Logger.log("[nightlySyncJob] Calendar sync note: " + e5);
     res.steps.calendar = { error: String(e5) };
+  }
+
+  // 5b. Team Birthdays calendar (ADR 0042)
+  try {
+    if (typeof syncBirthdayCalendar === "function") res.steps.birthdayCalendar = syncBirthdayCalendar(ss);
+  } catch (e5b) {
+    Logger.log("[nightlySyncJob] Birthday calendar note: " + e5b);
+    res.steps.birthdayCalendar = { error: String(e5b) };
   }
 
   // 6. Check Project Backup Absence Conflicts
@@ -894,6 +919,11 @@ function handleSheetEdit(e) {
         }
       }
     }
+  }
+
+  // Birthday typed in Members: store it as "14 Mar" (ADR 0042)
+  if (tableKey === "members" && typeof normalizeBirthdayEdit === "function") {
+    try { normalizeBirthdayEdit(e); } catch (errBd) { Logger.log("onEdit birthday note: " + errBd); }
   }
 
   // A new name in Members without a contract: open the Members & Contracts sidebar (ADR 0037)

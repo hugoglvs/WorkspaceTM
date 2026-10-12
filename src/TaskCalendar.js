@@ -128,6 +128,8 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   } catch (eF) {}
 
   var header = ["Member"].concat(periods.map(function(p) { return p.label; }));
+  // Plain text, or Sheets turns "Oct 2026" into a date
+  try { sheet.getRange(2, 1, 1, width).setNumberFormat("@"); } catch (eNf) {}
   sheet.getRange(2, 1, 1, width).setValues([header]);
   try {
     sheet.getRange(2, 1, 1, width).setFontWeight("bold").setBackground("#E8EAED");

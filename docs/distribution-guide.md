@@ -1,276 +1,158 @@
-# Google Workspace Project Management - Library Distribution & Deployment Guide
+# WorkspacePM: Distribution & Deployment Guide
+
+_Last updated 2026-10-12 (library state: ADR 0044, tag `deploy-20261012-0813`)._
 
 ## Overview
 
-The **Google Workspace Project Management System** is architected as a centralized **Google Apps Script Library (`WorkspacePM`)**. Instead of copying thousands of lines of code into every spreadsheet, individual team spreadsheets include only a thin client wrapper (`consumer/Code.js` in the repo, `Code.gs` in Apps Script) that references the versioned library.
+WorkspacePM is a **Google Apps Script library** (`WorkspacePM`, source in `src/`). Each team spreadsheet (a **Consumer Sheet**) contains only a thin wrapper script (source in `consumer/`) that forwards menus, triggers and sidebar calls to the library.
 
-This design ensures:
-- **Centralized Bug Fixes & Features:** Updating the library automatically benefits all teams without touching spreadsheet code.
-- **Data Safety:** Library updates are purely additive and never delete or overwrite existing team rows.
-- **Version Pinning:** Teams can lock their spreadsheet to an immutable numbered version (e.g., Version 1) and upgrade on their own schedule.
-- **Consistent Schemas & Named Tables:** All sheets adhere to identical schemas, 12px "Google Sans" typography, and native Google Sheets Tables.
+- **One code base:** fixes and features land in the library; every linked sheet gets them.
+- **Additive upgrades:** *Initialize / Upgrade* creates or widens tables and never deletes team rows.
+- **Readable workspace:** tabs and native tables have readable names ("Members", "Contracts"…), found by their stored sheet ID, so renaming a tab is safe (ADR 0039).
+
+| | Script ID |
+| :--- | :--- |
+| Library `WorkspacePM` | `1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v` |
+| Reference Consumer Sheet "[NEW] ACN" (bound script) | `1IVORKENsN2r81QcA5hXa5qa-tgXub2RFFlhzD0-8fopojfAoQFixFujH` |
 
 ---
 
 ## 1. Prerequisites
 
-Before linking the library to a team spreadsheet:
-1. **Google Sheets API Service:** The Sheets Advanced API (v4) must be enabled in the Apps Script project to support native Google Sheets Tables.
-2. **Permissions:** The Team Lead / Administrator must have permission to create Apps Script triggers and authorize Google Calendar and Google Tasks integrations.
+- **Who sets it up:** the person who will **own the sheet and its triggers**. Every automatic job (edit handling, nightly sync, reminder and birthday emails, the Team Birthdays calendar) runs as this account and sends email from it.
+- **Email volume:** a personal Gmail account can send to about **100 recipients a day** with Apps Script. The Monday reminder and birthday emails go to each Active member, so this is comfortable for a team of ~20 and tight beyond ~50.
+- **Advanced services** (enabled in both the library and the consumer manifests): Google Sheets API v4, Google Tasks API v1, Google Calendar API v3.
 
 ---
 
-## 2. Linking the Library to a Consumer Spreadsheet
+## 2. Linking a New Consumer Sheet
 
-Follow these steps to link the Library to a new or existing Google Sheet:
+### Option A: by hand in the Apps Script editor
 
-### Step 1: Open Apps Script
-1. Open the target Google Sheet.
-2. Click **Extensions** > **Apps Script** in the top menu.
-3. Rename the Apps Script project to your team's name (e.g., `Team Alpha - Workspace PM`).
-
-### Step 2: Enable the Google Sheets API Advanced Service
-1. In the left navigation pane of the Apps Script editor, click **+** next to **Services**.
-2. Select **Google Sheets API** (identifier: `Sheets`, version: `v4`).
-3. Click **Add**.
-
-### Step 3: Add the `WorkspacePM` Library
-1. In the left navigation pane, click **+** next to **Libraries**.
-2. In the **Script ID** field, paste the library's Script ID:
-   ```text
-   <WORKSPACE_PM_LIBRARY_SCRIPT_ID>
+1. Open the Google Sheet → **Extensions → Apps Script**. Rename the project (e.g. `Team Alpha – WorkspacePM`).
+2. **Project Settings** (gear) → tick **Show "appsscript.json" manifest file in editor**.
+3. Replace `appsscript.json` with the content of [`consumer/appsscript.json`](../consumer/appsscript.json). It declares the library and the three advanced services. For a production sheet, change the library entry to a numbered version (see §7):
+   ```json
+   { "userSymbol": "WorkspacePM", "libraryId": "1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v", "version": "<N>", "developmentMode": false }
    ```
-   *(Retrieve this Script ID from the Library Project Settings > Script ID)*
-3. Click **Look up**.
-4. Configure the settings:
-   - **Version:** Select the latest stable numbered version (e.g., `1`). Do not select "HEAD" in production to prevent unexpected changes.
-   - **Identifier:** `WorkspacePM` *(must be exact)*.
-5. Click **Add**.
+4. Replace `Code.gs` with the full content of [`consumer/Code.js`](../consumer/Code.js). **Copy the file from the repo; do not retype it from an older guide.** Every menu item, sidebar button and trigger needs a top-level forwarder there (see §3).
+5. Save, then reload the Google Sheet.
+
+### Option B: with clasp (maintainers)
+
+```bash
+cd consumer
+# point .clasp.json at the new sheet's bound script ID, then
+~/.npm-global/bin/clasp push --force
+```
+Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 
 ---
 
-## 3. Adding the Client Wrapper (`ConsumerWrapper.gs`)
+## 3. What the Wrapper Must Contain
 
-In the Apps Script editor of the team's spreadsheet, replace the contents of `Code.gs` (or create a new file named `ConsumerWrapper.gs`) with the following lightweight wrapper:
+`consumer/Code.js` is the source of truth. It defines:
+
+| Group | Functions |
+| :--- | :--- |
+| Menu & lifecycle | `onOpen` (builds the menu), `onEdit` (forwards; steps aside when the installable trigger exists) |
+| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showMembersSidebar`, `showBackupSidebar`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab` |
+| Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `birthdayReminderJob` (daily 9 am) |
+| Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getMembersSidebarData`, `saveMemberTenure`, `endMemberTenure`, `saveMemberProfile`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `runWorkspaceCheck`, `removePresenceDuplicates` |
+
+> A sidebar or dialog served by the library calls the **consumer** script. When a new library feature adds a sidebar call, a menu item or a trigger, the wrapper must be updated and pushed too, or the button fails with "function not found".
+
+---
+
+## 4. First Initialization
+
+1. Reload the sheet. The **Project Management** menu appears.
+2. **Project Management → Initialize / Upgrade Spreadsheet.**
+3. Approve Google's authorization prompt (Sheets, Drive, Calendar, Tasks, Gmail sending, triggers). It appears again whenever a release adds a scope (e.g. the Calendar API for birthdays).
+4. The run takes about 2 minutes and:
+   - creates the tables with readable names, validations, typography and protections;
+   - fills **Locations** with OneRoof (Office), Remote, JLL, C04, C60 (Client site) and **Holidays** with the French public holidays of this year and next;
+   - shows the working tabs and hides the data tabs;
+   - installs the four triggers (§6);
+   - runs a first full nightly sync.
+
+| Visible tabs (daily use) | Hidden tabs (data; menu items open some of them) |
+| :--- | :--- |
+| Members, Weekly Presence, Projects, Tasks, Events | Locations, Holidays, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
+
+---
+
+## 5. The Menu
+
+| Menu item | What it does |
+| :--- | :--- |
+| **Initialize / Upgrade Spreadsheet** | Creates or upgrades tables, protections and triggers, then runs the nightly sync. Safe to run any time. |
+| **Declare Presence & Leaves** | Sidebar: weekly routine (AM/PM per weekday) and leave requests. |
+| **Members & Contracts** | Sidebar: add a member, edit contact details and birthday, add or end a contract. Typing a new name in Members opens it automatically. |
+| **Interim Backups** | Sidebar: cover a project for given dates. Shows coverage gaps (click one to fill the dates) and lets you cancel a planned backup. |
+| **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, duplicate presence rows. |
+| **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
+| **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
+
+---
+
+## 6. Automatic Jobs
+
+| Job | Trigger | What it does |
+| :--- | :--- | :--- |
+| Edit handling | Installable on-edit (`installedTaskEditHandler`) | Every grid edit: IDs, validation toasts, Google Tasks / Calendar push, Weekly Presence saves, member sync, birthday format, location warnings, coverage re-check. The simple `onEdit` steps aside once this trigger exists (one run per edit). |
+| Nightly sync | Daily, 2 am (`nightlySyncJob`) | Member sync, presence compile, Weekly Presence, KPI Data, coverage check (emails + tasks for conflicts), Google Tasks and Calendar sync, next year's holidays, Team Birthdays calendar. Each step is timed in the log and the run stops cleanly before Apps Script's 6-minute limit. |
+| Monday reminder | Mondays, 8 am (`mondayPresenceReminder`) | Emails each Active member who has a working day this week with no presence, routine or leave. |
+| Birthdays | Daily, 9 am (`birthdayReminderJob`) | On the working day before a birthday (Friday for Sat–Mon), emails every other Active member with an "Add to my Google Calendar" link and a subscribe link to the Team Birthdays calendar. |
+
+All four are installed (once each) by *Initialize / Upgrade*. Check them in the Apps Script editor → **Triggers**.
+
+---
+
+## 7. Releasing and Upgrading the Library
+
+### Development mode (current test setup)
+
+The reference sheet uses the library in **development mode** (`"developmentMode": true`): every `clasp push` of `src/` is live at once. Each push is tagged `deploy-YYYYMMDD-HHMM` in git so any earlier state can be restored.
+
+### Production
+
+1. In the library project: **Deploy → New deployment → Library**, with a description. This creates version *N*.
+2. In each consumer sheet: Apps Script → **Libraries → WorkspacePM** → choose version *N* (development mode off) → **Save**. Or edit the `version` in `appsscript.json`.
+3. If the release changed `consumer/`, update the wrapper (§2) as well.
+4. In the sheet: **Project Management → Initialize / Upgrade Spreadsheet**. Approve any new authorization.
+
+Recommended: keep one test copy of the sheet in development mode and move the real sheets to a numbered version.
+
+---
+
+## 8. Optional Settings
+
+These are **document properties**, which the Apps Script UI does not show. Set them once by running a small function in the consumer editor (select it, **Run**), then delete it:
 
 ```javascript
-/**
- * Google Workspace Project Management - Consumer Sheet Client Wrapper
- * Powered by WorkspacePM Library
- */
-
-/**
- * Creates the Project Management menu on spreadsheet open.
- */
-function onOpen(e) {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu("Project Management")
-    .addItem("Initialize / Upgrade Spreadsheet", "setupOrUpgrade")
-    .addSeparator()
-    .addItem("Declare Presence & Leaves", "showBaselineSidebar")
-    .addToUi();
-
-  // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
-  try {
-    var lib = getLibraryInstance();
-    if (lib) {
-      if (typeof lib.onOpenAudit === "function") {
-        lib.onOpenAudit(SpreadsheetApp.getActiveSpreadsheet());
-      } else if (typeof lib.onOpen === "function") {
-        lib.onOpen(e, true);
-      }
-    }
-  } catch (err) {
-    Logger.log("Library onOpen note: " + err);
-  }
+function configureWorkspacePM() {
+  WorkspacePM.setCalendarId("department-events@group.calendar.google.com"); // Events tab → this calendar (default: owner's "primary")
+  WorkspacePM.setTasksListId("<tasks list id>");                             // Tasks tab → this list (default: "@default")
+  PropertiesService.getDocumentProperties().setProperty("ADMIN_EMAILS", "lead@example.com,pm@example.com");
 }
-
-/**
- * Forwarder for onEdit simple trigger.
- */
-function onEdit(e) {
-  try {
-    var lib = getLibraryInstance();
-    if (lib && typeof lib.onEdit === "function") {
-      lib.onEdit(e);
-    }
-  } catch (err) {
-    Logger.log("Library onEdit error: " + err);
-  }
-}
-
-/**
- * Resolves the WorkspacePM library instance.
- */
-function getLibraryInstance() {
-  if (typeof WorkspacePM !== "undefined") {
-    return WorkspacePM;
-  }
-  if (typeof global !== "undefined" && typeof global.WorkspacePM !== "undefined") {
-    return global.WorkspacePM;
-  }
-  return null;
-}
-
-/**
- * Safely invokes a library method with user-friendly error handling.
- */
-function safeInvokeLibrary(methodName, args) {
-  var lib = getLibraryInstance();
-  if (!lib) {
-    var ui = SpreadsheetApp.getUi();
-    ui.alert(
-      "WorkspacePM Library Not Found",
-      "The 'WorkspacePM' library is not linked to this Google Sheet.\n\n" +
-      "To link the library:\n" +
-      "1. In Apps Script, click '+' next to 'Libraries'.\n" +
-      "2. Paste the Library Script ID and click 'Look up'.\n" +
-      "3. Set Identifier to 'WorkspacePM' and select the latest version.",
-      ui.ButtonSet.OK
-    );
-    return null;
-  }
-
-  if (typeof lib[methodName] !== "function") {
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      "Action '" + methodName + "' is not supported in the currently linked WorkspacePM version.",
-      "Unsupported Action",
-      6
-    );
-    return null;
-  }
-
-  try {
-    return lib[methodName].apply(lib, args || []);
-  } catch (err) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (ss && typeof ss.toast === "function") {
-      ss.toast("Error executing " + methodName + ": " + (err.message || err), "Action Error", 6);
-    }
-    Logger.log("Error executing " + methodName + ": " + err);
-    throw err;
-  }
-}
-
-/**
- * Canonical Library Action Forwarders
- * Defines top-level functions matching WorkspacePM library methods so that any
- * menu items, buttons, or macros targeting these canonical names execute seamlessly.
- */
-function showBaselineSidebar() { return safeInvokeLibrary("showBaselineSidebar"); }
-function init() { return safeInvokeLibrary("init"); }
-function setupOrUpgrade() { return safeInvokeLibrary("setupOrUpgrade"); }
-function sync() { return safeInvokeLibrary("sync"); }
-function validateAndReport() { return safeInvokeLibrary("validateAndReport"); }
-function compilePresence() { return safeInvokeLibrary("compilePresence"); }
-function compilePresenceMigration() { return safeInvokeLibrary("compilePresenceMigration"); }
-function refreshWeeklyMatrix() { return safeInvokeLibrary("refreshWeeklyMatrix"); }
-function refreshActiveResponsibles() { return safeInvokeLibrary("refreshActiveResponsibles"); }
-function refreshKpis() { return safeInvokeLibrary("refreshKpis"); }
-function checkBackupConflicts() { return safeInvokeLibrary("checkBackupConflicts"); }
-function syncTasks() { return safeInvokeLibrary("syncTasks"); }
-function syncCalendarEvents() { return safeInvokeLibrary("syncCalendarEvents"); }
-function installLiveTaskSync() { return safeInvokeLibrary("installLiveTaskSync"); }
-function installAllTriggers() { return safeInvokeLibrary("installAllTriggers"); }
-function nightlySyncJob() { return safeInvokeLibrary("nightlySyncJob"); }
-function cleanupForeignTasks() { return safeInvokeLibrary("cleanupForeignTasks"); }
-function debugUserIdentity() { return safeInvokeLibrary("debugUserIdentity"); }
-
-/**
- * Client Aliases (for existing menu references and backwards compatibility)
- */
-function clientShowSidebar() { return showBaselineSidebar(); }
-function clientSetupOrUpgrade() { return setupOrUpgrade(); }
-function clientSyncMembersAndTenures() { return sync(); }
-function clientCompilePresence() { return compilePresence(); }
-function clientRefreshDashboards() {
-  var r1 = refreshWeeklyMatrix();
-  var r2 = refreshActiveResponsibles();
-  var r3 = refreshKpis();
-  return { weeklyMatrix: r1, activeResponsibles: r2, kpis: r3 };
-}
-function clientSyncTasks() { return syncTasks(); }
-function clientSyncCalendarEvents() { return syncCalendarEvents(); }
-function clientInstallTriggers() { return installAllTriggers(); }
-
-function installedTaskEditHandler(e) {
-  var lib = getLibraryInstance();
-  if (lib && typeof lib.installedTaskEditHandler === "function") {
-    return lib.installedTaskEditHandler(e);
-  }
-  return null;
-}
-
-function installedConsumerTriggerHandler(e) {
-  return installedTaskEditHandler(e);
-}
-
-// Sidebar API forwarders for google.script.run
-function getSidebarInitialData() { return safeInvokeLibrary("getSidebarInitialData"); }
-function getMemberBaselines(member) { return safeInvokeLibrary("getMemberBaselines", [member]); }
-function saveMemberBaselines(payload) { return safeInvokeLibrary("saveMemberBaselines", [payload]); }
-function submitMemberLeave(payload) { return safeInvokeLibrary("submitMemberLeave", [payload]); }
 ```
 
-Save the file (**Ctrl+S** / **Cmd+S**).
+`ADMIN_EMAILS` adds people who may edit strictly protected columns (computed ones such as Members Role, Status, Today, and IDs), on top of the sheet owner. Note: the `ADMIN_EMAILS` line writes the consumer's own document properties; if admins are not picked up, ask a maintainer to set it through the library.
 
 ---
 
-## 4. Configuration (Document Properties)
+## 9. Troubleshooting
 
-By default, the system works out of the box with personal calendars (`"primary"`) and personal Google Tasks (`"@default"`). If your department uses a shared team calendar or a specific Google Tasks list:
-
-1. In the Apps Script editor, open **Project Settings** (gear icon on the left).
-2. Scroll down to **Script Properties** / **Document Properties**.
-3. Add the desired configuration keys:
-   - `GOOGLE_CALENDAR_ID`: The calendar ID of the team/department calendar (e.g., `department-events@group.calendar.google.com`). Defaults to `"primary"`.
-   - `GOOGLE_TASKS_LIST_ID`: The ID of a specific Google Tasks list. Defaults to `"@default"`.
-
----
-
-## 5. One-Time Setup & Initialization
-
-1. Reload the Google Sheet.
-2. Notice the streamlined custom menu: **Project Management** appears in the menu bar.
-3. Click **Project Management** > **Initialize / Upgrade Spreadsheet**.
-4. **OAuth Authorization:**
-   - Google will display an **"Authorization Required"** prompt.
-   - Click **Continue**, select your corporate Google account, and click **Allow**.
-5. The system automatically performs a complete setup:
-   - Creates/verifies all 9 operational database tables with native Google Sheets Named Tables, 12px "Google Sans" typography, validations, and protections (`tbl_members`, `tbl_tenures`, `tbl_presence_baselines`, `tbl_leaves`, `tbl_presence_log`, `tbl_projects`, `tbl_tasks`, `tbl_events`, `tbl_backups`).
-   - Automatically installs the **real-time onEdit trigger** (`installedTaskEditHandler`) for live Google Tasks and Google Calendar synchronization.
-   - Automatically installs the **nightly time-driven maintenance trigger** (`nightlySyncJob`) scheduled every night at 2:00 AM.
-   - Performs an immediate full initial synchronization across presence logs, matrix dashboards, project responsibles, tasks, and calendars.
-
----
-
-## 6. Daily Operations & Workflows
-
-End users never need to run technical sync scripts or batch commands. The interface is intentionally minimal:
-
-| Menu Action | Description |
+| Symptom | Where to look / what to do |
 | :--- | :--- |
-| **Initialize / Upgrade Spreadsheet** | Verifies table schemas, Named Tables, formatting, protections, ensures all triggers are installed, and runs a complete maintenance sync. |
-| **Declare Presence & Leaves** | Opens the interactive visual sidebar to submit presence routines, view personal status checklist, and schedule leaves. |
+| A menu item or sidebar button says the function is not found | The wrapper is older than the library: copy the current `consumer/Code.js` (§2). |
+| "WorkspacePM Library Not Found" | The library is not linked or its identifier is not exactly `WorkspacePM`. |
+| Something did not update after an edit | Apps Script editor → **Executions**: open the latest `installedTaskEditHandler` run. Edits over 3 s log an `[edit timing]` line with the slow part. |
+| Nightly work missing | **Executions** → `nightlySyncJob`: one line per step with its duration; `Out of time, skipped: …` lists steps cut by the 6-minute budget. |
+| "The nightly sync is running…" toast on an edit | The edit happened during the nightly run; the value is saved, re-enter it a few minutes later if its follow-up (task, event, presence row) is missing. |
+| Red cells in a row | A required column of that row is empty (validation highlight). |
+| Duplicate presence rows | **Check Workspace → Remove duplicates** (keeps the row Weekly Presence shows). |
+| Emails stop mid-day | Daily email quota of the owner account reached; they resume the next day. |
 
-### Fully Automated Background Operations
-
-| Automated Process | Mechanism | Execution Frequency |
-| :--- | :--- | :--- |
-| **Live Task Sync** | Installable `onEdit` Trigger | Instantaneous upon typing title/description/status in `tbl_tasks`. |
-| **Live Calendar Sync** | Installable `onEdit` Trigger | Instantaneous upon creating/modifying events in `tbl_events`. |
-| **Live Matrix Planning** | Simple `onEdit` Trigger | Instantaneous upon modifying cells in `view_weekly_matrix`. |
-| **Tenure $\to$ Member Auto-Sync** | Simple `onEdit` Trigger | Instantaneous upon adding new tenures in `tbl_tenures`. |
-| **Leave & Baseline Compilation** | Sidebar Submissions | Instantaneous upon submitting leaves or weekly baselines. |
-| **Nightly Reconciliation Sync** | Daily Time-Driven Trigger (2:00 AM) | Automatically rolls forward presence logs, refreshes matrix & responsibles dashboards, pulls Google Tasks completions, syncs calendars, and audits backup conflicts. |
-
----
-
-## 7. Upgrading Library Versions
-
-When the engineering team releases a new version of `WorkspacePM`:
-1. Open the team's spreadsheet Apps Script editor.
-2. Click **Libraries** > **WorkspacePM**.
-3. Select the new **Version** from the dropdown.
-4. Click **Save**.
-5. Return to the Google Sheet and click **Project Management** > **Initialize / Upgrade Spreadsheet** to apply any new schema columns or enhancements.
+Architecture decisions are recorded in `docs/adr/` (0032–0044 cover the current design); domain terms are in `GLOSSARY.md`.

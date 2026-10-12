@@ -1,7 +1,7 @@
 # ADR 0037: Members & Contracts Sidebar
 
 ## Status
-Accepted (2026-10-12), resolves issue 22
+Superseded by ADR 0046 (2026-10-12). Was: Accepted (2026-10-12), resolves issue 22
 
 ## Context
 1. Members is one of the five visible tabs (ADR 0036). New Members and Tenure changes (new contract, end date) should be declared in a sidebar, and starting a new row on Members should open it.

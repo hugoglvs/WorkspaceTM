@@ -56,9 +56,9 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | Group | Functions |
 | :--- | :--- |
 | Menu & lifecycle | `onOpen` (builds the menu), `onEdit` (forwards; steps aside when the installable trigger exists) |
-| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showMembersSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab` |
+| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showContractsTab`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab` |
 | Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `dailyRemindersJob` (daily 9 am; `birthdayReminderJob` kept as an alias), `myTasksSyncJob` (hourly, one per connected person) |
-| Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getMembersSidebarData`, `saveMemberTenure`, `endMemberTenure`, `saveMemberProfile`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `getAssignSidebarData`, `assignTasks`, `stopRecurringRule`, `runWorkspaceCheck`, `removePresenceDuplicates` |
+| Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `getAssignSidebarData`, `assignTasks`, `stopRecurringRule`, `runWorkspaceCheck`, `removePresenceDuplicates` |
 
 > A sidebar or dialog served by the library calls the **consumer** script. When a new library feature adds a sidebar call, a menu item or a trigger, the wrapper must be updated and pushed too, or the button fails with "function not found".
 
@@ -88,7 +88,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | :--- | :--- |
 | **Initialize / Upgrade Spreadsheet** | Creates or upgrades tables, protections and triggers, then runs the nightly sync. Safe to run any time. |
 | **Declare Presence & Leaves** | Sidebar: weekly routine (AM/PM per weekday) and leave requests. |
-| **Members & Contracts** | Sidebar: add a member, edit contact details and birthday, add or end a contract. Typing a new name in Members opens it automatically. |
+| **Declare Contract** | Unhides and opens the Contracts tab on its first empty row: one row per contract (member, role, department, start, end, type, FTE). To change contract, first set the end date of the current one. Typing a new name in Members opens it automatically. Contact details and birthday are typed in Members. |
 | **Interim Backups** | Sidebar: cover a project for given dates. Shows coverage gaps (click one to fill the dates) and lets you cancel a planned backup. |
 | **Assign Tasks** | Sidebar: give a task type to several people (by role and/or name), once or every week/month (each person, or a rotation that skips people on leave). Lists and stops recurring tasks. |
 | **Calendar** | Opens the Calendar tab: pick a Type and a Project, then members × weeks (or months). *To do* assigns, *Done* marks done, clearing cancels. Refuses someone on approved leave. |

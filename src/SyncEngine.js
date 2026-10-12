@@ -390,7 +390,7 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
         );
         if (tkColDesc > 0 && tkColDesc <= tasksSheet.getLastColumn()) {
           tasksSheet.getRange(targetTaskRow, tkColDesc).setValue(
-            "Please enter your Accenture email address and phone number in the Members tab (Project Management → Members & Contracts → Contact details)."
+            "Please enter your Accenture email address and phone number in the Members tab (columns Accenture email and Phone)."
           );
         }
         tasksSheet.getRange(targetTaskRow, tkColDue).setValue(dueDateStr);

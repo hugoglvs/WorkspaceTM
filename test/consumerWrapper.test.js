@@ -41,7 +41,8 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   var captions = ui.menu.items.map(function(item) { return item.caption; });
   assert.ok(captions.includes('Initialize / Upgrade Spreadsheet'));
   assert.ok(captions.includes('Declare Presence & Leaves'));
-  assert.ok(captions.includes('Members & Contracts'));
+  assert.ok(captions.includes('Declare Contract'));
+  assert.ok(!captions.includes('Members & Contracts'));
   assert.ok(captions.includes('Interim Backups'));
   assert.ok(captions.includes('Check Workspace'));
   assert.ok(captions.includes('Edit Locations'));
@@ -226,25 +227,13 @@ test('setupOrUpgrade: runs freshInit, installs triggers, and runs initial mainte
 });
 
 
-test('ConsumerWrapper: Members & Contracts sidebar calls reach the library with their payload', () => {
+test('ConsumerWrapper: Declare Contract reaches the library', () => {
   var calls = [];
-  global.WorkspacePM = {
-    showMembersSidebar: function() { calls.push(['showMembersSidebar']); },
-    getMembersSidebarData: function() { calls.push(['getMembersSidebarData']); return { members: [] }; },
-    saveMemberTenure: function(p) { calls.push(['saveMemberTenure', p]); return { success: true }; },
-    endMemberTenure: function(p) { calls.push(['endMemberTenure', p]); return { success: true }; },
-    saveMemberProfile: function(p) { calls.push(['saveMemberProfile', p]); return { success: true }; }
-  };
+  global.WorkspacePM = { showContractsTab: function() { calls.push('showContractsTab'); return { success: true }; } };
 
-  consumerWrapper.showMembersSidebar();
-  consumerWrapper.getMembersSidebarData();
-  consumerWrapper.saveMemberTenure({ member: 'A' });
-  consumerWrapper.endMemberTenure({ member: 'B' });
-  consumerWrapper.saveMemberProfile({ member: 'C' });
+  consumerWrapper.showContractsTab();
 
-  assert.deepStrictEqual(calls, [
-    ['showMembersSidebar'], ['getMembersSidebarData'],
-    ['saveMemberTenure', { member: 'A' }], ['endMemberTenure', { member: 'B' }], ['saveMemberProfile', { member: 'C' }]
-  ]);
+  assert.deepStrictEqual(calls, ['showContractsTab']);
+  assert.strictEqual(consumerWrapper.showMembersSidebar, undefined);
   delete global.WorkspacePM;
 });

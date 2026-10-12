@@ -28,7 +28,6 @@ const locations = require('../src/Locations');
 Object.assign(global, locations);
 Object.assign(global, require('../src/Layout'));
 const code = require('../src/Code');
-Object.assign(global, require('../src/MembersService'));
 Object.assign(global, require('../src/Birthdays'));
 
 function seed(rows) {
@@ -152,11 +151,3 @@ test('the reminder email links to the Team Birthdays calendar once it exists', (
   assert.ok(MailApp.getSentEmails()[0].htmlBody.includes('calendar/r?cid='));
 });
 
-test('Members & Contracts sidebar: birthday shown, saved as "14 Mar", refused when unreadable', () => {
-  seed(TEAM);
-  var data = getMembersSidebarData(mockSpreadsheet);
-  assert.strictEqual(data.members.filter(m => m.name === 'Alice')[0].birthday, '14 Oct');
-  assert.ok(saveMemberProfile({ member: 'Bob', birthday: '02/09' }, mockSpreadsheet).success);
-  assert.strictEqual(getTable(mockSpreadsheet, 'members').getRange(3, 8).getValue(), '2 Sep');
-  assert.strictEqual(saveMemberProfile({ member: 'Bob', birthday: 'next week' }, mockSpreadsheet).success, false);
-});

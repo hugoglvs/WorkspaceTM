@@ -17,3 +17,5 @@ _2026-10-12 — Implemented (ADR 0037): `src/MembersService.js`, `src/MembersSid
 _2026-10-12 — Live test: the sidebar does **not** open by itself when a new name is typed in Members, even for the owner (the simple onEdit trigger cannot open UI). The menu works. Parked by the user until the end; options then: installable onEdit, or a clickable button/checkbox in the tab._
 
 _2026-10-12 — Verified live: typing a new name in Members opens the Members & Contracts sidebar pre-filled (the installable edit trigger can show UI; ADR 0041/0044). No protected-column dialog first._
+
+_2026-10-12 — Superseded (ADR 0046): the sidebar is removed. People chips written by script did not work in the enterprise domain; contracts are now typed in the Contracts tab, opened by the menu *Declare Contract* or by typing a new name in Members._

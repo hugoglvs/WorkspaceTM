@@ -26,7 +26,7 @@ function onOpen(e) {
     .addItem("Initialize / Upgrade Spreadsheet", "setupOrUpgrade")
     .addSeparator()
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
-    .addItem("Members & Contracts", "showMembersSidebar")
+    .addItem("Declare Contract", "showContractsTab")
     .addItem("Interim Backups", "showBackupSidebar")
     .addItem("Assign Tasks", "showAssignSidebar")
     .addItem("Calendar", "showTaskCalendar")
@@ -273,24 +273,8 @@ function showHolidaysTab() {
   return safeInvokeLibrary("showHolidaysTab");
 }
 
-function showMembersSidebar() {
-  return safeInvokeLibrary("showMembersSidebar");
-}
-
-function getMembersSidebarData() {
-  return safeInvokeLibrary("getMembersSidebarData");
-}
-
-function saveMemberTenure(payload) {
-  return safeInvokeLibrary("saveMemberTenure", [payload]);
-}
-
-function endMemberTenure(payload) {
-  return safeInvokeLibrary("endMemberTenure", [payload]);
-}
-
-function saveMemberProfile(payload) {
-  return safeInvokeLibrary("saveMemberProfile", [payload]);
+function showContractsTab() {
+  return safeInvokeLibrary("showContractsTab");
 }
 
 function showBackupSidebar() {
@@ -419,7 +403,7 @@ if (typeof module !== 'undefined' && module.exports) {
     installedTaskEditHandler: installedTaskEditHandler,
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
     showLocationsTab: showLocationsTab,
-    showMembersSidebar: showMembersSidebar,
+    showContractsTab: showContractsTab,
     showHolidaysTab: showHolidaysTab,
     showBackupSidebar: showBackupSidebar,
     getBackupSidebarData: getBackupSidebarData,
@@ -439,10 +423,6 @@ if (typeof module !== 'undefined' && module.exports) {
     getAssignSidebarData: getAssignSidebarData,
     assignTasks: assignTasks,
     stopRecurringRule: stopRecurringRule,
-    getMembersSidebarData: getMembersSidebarData,
-    saveMemberTenure: saveMemberTenure,
-    endMemberTenure: endMemberTenure,
-    saveMemberProfile: saveMemberProfile,
     getSidebarInitialData: getSidebarInitialData,
     getMemberBaselines: getMemberBaselines,
     saveMemberBaselines: saveMemberBaselines,

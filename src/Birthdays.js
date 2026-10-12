@@ -158,19 +158,6 @@ function normalizeBirthdayEdit(e) {
   return text;
 }
 
-/** Saves a birthday from the Members & Contracts sidebar ("" clears it). */
-function writeMemberBirthday(ss, row, value) {
-  var col = bdColumn();
-  var sheet = getTable(ss, "members");
-  if (!sheet || col < 1) return { success: false, message: "Members has no Birthday column. Run Initialize / Upgrade." };
-  var cell = sheet.getRange(row, col);
-  if (!String(value || "").trim()) { cell.setValue(""); return { success: true, text: "" }; }
-  var b = parseBirthday(value);
-  if (!b) return { success: false, message: "Write the birthday as day and month, e.g. 14 Mar." };
-  cell.setValue(formatBirthday(b));
-  return { success: true, text: formatBirthday(b) };
-}
-
 /**
  * Days announced on `asOf`: from the next day up to the next working day. On a
  * Friday that is Saturday, Sunday and Monday; public holidays are skipped like
@@ -386,7 +373,6 @@ if (typeof module !== 'undefined' && module.exports) {
     nextBirthdayDate: nextBirthdayDate,
     readBirthdayMembers: readBirthdayMembers,
     normalizeBirthdayEdit: normalizeBirthdayEdit,
-    writeMemberBirthday: writeMemberBirthday,
     birthdayAnnouncementDays: birthdayAnnouncementDays,
     birthdayCalendarLink: birthdayCalendarLink,
     sendBirthdayReminders: sendBirthdayReminders,

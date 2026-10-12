@@ -45,8 +45,9 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Interim Backups'));
   assert.ok(captions.includes('Check Workspace'));
   assert.ok(captions.includes('Edit Locations'));
+  assert.ok(captions.includes('Edit Holidays'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 6);
+  assert.strictEqual(actionItems.length, 7);
 });
 
 test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {

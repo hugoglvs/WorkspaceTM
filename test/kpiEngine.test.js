@@ -108,7 +108,7 @@ test('buildPresenceFacts: one row per Member, date and Period with worked, leave
   var facts = kpiEngine.buildPresenceFacts(mockSpreadsheet, { asOfDate: '2026-01-11' });
   var f = factsByKey(facts);
 
-  assert.deepStrictEqual(facts.headers, ['date', 'month', 'iso_week', 'weekday', 'is_weekend', 'member', 'department', 'role', 'fte_rate', 'period', 'location', 'category', 'worked_days', 'leave_days', 'capacity_days']);
+  assert.deepStrictEqual(facts.headers, ['date', 'month', 'iso_week', 'weekday', 'is_weekend', 'member', 'department', 'role', 'fte_rate', 'period', 'location', 'category', 'worked_days', 'leave_days', 'capacity_days', 'is_public_holiday']);
   // Mon 5 → Fri 9 = 5 weekdays × 2 Periods, plus logged Saturday 10; unlogged Sunday 11 has no rows
   assert.strictEqual(facts.rows.length, 12);
 
@@ -116,7 +116,7 @@ test('buildPresenceFacts: one row per Member, date and Period with worked, leave
     date: '2026-01-05', month: '2026-01', iso_week: '2026-W02', weekday: 'Mon', is_weekend: false,
     member: 'Bob Jones', department: 'Design', role: 'Lead Designer', fte_rate: 0.8,
     period: 'AM', location: 'Remote', category: 'remote',
-    worked_days: 0.5, leave_days: 0, capacity_days: 0.4
+    worked_days: 0.5, leave_days: 0, capacity_days: 0.4, is_public_holiday: false
   });
   assert.strictEqual(f['Bob Jones|2026-01-05|PM'].category, 'office');
   assert.strictEqual(f['Bob Jones|2026-01-06|AM'].category, 'not_logged');

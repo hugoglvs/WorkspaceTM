@@ -28,7 +28,7 @@ global.createGoogleSheetsTable = typography.createGoogleSheetsTable;
 const { freshInit } = require('../src/Init');
 const { init, getSchemaVersion, getLibraryVersion } = require('../src/Code');
 
-test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 1', () => {
+test('freshInit should create all operational tables and set SCHEMA_VERSION = 1', () => {
   const result = freshInit(mockSpreadsheet);
 
   assert.strictEqual(result.success, true);
@@ -44,7 +44,8 @@ test('freshInit should create all 8 operational tables and set SCHEMA_VERSION = 
     'Projects',
     'Tasks',
     'Events',
-    'Backups'
+    'Backups',
+    'Holidays'
   ];
 
   assert.deepStrictEqual(result.sheetsCreated, expectedSheets);

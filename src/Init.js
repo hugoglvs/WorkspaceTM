@@ -109,6 +109,11 @@ function freshInit(targetSpreadsheet) {
     try { seedDefaultLocations(ss); } catch (eSeed) { Logger.log("Locations seed note: " + eSeed); }
   }
 
+  // French public holidays of this year and next in a new Holidays tab (ADR 0043)
+  if (typeof seedPublicHolidays === "function") {
+    try { seedPublicHolidays(ss); } catch (eHol) { Logger.log("Holidays seed note: " + eHol); }
+  }
+
   // Safely remove the initial blank sheet (e.g. "Sheet1" or "Feuille 1") if created from scratch and still empty
   if (initialSheets.length === 1) {
     var firstSheet = initialSheets[0];

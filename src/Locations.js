@@ -73,6 +73,7 @@ function applyTodayPresenceColours(ss) {
   var rules = [];
   entries.forEach(function(en) { rules.push(make(en.style).whenTextEqualTo(en.text).build()); });
   rules.push(make(PRESENCE_STYLES.off).whenTextEqualTo("Weekend").build());
+  rules.push(make(PRESENCE_STYLES.off).whenTextEqualTo("Public holiday").build());
   rules.push(make(PRESENCE_STYLES.not_logged).whenTextEqualTo("Not Logged").build());
   entries.forEach(function(en) { rules.push(make(en.style).whenTextStartsWith(en.text + " /").build()); });
 

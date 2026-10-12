@@ -68,7 +68,8 @@ function wcWorkWeek(asOf) {
  * @return {Array<{name: string, email: string, days: string[]}>}
  */
 function findUndeclaredDays(ss, asOf) {
-  var week = wcWorkWeek(asOf);
+  var holidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
+  var week = wcWorkWeek(asOf).filter(function(d) { return !holidays[wcIso(d)]; });
   var logged = {};
   wcRows(getTable(ss, "presenceLog"), 5, 2000).forEach(function(r) {
     var d = wcDate(r.vals[1]);
@@ -188,11 +189,17 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
       });
     } catch (eCov) { Logger.log("Check Workspace coverage note: " + eCov); }
   }
+  sections.push({
+    key: "leavers", title: "People leaving: projects and tasks to hand over", ok: "No project or open task depends on someone leaving.",
+    action: "members", items: findLeaverHandovers(ss, today, members)
+  });
+
   sections.push({ key: "coverage", title: "Coverage gaps", ok: "Every project is covered every working day.", action: "backups", items: coverage });
 
-  var weekend = today.getDay() === 0 || today.getDay() === 6;
+  var holidayToday = ((typeof readHolidays === "function") ? readHolidays(ss) : {})[wcIso(today)];
+  var weekend = today.getDay() === 0 || today.getDay() === 6 || !!holidayToday;
   sections.push({
-    key: "notLogged", title: "Not logged today", ok: weekend ? "Weekend: nothing to log." : "Everyone is logged today.",
+    key: "notLogged", title: "Not logged today", ok: holidayToday ? holidayToday + ": nothing to log." : (weekend ? "Weekend: nothing to log." : "Everyone is logged today."),
     items: weekend ? [] : members.filter(function(m) { return m.today === "Not Logged"; }).map(function(m) { return m.name; })
   });
 
@@ -214,6 +221,46 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
 function wcShortDay(iso) {
   var d = wcDate(iso);
   return WC_WEEKDAYS[d.getDay()].substring(0, 3) + " " + d.getDate();
+}
+
+/**
+ * What still depends on people who have left or leave within 30 days: open
+ * projects they lead or back up, and open tasks assigned to them.
+ *
+ * @return {string[]}
+ */
+function findLeaverHandovers(ss, today, members) {
+  var contracts = (typeof readCoverageContracts === "function") ? readCoverageContracts(ss) : {};
+  var horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+  var leaving = {}; // key -> "left on …" / "leaves on …"
+  Object.keys(contracts).forEach(function(key) {
+    var list = contracts[key];
+    if (list.some(function(c) { return !c.end; })) return;
+    var last = list.reduce(function(max, c) { return (!max || c.end > max) ? c.end : max; }, null);
+    if (last && last < horizon) leaving[key] = (last < today ? "left on " : "leaves on ") + wcIso(last);
+  });
+  (members || wcMembers(ss)).forEach(function(m) {
+    if (!leaving[m.key] && m.status.toLowerCase() === "departed") leaving[m.key] = "has left";
+  });
+  if (!Object.keys(leaving).length) return [];
+
+  var items = [];
+  wcRows(getTable(ss, "projects"), 7, 500).forEach(function(r) {
+    var name = String(r.vals[1] || "").trim();
+    if (!name || String(r.vals[2] || "").trim().toLowerCase() === "completed") return;
+    [["lead", 5], ["backup", 6]].forEach(function(role) {
+      var who = wcName(r.vals[role[1]], r.rich[role[1]]);
+      if (who && leaving[who.toLowerCase()]) items.push(name + ": " + role[0] + " " + who + " " + leaving[who.toLowerCase()]);
+    });
+  });
+  wcRows(getTable(ss, "tasks"), 7, 1000).forEach(function(r) {
+    var title = String(r.vals[3] || "").trim();
+    var status = String(r.vals[6] || "").trim().toLowerCase();
+    var who = wcName(r.vals[2], r.rich[2]);
+    if (!title || !who || status === "done" || status === "completed" || status === "cancelled") return;
+    if (leaving[who.toLowerCase()]) items.push("Task \"" + title + "\": " + who + " " + leaving[who.toLowerCase()]);
+  });
+  return items;
 }
 
 /** Menu: Check Workspace. Shows the report in a dialog. */
@@ -271,6 +318,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     findUndeclaredDays: findUndeclaredDays,
     findPresenceDuplicates: findPresenceDuplicates,
+    findLeaverHandovers: findLeaverHandovers,
     removePresenceDuplicates: removePresenceDuplicates,
     runWorkspaceCheck: runWorkspaceCheck,
     showWorkspaceCheck: showWorkspaceCheck,

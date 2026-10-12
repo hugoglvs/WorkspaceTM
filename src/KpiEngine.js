@@ -156,7 +156,7 @@ function categorizeLocation(location) {
 
 var FACT_PRESENCE_HEADERS = [
   "date", "month", "iso_week", "weekday", "is_weekend", "member", "department", "role",
-  "fte_rate", "period", "location", "category", "worked_days", "leave_days", "capacity_days"
+  "fte_rate", "period", "location", "category", "worked_days", "leave_days", "capacity_days", "is_public_holiday"
 ];
 var WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -262,6 +262,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
   var rows = [];
   if (!firstDate) return { success: true, headers: FACT_PRESENCE_HEADERS, rows: rows };
 
+  var kpiHolidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
   var keys = Object.keys(members).sort();
   for (var k = 0; k < keys.length; k++) {
     var mem = members[keys[k]];
@@ -269,13 +270,14 @@ function buildPresenceFacts(targetSpreadsheet, options) {
       var iso = formatIsoDate(cur);
       var dow = cur.getDay();
       var isWeekend = (dow === 0 || dow === 6);
+      var isPublicHoliday = !!kpiHolidays[iso];
       var tenure = null;
       for (var ti = 0; ti < mem.tenures.length; ti++) {
         var ten = mem.tenures[ti];
         if ((!ten.start || ten.start <= cur) && (!ten.end || ten.end >= cur)) { tenure = ten; break; }
       }
       var log = mem.logs[iso];
-      if (!log && (isWeekend || !tenure)) continue;
+      if (!log && (isWeekend || isPublicHoliday || !tenure)) continue;
 
       var fte = tenure ? tenure.fte : 0;
       var dept = (tenure && tenure.department) || memberDept[keys[k]] || "General";
@@ -289,7 +291,8 @@ function buildPresenceFacts(targetSpreadsheet, options) {
           periods[p][0], location, category,
           (category === "remote" || category === "office" || category === "client_site") ? 0.5 : 0,
           category === "leave" ? 0.5 : 0,
-          (!isWeekend && tenure) ? 0.5 * fte : 0
+          (!isWeekend && !isPublicHoliday && tenure) ? 0.5 * fte : 0,
+          isPublicHoliday
         ]);
       }
     }

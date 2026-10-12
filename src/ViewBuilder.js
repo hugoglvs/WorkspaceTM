@@ -449,11 +449,16 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
       } catch (eMergeW) {}
     }
 
-    // Apply dark gray background to weekend rows (#5F6368)
+    // Apply dark gray background to weekend and public-holiday rows (#5F6368, ADR 0043)
+    var matrixHolidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
     for (var dIdx = 0; dIdx < allDays.length; dIdx++) {
       var dCheck = allDays[dIdx];
       var dDayNum = dCheck.getDay();
-      if (dDayNum === 0 || dDayNum === 6) {
+      var holidayName = matrixHolidays[formatMatrixDateIso(dCheck)];
+      if (holidayName) {
+        try { viewSheet.getRange(3 + dIdx, 2).setNote(holidayName); } catch (eNote) {}
+      }
+      if (dDayNum === 0 || dDayNum === 6 || holidayName) {
         var weekendRowNumber = 3 + dIdx;
         try {
           var weekendRange = viewSheet.getRange(weekendRowNumber, 1, 1, numCols);

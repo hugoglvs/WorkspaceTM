@@ -160,6 +160,11 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   return earliestTime !== null ? new Date(earliestTime) : null;
 }
 
+/** Local YYYY-MM-DD of a Date (public-holiday lookups). */
+function peIsoDate(d) {
+  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+}
+
 /**
  * Compiles presence logs for a given date range across all active members.
  * Reads tbl_presence_baselines and tbl_leaves, and writes into tbl_presence_log.
@@ -448,10 +453,14 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   var currentGenTimestamp = (typeof formatDateIso === "function" ? formatDateIso(now) : "") + " " +
     ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2) + ":" + ("0" + now.getSeconds()).slice(-2);
 
+  var publicHolidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
+
   for (var w = 0; w < allCalendarDays.length; w++) {
     var wDate = allCalendarDays[w];
     var isWeekendDay = (wDate.getDay() === 0 || wDate.getDay() === 6);
     var wDateStr = typeof formatDateIso === "function" ? formatDateIso(wDate) : String(wDate).substring(0, 10);
+    // Public holiday: nothing is logged unless someone enters it by hand (ADR 0043)
+    var isPublicHoliday = !!publicHolidays[peIsoDate(wDate)];
     var dayName = getWeekdayName(wDate);
 
     for (var mi = 0; mi < membersList.length; mi++) {
@@ -469,6 +478,8 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
         }
         continue;
       }
+
+      if (isPublicHoliday) continue;
 
       // 1. Evaluate baseline default
       var baseLoc = resolveBaseline(mKey, wDate, dayName);
@@ -577,6 +588,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   for (var um = 0; um < membersList.length; um++) {
     var uMem = membersList[um];
     var todayVal = todayPresenceMap[uMem.key];
+    if (!todayVal && publicHolidays[peIsoDate(todayDate)]) todayVal = "Public holiday";
     if (!todayVal) {
       if (isWeekendToday) {
         var tLeave = resolveLeave(uMem.key, todayDate);

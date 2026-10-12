@@ -31,6 +31,7 @@ function onOpen(e) {
     .addSeparator()
     .addItem("Check Workspace", "showWorkspaceCheck")
     .addItem("Edit Locations", "showLocationsTab")
+    .addItem("Edit Holidays", "showHolidaysTab")
     .addToUi();
 
   // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
@@ -264,6 +265,10 @@ function showLocationsTab() {
   return safeInvokeLibrary("showLocationsTab");
 }
 
+function showHolidaysTab() {
+  return safeInvokeLibrary("showHolidaysTab");
+}
+
 function showMembersSidebar() {
   return safeInvokeLibrary("showMembersSidebar");
 }
@@ -373,6 +378,7 @@ if (typeof module !== 'undefined' && module.exports) {
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
     showLocationsTab: showLocationsTab,
     showMembersSidebar: showMembersSidebar,
+    showHolidaysTab: showHolidaysTab,
     showBackupSidebar: showBackupSidebar,
     getBackupSidebarData: getBackupSidebarData,
     saveInterimBackup: saveInterimBackup,

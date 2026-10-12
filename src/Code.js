@@ -720,6 +720,13 @@ function runNightlySyncSteps(ss, res) {
     res.steps.calendar = { error: String(e5) };
   }
 
+  // 5a. Public holidays of next year, once (ADR 0043)
+  try {
+    if (typeof seedPublicHolidays === "function") res.steps.holidays = seedPublicHolidays(ss);
+  } catch (e5a) {
+    Logger.log("[nightlySyncJob] Holidays seed note: " + e5a);
+  }
+
   // 5b. Team Birthdays calendar (ADR 0042)
   try {
     if (typeof syncBirthdayCalendar === "function") res.steps.birthdayCalendar = syncBirthdayCalendar(ss);

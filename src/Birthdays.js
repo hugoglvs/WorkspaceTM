@@ -175,16 +175,20 @@ function writeMemberBirthday(ss, row, value) {
 
 /**
  * Days announced on `asOf`: from the next day up to the next working day. On a
- * Friday that is Saturday, Sunday and Monday; on a weekend, nothing.
+ * Friday that is Saturday, Sunday and Monday; public holidays are skipped like
+ * weekends (ADR 0043); on a non-working day, nothing.
  */
-function birthdayAnnouncementDays(asOf) {
+function birthdayAnnouncementDays(asOf, holidays) {
   var d = bdMidnight(asOf);
-  if (d.getDay() === 0 || d.getDay() === 6) return [];
+  var working = function(x) {
+    return x.getDay() !== 0 && x.getDay() !== 6 && !(holidays && holidays[bdIso(x)]);
+  };
+  if (!working(d)) return [];
   var days = [];
   var next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
   while (true) {
     days.push(next);
-    if (next.getDay() !== 0 && next.getDay() !== 6) break;
+    if (working(next)) break;
     next = new Date(next.getFullYear(), next.getMonth(), next.getDate() + 1);
   }
   return days;
@@ -227,7 +231,7 @@ function sendBirthdayReminders(targetSpreadsheet, asOf) {
   var props = bdProps();
   if (props && props.getProperty(BD_PROP_SENT_ON) === bdIso(today)) { res.skipped = "already_sent_today"; return res; }
 
-  var days = birthdayAnnouncementDays(today);
+  var days = birthdayAnnouncementDays(today, (typeof readHolidays === "function") ? readHolidays(ss) : {});
   if (!days.length) return res;
   var members = readBirthdayMembers(ss).filter(function(m) { return m.status === "active"; });
 

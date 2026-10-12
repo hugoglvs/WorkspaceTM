@@ -154,3 +154,7 @@ _Avoid_: Health check, Audit
 **Birthday**:
 A Member's day and month of birth ("14 Mar"), never the year, in the last Members column. Drives the birthday reminder and the Team Birthdays calendar (ADR 0042).
 _Avoid_: Birth date, Date of birth (they imply the year)
+
+**Public Holiday**:
+A day in the hidden Holidays tab (French public holidays pre-filled, team days added by hand). Treated like a weekend by presence, Weekly Presence, KPIs, coverage, reminders and birthdays (ADR 0043).
+_Avoid_: Holiday (a personal leave type), Bank holiday

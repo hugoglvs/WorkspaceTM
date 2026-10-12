@@ -17,7 +17,8 @@ var TABLE_REGISTRY = {
   events:       { sheetName: "Events",          legacyName: "tbl_events" },
   backups:      { sheetName: "Backups",         legacyName: "tbl_backups" },
   weeklyMatrix: { sheetName: "Weekly Presence", legacyName: "view_weekly_matrix" },
-  kpiData:      { sheetName: "KPI Data",        legacyName: "fact_presence" }
+  kpiData:      { sheetName: "KPI Data",        legacyName: "fact_presence" },
+  holidays:     { sheetName: "Holidays",        legacyName: "tbl_holidays" }
 };
 
 var ARCHIVE_PREFIX = "Archive – ";

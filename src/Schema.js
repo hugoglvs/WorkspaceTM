@@ -277,6 +277,19 @@ var SCHEMA_SPEC = {
     validations: {
       status: ["Active", "Planned", "Completed", "Cancelled"]
     }
+  },
+  holidays: {
+    sheetName: "Holidays",
+    legacyName: "tbl_holidays",
+    headers: { date: "Date", name: "Holiday" },
+    columns: ["date", "name"],
+    requiredColumns: ["date"],
+    nullableColumns: ["name"],
+    strictlyProtectedColumns: [],
+    warningProtectedColumns: [],
+    protectedColumns: [],
+    columnTypes: { date: "DATE", name: "TEXT" },
+    validations: {}
   }
 };
 

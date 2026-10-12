@@ -107,6 +107,37 @@ function readCoverageLeaves(ss) {
 }
 
 /**
+ * Contracts by Member: [{start, end}] (end null = open-ended).
+ * @return {Object<string, Array<{start: (Date|null), end: (Date|null)}>>}
+ */
+function readCoverageContracts(ss) {
+  var sheet = getTable(ss, "tenures");
+  var byMember = {};
+  if (!sheet || sheet.getMaxRows() < 2) return byMember;
+  var range = sheet.getRange(2, 1, readRowLimit(sheet, 500) - 1, 5);
+  var vals = range.getValues();
+  var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
+  for (var r = 0; r < vals.length; r++) {
+    var name = backupCellName(vals[r][0], rich[r] ? rich[r][0] : null);
+    if (!name) continue;
+    (byMember[name.toLowerCase()] = byMember[name.toLowerCase()] || []).push({
+      start: parseBackupDate(vals[r][3]), end: parseBackupDate(vals[r][4])
+    });
+  }
+  return byMember;
+}
+
+/**
+ * True when the Member has a contract covering the date. A Member with no
+ * contract at all is not judged (older data), so this returns true.
+ */
+function withinContract(contracts, key, date) {
+  var list = contracts[key];
+  if (!list || !list.length) return true;
+  return list.some(function(c) { return (!c.start || c.start <= date) && (!c.end || c.end >= date); });
+}
+
+/**
  * tbl_backups rows by project_id (Active / Planned only).
  * @return {Object<string, Array<{row: number, primary: string, backup: string, startDate: (Date|null), endDate: (Date|null)}>>}
  */
@@ -240,11 +271,15 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
 
   var leaves = readCoverageLeaves(ss);
   var assignments = readBackupAssignments(ss);
+  var coverageHolidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
+  var contracts = readCoverageContracts(ss);
 
   // Absence of a Member on a date: null, "approved" or "requested"
   function absence(name, date) {
     if (!name) return "approved";
     var key = name.toLowerCase();
+    // Outside every contract (left, or not started yet): not available (ADR 0043)
+    if (!withinContract(contracts, key, date)) return "approved";
     var found = null;
     var list = leaves[key] || [];
     for (var i = 0; i < list.length; i++) {
@@ -288,6 +323,11 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
       (leaves[String(n || "").toLowerCase()] || []).forEach(function(l) { if (l.endDate > last) last = l.endDate; });
     });
     var cap = addDays(todayDate, COVERAGE_HORIZON_DAYS);
+    // Someone whose contracts all end within the horizon is missing from then on
+    people.forEach(function(n) {
+      var list = contracts[String(n || "").toLowerCase()];
+      if (list && list.length && !list.some(function(c) { return !c.end; })) last = cap;
+    });
     return last > cap ? cap : last;
   }
 
@@ -338,7 +378,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     var open = null;
     var horizon = horizonFor(project);
     for (var d = new Date(todayDate.getTime()); d <= horizon; d = addDays(d, 1)) {
-      if (isWeekendDay(d)) continue;
+      if (isWeekendDay(d) || coverageHolidays[formatBackupDateIso(d)]) continue;
       var who = responsibleOn(project, d);
       if (who.name) { open = null; continue; }
       var kind = who.pending ? "warning" : "conflict";
@@ -365,6 +405,9 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     var isConflict = !!conflictPeriods.length;
     var reason = (isConflict ? "Nobody available" : "Nobody available if pending leave requests are approved") +
       " (" + startStr + (endStr !== startStr ? " to " + endStr : "") + ")";
+    if (!withinContract(contracts, project.lead.toLowerCase(), first.start)) {
+      reason += ": " + project.lead + "'s contract ends, so the project needs a new lead";
+    }
 
     var leadEmail = membersRoster[project.lead.toLowerCase()] ? membersRoster[project.lead.toLowerCase()].email : "";
     var recipients = [];
@@ -556,6 +599,8 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     backupCellName: backupCellName,
+    readCoverageContracts: readCoverageContracts,
+    withinContract: withinContract,
     parseBackupDate: parseBackupDate,
     formatBackupDateIso: formatBackupDateIso,
     readCoverageLeaves: readCoverageLeaves,

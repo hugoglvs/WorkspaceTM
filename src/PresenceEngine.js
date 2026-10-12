@@ -613,7 +613,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   }
 
   // 9. Reapply protections so newly created log rows are protected while keeping empty rows open
-  if (typeof applyProtections === "function") {
+  if (typeof applyProtections === "function" && createdCount > 0) {
     try {
       applyProtections(ss);
     } catch (eProt) {

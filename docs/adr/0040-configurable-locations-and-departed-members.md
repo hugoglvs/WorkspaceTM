@@ -15,7 +15,9 @@ Accepted (2026-10-12)
 4. **Type drives KPIs:** `KPI Data.category` is `office`, `client_site` or `remote` (plus leave / off / not_logged); client-site periods count as worked days. Unlisted (older) names are still guessed from their wording.
 5. **Defaults:** a weekday without a routine defaults to the first active Office (OneRoof). The sidebar presets "All Office", "All Remote" and "Hybrid" use the first active Office and Remote locations.
 6. **Weekly Presence colours** follow the type: Office green, Client site blue, Remote purple, leaves red, Off grey.
-7. **Departed Members** are hidden in Weekly Presence (columns hidden, not removed; anyone can unhide them). Upcoming and No Contract Members stay visible. Columns are unhidden before each rebuild, so a returning Member reappears.
+7. **Retired location still in use:** unticking Active shows a toast (no blocking) naming how many ongoing Routines (with Member names) and future Weekly Presence days still use it, so someone updates them via *Declare Presence & Leaves* or Weekly Presence. Past days are history and are not counted.
+8. **Members Status** (`tenure_status`) shows a dropdown of `Active / Upcoming / Departed / No Contract`, for readability; the value is still computed from Contracts.
+9. **Departed Members** are hidden in Weekly Presence (columns hidden, not removed; anyone can unhide them). Upcoming and No Contract Members stay visible. Columns are unhidden before each rebuild, so a returning Member reappears.
 
 ## Consequences
 - `Off` and leave types stay built in; they are not places.

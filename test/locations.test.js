@@ -160,3 +160,51 @@ test('editing Locations refreshes the dropdowns, and the menu can show the hidde
   assert.strictEqual(sheet.isSheetHidden(), false);
   assert.strictEqual(sheet.activated, true);
 });
+
+test('Members: Status is a dropdown of the four statuses the sync writes', () => {
+  freshInit(mockSpreadsheet);
+
+  var members = Sheets.Spreadsheets.tables.find(t => t.sheetId === getTable(mockSpreadsheet, 'members').getSheetId());
+  var status = members.columnProperties.find(c => c.columnName === 'Status');
+  assert.strictEqual(status.columnType, 'DROPDOWN');
+  assert.deepStrictEqual(status.dataValidationRule.condition.values.map(v => v.userEnteredValue), ['Active', 'Upcoming', 'Departed', 'No Contract']);
+});
+
+function retire(name) {
+  var sheet = getTable(mockSpreadsheet, 'locations');
+  var row = sheet.getRange(2, 1, 10, 1).getValues().findIndex(r => r[0] === name) + 2;
+  sheet.getRange(row, 3).setValue(false);
+  code.onEdit({ range: sheet.getRange(row, 3), value: 'FALSE', source: mockSpreadsheet });
+}
+
+test('retiring a location warns about routines and future days that still use it', () => {
+  freshInit(mockSpreadsheet);
+  seedMembers([['Alice', '', '', 'Dev', 'Eng', 'Active', ''], ['Bob', '', '', 'Dev', 'Eng', 'Active', '']]);
+  getTable(mockSpreadsheet, 'baselines').getRange(2, 1, 3, 7).setValues([
+    ['b1', 'Alice', '2026-01-01', '', 'Monday', 'C04', 'C04'],           // ongoing: counts
+    ['b2', 'Bob', '2026-01-01', '2026-02-01', 'Monday', 'C04', 'C04'],   // ended: ignored
+    ['b3', 'Bob', '2026-01-01', '', 'Tuesday', 'OneRoof', 'OneRoof']
+  ]);
+  getTable(mockSpreadsheet, 'presenceLog').getRange(2, 1, 2, 6).setValues([
+    ['l1', '2099-01-05', 'Bob', 'C04', 'OneRoof', ''],    // future: counts
+    ['l2', '2026-01-05', 'Alice', 'C04', 'C04', '']       // past: history, ignored
+  ]);
+
+  retire('C04');
+
+  var toast = mockSpreadsheet.lastToast;
+  assert.ok(toast, 'a toast is shown');
+  assert.ok(toast.msg.includes('C04'));
+  assert.ok(toast.msg.includes('1 routine') && toast.msg.includes('Alice'), toast.msg);
+  assert.ok(toast.msg.includes('1 future day'), toast.msg);
+});
+
+test('retiring an unused location shows no warning', () => {
+  freshInit(mockSpreadsheet);
+  seedMembers([['Alice', '', '', 'Dev', 'Eng', 'Active', '']]);
+  mockSpreadsheet.lastToast = null;
+
+  retire('C60');
+
+  assert.ok(!mockSpreadsheet.lastToast || !mockSpreadsheet.lastToast.msg.includes('C60'));
+});

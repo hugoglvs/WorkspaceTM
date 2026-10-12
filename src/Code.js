@@ -892,6 +892,8 @@ function handleSheetEdit(e) {
     try {
       refreshLocationDropdowns(SpreadsheetApp.getActiveSpreadsheet() || sheet.getParent());
       if (typeof refreshWeeklyMatrix === "function") refreshWeeklyMatrix(sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
+      // Last, so its toast is not replaced by the refresh toast
+      if (typeof warnRetiredLocation === "function") warnRetiredLocation(e);
     } catch (errLoc) {
       Logger.log("onEdit locations refresh note: " + errLoc);
     }

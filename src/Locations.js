@@ -142,6 +142,95 @@ function refreshLocationDropdowns(ss) {
   return updated;
 }
 
+function locIsoDate(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.getFullYear() + "-" + ("0" + (v.getMonth() + 1)).slice(-2) + "-" + ("0" + v.getDate()).slice(-2);
+  }
+  var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  var d = new Date(String(v || ""));
+  return isNaN(d.getTime()) ? "" : locIsoDate(d);
+}
+
+/**
+ * Where a location is still planned: ongoing or future routines, and Presence Log
+ * days from today on. Past days are history and are not counted.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} name
+ * @param {Date} [asOf] Defaults to today
+ * @return {{routineMembers: string[], routineCount: number, futureDays: number}}
+ */
+function findLocationUsage(ss, name, asOf) {
+  var todayIso = locIsoDate(asOf || new Date());
+  var key = String(name || "").trim().toLowerCase();
+  var res = { routineMembers: [], routineCount: 0, futureDays: 0 };
+  var read = function(sheet, numCols) {
+    if (!sheet || sheet.getMaxRows() < 2) return { vals: [], rich: [] };
+    var range = sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 2000) - 1, numCols);
+    return { vals: range.getValues(), rich: (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [] };
+  };
+  var memberOf = function(data, r, c) {
+    var raw = data.vals[r][c];
+    return (typeof extractCellValue === "function") ? extractCellValue(raw, data.rich[r] ? data.rich[r][c] : null) : String(raw || "").trim();
+  };
+
+  // Routines: baseline_id, member, start_date, end_date, day_of_week, location_am, location_pm
+  var routines = read(getTable(ss, "baselines"), 7);
+  for (var r = 0; r < routines.vals.length; r++) {
+    var row = routines.vals[r];
+    var member = memberOf(routines, r, 1);
+    if (!member) continue;
+    var end = locIsoDate(row[3]);
+    if (end && end < todayIso) continue;
+    if (String(row[5]).trim().toLowerCase() === key || String(row[6]).trim().toLowerCase() === key) {
+      res.routineCount++;
+      if (res.routineMembers.indexOf(member) === -1) res.routineMembers.push(member);
+    }
+  }
+
+  // Presence Log: log_id, date, member, location_am, location_pm, timestamp
+  var log = read(getTable(ss, "presenceLog"), 5);
+  for (var l = 0; l < log.vals.length; l++) {
+    var date = locIsoDate(log.vals[l][1]);
+    if (!date || date < todayIso) continue;
+    if (String(log.vals[l][3]).trim().toLowerCase() === key || String(log.vals[l][4]).trim().toLowerCase() === key) res.futureDays++;
+  }
+  return res;
+}
+
+/**
+ * onEdit hook on the Locations tab: when a location is retired (Active unticked),
+ * a toast lists the routines and future days that still use it.
+ *
+ * @param {Object} e Apps Script onEdit event object
+ * @return {Object|null} The usage found, or null when nothing to report
+ */
+function warnRetiredLocation(e) {
+  if (!e || !e.range || e.range.getRow() < 2) return null;
+  var sheet = e.range.getSheet();
+  var row = sheet.getRange(e.range.getRow(), 1, 1, 3).getValues()[0];
+  var name = String(row[0] || "").trim();
+  if (!name || isTruthyCell(row[2])) return null;
+
+  var ss = e.source || sheet.getParent();
+  var usage = findLocationUsage(ss, name);
+  if (!usage.routineCount && !usage.futureDays) return null;
+
+  var parts = [];
+  if (usage.routineCount) {
+    parts.push(usage.routineCount + " routine" + (usage.routineCount > 1 ? "s" : "") + " (" + usage.routineMembers.join(", ") + ")");
+  }
+  if (usage.futureDays) {
+    parts.push(usage.futureDays + " future day" + (usage.futureDays > 1 ? "s" : "") + " in Weekly Presence");
+  }
+  try {
+    ss.toast(name + " is now inactive but is still used by " + parts.join(" and ") +
+      ". Update them with Declare Presence & Leaves, or in Weekly Presence.", "Location still in use", 12);
+  } catch (eToast) {}
+  return usage;
+}
+
 /** Menu action: shows the hidden Locations tab so it can be edited. */
 function showLocationsTab() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -169,6 +258,8 @@ if (typeof module !== 'undefined' && module.exports) {
     seedDefaultLocations: seedDefaultLocations,
     schemaValidationsFor: schemaValidationsFor,
     refreshLocationDropdowns: refreshLocationDropdowns,
-    showLocationsTab: showLocationsTab
+    showLocationsTab: showLocationsTab,
+    findLocationUsage: findLocationUsage,
+    warnRetiredLocation: warnRetiredLocation
   };
 }

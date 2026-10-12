@@ -52,10 +52,13 @@ var SCHEMA_SPEC = {
       phone_number: "TEXT",
       current_role: "TEXT",
       current_department: "TEXT",
-      tenure_status: "TEXT",
+      tenure_status: "DROPDOWN",
       today_presence: "TEXT"
     },
-    validations: {}
+    validations: {
+      // The four values syncMembersAndTenures writes (shown as coloured chips)
+      tenure_status: ["Active", "Upcoming", "Departed", "No Contract"]
+    }
   },
   tenures: {
     sheetName: "Contracts",

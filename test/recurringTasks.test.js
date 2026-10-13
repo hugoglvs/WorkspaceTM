@@ -228,7 +228,7 @@ test('Google Tasks per person: a reassigned task leaves the old list and reaches
   assert.deepStrictEqual(gList('listB2').map(t => t.title), ['Quiz']);
 });
 
-test('Google Tasks per person: ticked in Google Tasks marks Done with Done on / Done by', () => {
+test('Google Tasks per person: ticked in Google Tasks marks Done with Done on', () => {
   seed();
   var m = rtMembers(mockSpreadsheet);
   var t = createTaskRow(mockSpreadsheet, { member: m[0], title: 'Time & expenses', due: toDate('2026-10-30'), type: 'Time & expenses' });
@@ -240,7 +240,6 @@ test('Google Tasks per person: ticked in Google Tasks marks Done with Done on / 
   var row = readTaskRows(mockSpreadsheet).filter(x => x.row === t.row)[0];
   assert.strictEqual(row.status, 'Done');
   assert.ok(row.doneOn, 'Done on stamped');
-  assert.strictEqual(row.doneBy, 'Alice');
 });
 
 test('Connect my Google Tasks: installs one hourly job per person and records them', () => {

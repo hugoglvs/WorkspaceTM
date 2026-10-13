@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -101,7 +101,7 @@ test('coverage: an uncovered day is a conflict with red row, email and task', ()
   assert.deepStrictEqual(res.conflicts[0].periods, [{ kind: 'conflict', start: '2026-06-10', end: '2026-06-12' }]);
   assert.strictEqual(mockSpreadsheet.getSheetByName('Projects').getRange(2, 1, 1, 8).getBackground(), '#F8D7DA');
   assert.ok(global.MailApp.getSentEmails()[0].subject.startsWith('[ACTION REQUIRED]'));
-  var task = mockSpreadsheet.getSheetByName('Tasks').getRange(2, 1, 1, 8).getValues()[0];
+  var task = getLegacyTasks(mockSpreadsheet.getSheetByName('Tasks'), 2, 1, 8)[0];
   assert.strictEqual(task[3], 'Organize interim backup for project Phoenix');
   assert.strictEqual(task[2], 'Bob', 'lead already away today, so the backup organises it');
 });
@@ -119,7 +119,7 @@ test('coverage: a leave request that would leave nobody available is a warning, 
   assert.deepStrictEqual(res.warnings[0].periods, [{ kind: 'warning', start: '2026-06-11', end: '2026-06-11' }]);
   assert.strictEqual(mockSpreadsheet.getSheetByName('Projects').getRange(2, 1, 1, 8).getBackground(), '#FCE8B2');
   assert.ok(global.MailApp.getSentEmails()[0].subject.startsWith('[WARNING]'));
-  assert.strictEqual(mockSpreadsheet.getSheetByName('Tasks').getRange(2, 1).getValue(), '', 'no task for a warning');
+  assert.strictEqual(mockSpreadsheet.getSheetByName('Tasks').getRange(2, legacyTaskCol(1)).getValue(), '', 'no task for a warning');
 });
 
 test('permanent backup: mirrored into tbl_backups, and a change keeps the history', () => {

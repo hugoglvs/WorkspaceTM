@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -43,13 +43,13 @@ function typeTaskTitle(spreadsheet, title) {
   spreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([
     ['Alice Smith', 'alice@accenture.com', '', 'Senior Eng', 'Core', 'Active', 'Main Office']
   ]);
-  var titleRange = spreadsheet.getSheetByName('Tasks').getRange(2, 4);
+  var titleRange = spreadsheet.getSheetByName('Tasks').getRange(2, legacyTaskCol(4));
   titleRange.setValue(title);
   return { range: titleRange, value: title, source: spreadsheet };
 }
 
 function taskRow(spreadsheet) {
-  return spreadsheet.getSheetByName('Tasks').getRange(2, 1, 1, 8).getValues()[0];
+  return getLegacyTasks(spreadsheet.getSheetByName('Tasks'), 2, 1, 8)[0];
 }
 
 test('nightlySyncJob: exits with lock_timeout and runs no step while another sync holds the spreadsheet lock', () => {

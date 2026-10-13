@@ -3,6 +3,51 @@
  * Ticket 01: Core Schema & Typography Initializer
  */
 
+function initNorm(s) {
+  return String(s === null || s === undefined ? "" : s).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * True when a table holding data has a known column (by key, readable label or
+ * former label) at another position than the schema says, i.e. a release
+ * reordered or removed columns. A column added at the end, or a renamed label
+ * in place, is not a move.
+ */
+function columnsMoved(sheet, config) {
+  if (!sheet || sheet.getLastRow() < 2 || sheet.getLastColumn() < 1) return false;
+  var data = sheet.getRange(2, 1, Math.min(sheet.getLastRow(), 500) - 1, sheet.getLastColumn()).getValues();
+  var hasData = data.some(function(row) { return row.some(function(v) { return v !== "" && v !== null && v !== false; }); });
+  if (!hasData) return false;
+  var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var known = {};
+  config.columns.forEach(function(key, i) {
+    known[initNorm(key)] = i;
+    if (config.headers && config.headers[key]) known[initNorm(config.headers[key])] = i;
+    ((config.formerHeaders || {})[key] || []).forEach(function(h) { known[initNorm(h)] = i; });
+  });
+  ((config.removedHeaders) || []).forEach(function(h) { known[initNorm(h)] = -1; });
+  for (var c = 0; c < header.length; c++) {
+    var n = initNorm(header[c]);
+    if (n && known.hasOwnProperty(n) && known[n] !== c) return true;
+  }
+  return false;
+}
+
+/** Renames a table whose columns moved to "Archive – <tab> <date>", hidden, and forgets its sheet ID. */
+function archiveMovedTable(ss, tableKey, config, sheet) {
+  var d = new Date();
+  var stamp = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  var base = (typeof ARCHIVE_PREFIX !== "undefined" ? ARCHIVE_PREFIX : "Archive – ") + config.sheetName + " " + stamp;
+  var name = base, n = 2;
+  while (ss.getSheetByName(name)) name = base + " (" + (n++) + ")";
+  sheet.setName(name);
+  try { sheet.hideSheet(); } catch (eHide) {}
+  var props = (typeof tableDocProps === "function") ? tableDocProps() : null;
+  if (props && typeof tableIdProperty === "function") props.deleteProperty(tableIdProperty(tableKey));
+  Logger.log("Columns of '" + config.sheetName + "' changed: old tab kept as '" + name + "', table rebuilt.");
+  return name;
+}
+
 /**
  * Initializes a Google Spreadsheet from scratch with the 8 core operational tables.
  * Applies 12px "Google Sans", frozen header rows, table row banding,
@@ -27,6 +72,13 @@ function freshInit(targetSpreadsheet) {
     var sheet = getTable(ss, tableKey);
     var isNew = false;
 
+    // Columns reordered or removed by a release: keep the old tab as an archive
+    // and build the table again (ADR 0051), rather than shifting data under new headers
+    if (sheet && columnsMoved(sheet, config)) {
+      archiveMovedTable(ss, tableKey, config, sheet);
+      sheet = null;
+    }
+
     if (!sheet) {
       sheet = ss.insertSheet(config.sheetName);
       isNew = true;
@@ -42,6 +94,7 @@ function freshInit(targetSpreadsheet) {
     }
 
     var rowCount = Math.max(sheet.getMaxRows(), 50);
+
 
     // 1. Write Header Row
     var headerRange = sheet.getRange(1, 1, 1, colCount);
@@ -70,6 +123,33 @@ function freshInit(targetSpreadsheet) {
       schemaHeaderRow(config)
     );
 
+
+    // Columns beyond the schema that belonged to it (e.g. a column moved or removed by a
+    // release, on a table without data): cleared once the table was narrowed above, so
+    // no stray header remains (ADR 0051)
+    if (!isNew && sheet.getLastColumn() > colCount) {
+      var extra = sheet.getRange(1, colCount + 1, 1, sheet.getLastColumn() - colCount).getValues()[0];
+      var knownHeaders = {};
+      config.columns.forEach(function(k) {
+        knownHeaders[initNorm(k)] = true;
+        if (config.headers && config.headers[k]) knownHeaders[initNorm(config.headers[k])] = true;
+        ((config.formerHeaders || {})[k] || []).forEach(function(h) { knownHeaders[initNorm(h)] = true; });
+      });
+      (config.removedHeaders || []).forEach(function(h) { knownHeaders[initNorm(h)] = true; });
+      extra.forEach(function(h, i) {
+        if (!knownHeaders[initNorm(h)]) return;
+        try { sheet.getRange(1, colCount + 1 + i, Math.max(sheet.getLastRow(), 1), 1).clearContent(); }
+        catch (eClr) { Logger.log("Former column " + h + " of " + config.sheetName + " not cleared: " + eClr); }
+      });
+    }
+
+    // 5. Technical columns stay in the table, hidden (ADR 0051)
+    (config.hiddenColumns || []).forEach(function(key) {
+      var idx = config.columns.indexOf(key) + 1;
+      if (idx > 0 && typeof sheet.hideColumns === "function") {
+        try { sheet.hideColumns(idx); } catch (eHide) { Logger.log("Hide column note: " + eHide); }
+      }
+    });
 
     // 6. Register Named Range for table
     // Named ranges cannot contain spaces: keep the stable technical name

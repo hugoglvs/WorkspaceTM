@@ -258,10 +258,12 @@ function findLeaverHandovers(ss, today, members) {
       if (who && leaving[who.toLowerCase()]) items.push(name + ": " + role[0] + " " + who + " " + leaving[who.toLowerCase()]);
     });
   });
-  readTableRows(getTable(ss, "tasks"), 7, 1000).forEach(function(r) {
-    var title = String(r.vals[3] || "").trim();
-    var status = String(r.vals[6] || "").trim().toLowerCase();
-    var who = cellName(r.vals[2], r.rich[2]);
+  var tc = {};
+  SCHEMA_SPEC.tasks.columns.forEach(function(k, i) { tc[k] = i; });
+  readTableRows(getTable(ss, "tasks"), SCHEMA_SPEC.tasks.columns.length, 1000).forEach(function(r) {
+    var title = String(r.vals[tc.title] || "").trim();
+    var status = String(r.vals[tc.status] || "").trim().toLowerCase();
+    var who = cellName(r.vals[tc.assigned_member], r.rich[tc.assigned_member]);
     if (!title || !who || status === "done" || status === "completed" || status === "cancelled") return;
     if (leaving[who.toLowerCase()]) items.push("Task \"" + title + "\": " + who + " " + leaving[who.toLowerCase()]);
   });

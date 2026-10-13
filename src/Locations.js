@@ -196,6 +196,14 @@ function schemaValidationsFor(ss, config) {
     if (!tt.hasOwnProperty(tcol)) continue;
     validations[tcol] = (typeof taskTypeNames === "function") ? taskTypeNames(ss) : [];
   }
+  // "Created when" lists the task triggers (ADR 0051)
+  var trig = config.triggerColumns || {};
+  for (var gcol in trig) {
+    if (!trig.hasOwnProperty(gcol)) continue;
+    var labels = (typeof taskTriggerLabels === "function") ? taskTriggerLabels()
+      : (typeof require !== "undefined" ? require("./TaskTriggers").taskTriggerLabels() : []);
+    validations[gcol] = labels;
+  }
   return validations;
 }
 

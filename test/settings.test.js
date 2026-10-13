@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 const schema = require('../src/Schema');
@@ -65,18 +65,11 @@ test('Settings: the default role is used by the Members formulas, and an edit re
   assert.ok(members.getRange(2, 4).getFormula().includes('"Analyst ""junior"""'), 'quotes escaped in the formula');
 });
 
-test('Settings: onboarding task project, title and description', () => {
+test('Settings: the former onboarding rows are cleared on upgrade (onboarding is a Task Type now)', () => {
   var sheet = ss.getSheetByName('Settings');
-  sheet.getRange(settingRow('Onboarding project ID'), 2).setValue('WELCOME');
-  sheet.getRange(settingRow('Onboarding task title'), 2).setValue('Say hello');
-  ss.getSheetByName('Contracts').getRange(2, 1, 1, 7).setValues([['Ines', 'Dev', 'FAL ME', '2025-01-01', '', 'Permanent', 100]]);
-
-  syncMembersAndTenures(ss);
-
-  var task = ss.getSheetByName('Tasks').getRange(2, 1, 1, 5).getValues()[0];
-  assert.strictEqual(task[1], 'WELCOME');
-  assert.strictEqual(task[3], 'Say hello');
-  assert.match(task[4], /Members tab/);
+  sheet.getRange(10, 1, 1, 3).setValues([['Onboarding task title', 'Say hello', 'old']]);
+  settings.seedDefaultSettings(ss);
+  assert.strictEqual(settingRow('Onboarding task title'), 0);
 });
 
 test('Settings: Public holidays = None stops adding French holidays', () => {

@@ -8,10 +8,13 @@
  * ("20"), "Last working day" or "First working day". A due date that falls on a
  * weekend or public holiday moves to the working day before (after, for "First
  * working day"). Mandatory types are the audited ones (reminders, overdue list).
+ * Created when / Days after / Assign to / Instructions (ADR 0051): a type created
+ * by an event (src/TaskTriggers.js), e.g. Onboarding when a new member arrives.
  */
 
+var ONBOARDING_INSTRUCTIONS = "Welcome! Please enter your Accenture email address and phone number in the Members tab (columns Accenture email and Phone).";
 var DEFAULT_TASK_TYPES = [
-  ["Onboarding", "One-off", "Friday", false, true],
+  ["Onboarding", "One-off", "", false, true, "New member", 7, "Person concerned", ONBOARDING_INSTRUCTIONS],
   ["Quiz", "Weekly", "Friday", false, true],
   ["Team presentation", "Weekly", "Thursday", false, true],
   ["Peer review", "Monthly", "Last working day", true, true],
@@ -40,30 +43,35 @@ function normalizeFrequency(f) {
   return "Weekly";
 }
 
+function ttFromRow(v) {
+  var activeCell = v[4];
+  var days = parseInt(v[6], 10);
+  return {
+    name: String(v[0] || "").trim(), frequency: normalizeFrequency(v[1]), due: String(v[2] || "").trim(),
+    mandatory: ttTruthy(v[3]),
+    active: (activeCell === "" || activeCell === null || activeCell === undefined) ? true : ttTruthy(activeCell),
+    createdWhen: String(v[5] || "").trim(), daysAfter: isNaN(days) ? 0 : days,
+    assignTo: String(v[7] || "").trim(), instructions: String(v[8] || "").trim()
+  };
+}
+
 /**
  * Every task type, in tab order. Falls back to the defaults when the tab is
  * missing or empty.
- * @return {Array<{name: string, frequency: string, due: string, mandatory: boolean, active: boolean}>}
+ * @return {Array<{name: string, frequency: string, due: string, mandatory: boolean, active: boolean,
+ *   createdWhen: string, daysAfter: number, assignTo: string, instructions: string}>}
  */
 function readTaskTypes(ss) {
   var sheet = (ss && typeof getTable === "function") ? getTable(ss, "taskTypes") : null;
   var list = [];
   if (sheet && sheet.getMaxRows() > 1) {
-    var vals = sheet.getRange(2, 1, readRowLimit(sheet, 100) - 1, 5).getValues();
+    var vals = sheet.getRange(2, 1, readRowLimit(sheet, 100) - 1, 9).getValues();
     for (var r = 0; r < vals.length; r++) {
-      var name = String(vals[r][0] || "").trim();
-      if (!name) continue;
-      var activeCell = vals[r][4];
-      list.push({
-        name: name, frequency: normalizeFrequency(vals[r][1]), due: String(vals[r][2] || "").trim(),
-        mandatory: ttTruthy(vals[r][3]),
-        active: (activeCell === "" || activeCell === null || activeCell === undefined) ? true : ttTruthy(activeCell)
-      });
+      if (!String(vals[r][0] || "").trim()) continue;
+      list.push(ttFromRow(vals[r]));
     }
   }
-  if (!list.length) {
-    list = DEFAULT_TASK_TYPES.map(function(d) { return { name: d[0], frequency: d[1], due: d[2], mandatory: d[3], active: d[4] }; });
-  }
+  if (!list.length) list = DEFAULT_TASK_TYPES.map(ttFromRow);
   return list;
 }
 
@@ -83,9 +91,34 @@ function seedDefaultTaskTypes(ss) {
   var sheet = getTable(ss, "taskTypes");
   if (!sheet) return 0;
   var existing = sheet.getMaxRows() > 1 ? sheet.getRange(2, 1, Math.min(sheet.getMaxRows(), 50) - 1, 1).getValues() : [];
-  if (existing.some(function(r) { return String(r[0] || "").trim(); })) return 0;
-  sheet.getRange(2, 1, DEFAULT_TASK_TYPES.length, 5).setValues(DEFAULT_TASK_TYPES);
+  if (existing.some(function(r) { return String(r[0] || "").trim(); })) {
+    upgradeTaskTypeTriggers(ss, sheet);
+    return 0;
+  }
+  sheet.getRange(2, 1, DEFAULT_TASK_TYPES.length, 9).setValues(DEFAULT_TASK_TYPES);
   return DEFAULT_TASK_TYPES.length;
+}
+
+/**
+ * Once per sheet (ADR 0051): default types already in the tab get their
+ * trigger columns (Onboarding: New member, 7 days, Person concerned) when
+ * those are still empty. Never runs again, so a team can clear them.
+ */
+function upgradeTaskTypeTriggers(ss, sheet) {
+  var props = null;
+  try { props = (typeof PropertiesService !== "undefined") ? PropertiesService.getDocumentProperties() : null; } catch (eP) {}
+  if (!props || props.getProperty("TASK_TRIGGERS_SEEDED")) return 0;
+  var n = readRowLimit(sheet, 100) - 1;
+  var vals = n > 0 ? sheet.getRange(2, 1, n, 9).getValues() : [];
+  var updated = 0;
+  vals.forEach(function(v, i) {
+    var d = DEFAULT_TASK_TYPES.filter(function(x) { return x[5] && x[0].toLowerCase() === String(v[0] || "").trim().toLowerCase(); })[0];
+    if (!d || String(v[5] || "").trim()) return;
+    sheet.getRange(i + 2, 6, 1, 4).setValues([[d[5], d[6], d[7], d[8]]]);
+    updated++;
+  });
+  props.setProperty("TASK_TRIGGERS_SEEDED", "1");
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +224,7 @@ function showTaskTypesTab() {
   if (sheet.isSheetHidden()) sheet.showSheet();
   sheet.activate();
   try {
-    ss.toast("Due: a weekday for weekly types, a day number or \"Last working day\" for monthly ones. Mandatory = audited (reminders). Hide the tab again when done.", "Task Types", 10);
+    ss.toast("Due: a weekday for weekly types, a day number or \"Last working day\" for monthly ones. Mandatory = audited (reminders). Created when: an event that creates the task, Days after it, Assign to (Person concerned, Role: X or names), Instructions. Hide the tab again when done.", "Task Types", 12);
   } catch (eToast) {}
   return { success: true };
 }
@@ -203,6 +236,7 @@ if (typeof module !== 'undefined' && module.exports) {
     taskTypeNames: taskTypeNames,
     findTaskType: findTaskType,
     seedDefaultTaskTypes: seedDefaultTaskTypes,
+    upgradeTaskTypeTriggers: upgradeTaskTypeTriggers,
     normalizeFrequency: normalizeFrequency,
     isoWeekKey: isoWeekKey,
     periodOf: periodOf,

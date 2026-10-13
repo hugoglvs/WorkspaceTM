@@ -220,7 +220,8 @@ function getTaskColumnMap(tasksSheet) {
     dueDate: 6,
     status: 7,
     googleTaskId: 8,
-    plannedDate: 0
+    plannedDate: 0,
+    origin: 0
   };
   if (!tasksSheet) return map;
   var lastCol = Math.max(typeof tasksSheet.getLastColumn === "function" ? (tasksSheet.getLastColumn() || 0) : 0, 8);
@@ -246,6 +247,8 @@ function getTaskColumnMap(tasksSheet) {
       map.dueDate = c + 1;
     } else if (norm === "planneddate" || norm === "planned") {
       map.plannedDate = c + 1;
+    } else if (norm === "origin" || norm === "recurring" || norm === "recurrence") {
+      map.origin = c + 1;
     } else if (norm === "status" || norm === "state") {
       map.status = c + 1;
     } else if (norm === "googletaskid" || norm === "gtaskid" || norm === "googletasks" || norm === "googletask") {
@@ -480,8 +483,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
           statusUpdates.push({
             row: sheetRowIndex,
             col: colMap.status,
-            status: "Done",
-            by: assignedMember
+            status: "Done"
           });
           pulledUpdatesCount++;
         } else if (gStatus !== targetGStatus) {
@@ -530,13 +532,13 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     }
   }
 
-  // 4. Batch write back status updates (ticked in Google Tasks: Done on / Done by, ADR 0045)
+  // 4. Batch write back status updates (ticked in Google Tasks: Done on, ADR 0045 / 0051)
   if (statusUpdates.length > 0) {
     for (var s = 0; s < statusUpdates.length; s++) {
       var sUpdate = statusUpdates[s];
       tasksSheet.getRange(sUpdate.row, sUpdate.col).setValue(sUpdate.status);
       if (typeof stampTaskDone === "function" && typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC.tasks.columns.indexOf("done_on") !== -1) {
-        try { stampTaskDone(tasksSheet, sUpdate.row, sUpdate.status, sUpdate.by || ""); } catch (eStamp) {}
+        try { stampTaskDone(tasksSheet, sUpdate.row, sUpdate.status); } catch (eStamp) {}
       }
     }
   }
@@ -738,6 +740,10 @@ function createGoogleTaskForTaskRow(tasksSheet, rowIndex) {
     taskId = generateTaskId();
     tasksSheet.getRange(rowIndex, colMap.taskId).setValue(taskId);
     rowVals[colMap.taskId - 1] = taskId;
+    // A row typed by hand (ADR 0051)
+    if (colMap.origin > 0 && !String(rowVals[colMap.origin - 1] || "").trim()) {
+      tasksSheet.getRange(rowIndex, colMap.origin).setValue("manual");
+    }
   }
 
   // 2. Default Status to Todo if missing

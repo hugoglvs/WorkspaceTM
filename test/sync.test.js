@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -37,6 +37,7 @@ const { onEdit } = require('../src/Code');
 
 test('syncMembersAndTenures should populate tbl_members from tbl_tenures and create onboarding task', () => {
   freshInit(mockSpreadsheet);
+  var start = isoDate(new Date());
   var tenuresSheet = mockSpreadsheet.getSheetByName('Contracts');
   var membersSheet = mockSpreadsheet.getSheetByName('Members');
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
@@ -46,7 +47,7 @@ test('syncMembersAndTenures should populate tbl_members from tbl_tenures and cre
     'sarah.connor@accenture.com',
     'Tech Lead',
     'Cloud First',
-    '2026-01-01',
+    start,
     '',
     'Permanent',
     1.0
@@ -66,14 +67,18 @@ test('syncMembersAndTenures should populate tbl_members from tbl_tenures and cre
   assert.strictEqual(memberRow[4], 'Cloud First');
   assert.strictEqual(memberRow[5], 'Active');
 
-  // Check tbl_tasks: onboarding task created for sarah.connor@accenture.com
-  // Columns: task_id(0), project_id(1), assigned_member(2), title(3), description(4), due_date(5), status(6), google_task_id(7)
-  var taskRow = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
-  assert.strictEqual(taskRow[1], 'ONBOARDING');
+  // Onboarding task from the "New member" trigger (Task Types, ADR 0051): due 7 days after the start
+  var taskRow = getLegacyTasks(tasksSheet, 2, 1, 12)[0];
   assert.strictEqual(taskRow[2], 'sarah.connor@accenture.com');
-  assert.ok(taskRow[3].includes('enter Accenture email and phone number'));
-  assert.ok(taskRow[4].includes('enter your Accenture email address and phone number'));
+  assert.strictEqual(taskRow[3], 'Onboarding');
+  assert.ok(taskRow[4].includes('Accenture email address and phone number'));
+  assert.strictEqual(taskRow[5], shiftIso(start, 7));
   assert.strictEqual(taskRow[6], 'Todo');
+  assert.strictEqual(taskRow[8], 'Onboarding');
+  assert.strictEqual(taskRow[11], 'trigger:newMember:sarah.connor@accenture.com:Onboarding');
+
+  // A second sync creates nothing more
+  assert.strictEqual(syncMembersAndTenures(mockSpreadsheet).tasksCreated, 0);
 });
 
 test('syncMembersAndTenures should update role and tenure_status for existing members', () => {
@@ -148,10 +153,11 @@ test('syncMembersAndTenures should append multiple new members sequentially with
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Add 3 different members into tbl_tenures
+  var start = isoDate(new Date());
   tenuresSheet.getRange(2, 1, 3, 7).setValues([
-    ['alice@accenture.com', 'Dev 1', 'Engineering', '2026-01-01', '', 'Permanent', 1.0],
-    ['bob@accenture.com', 'Dev 2', 'Engineering', '2026-01-01', '', 'Contractor', 1.0],
-    ['charlie@accenture.com', 'Dev 3', 'Engineering', '2026-01-01', '', 'Permanent', 0.8]
+    ['alice@accenture.com', 'Dev 1', 'Engineering', start, '', 'Permanent', 1.0],
+    ['bob@accenture.com', 'Dev 2', 'Engineering', start, '', 'Contractor', 1.0],
+    ['charlie@accenture.com', 'Dev 3', 'Engineering', start, '', 'Permanent', 0.8]
   ]);
 
   var res = syncMembersAndTenures(mockSpreadsheet);
@@ -169,7 +175,7 @@ test('syncMembersAndTenures should append multiple new members sequentially with
   assert.strictEqual(mRows[2][3], 'Dev 3');
 
   // Check tbl_tasks rows 2, 3, 4
-  var tRows = tasksSheet.getRange(2, 1, 3, 7).getValues();
+  var tRows = getLegacyTasks(tasksSheet, 2, 3, 7);
   assert.strictEqual(tRows[0][2], 'alice@accenture.com');
   assert.strictEqual(tRows[1][2], 'bob@accenture.com');
   assert.strictEqual(tRows[2][2], 'charlie@accenture.com');

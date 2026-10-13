@@ -96,8 +96,8 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, overdue tasks, tasks falling on a leave, members not connected to Google Tasks, duplicate presence rows. |
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
-| **Edit Task Types** | Shows the hidden Task Types tab (Type, Frequency, Due rule, Mandatory, Active). |
-| **Edit Settings** | Shows the hidden Settings tab: default role and department, public holidays (France or None), onboarding task project, title and description. An empty value means the default. |
+| **Edit Task Types** | Shows the hidden Task Types tab: Type, Frequency, Due rule, Mandatory, Active, and for tasks created by an event: Created when (e.g. *New member*), Days after, Assign to (*Person concerned*, *Role: X* or names), Instructions. Onboarding is such a type. |
+| **Edit Settings** | Shows the hidden Settings tab: default role and department, public holidays (France or None). An empty value means the default. |
 
 ---
 

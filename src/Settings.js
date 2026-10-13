@@ -11,15 +11,11 @@ var SETTINGS_DEFAULTS = [
   { key: "default_department", label: "Default department", value: "Delivery",
     description: "Department shown in Members when a contract has no department." },
   { key: "public_holidays", label: "Public holidays", value: "France",
-    description: "Country whose public holidays are added to the Holidays tab each year: France, or None to add them yourself." },
-  { key: "onboarding_project_id", label: "Onboarding project ID", value: "ONBOARDING",
-    description: "Project ID of the onboarding task created for each new member." },
-  { key: "onboarding_task_title", label: "Onboarding task title", value: "Complete profile: enter Accenture email and phone number in Team Directory",
-    description: "Title of the onboarding task created for each new member." },
-  { key: "onboarding_task_description", label: "Onboarding task description",
-    value: "Please enter your Accenture email address and phone number in the Members tab (columns Accenture email and Phone).",
-    description: "Description of the onboarding task." }
+    description: "Country whose public holidays are added to the Holidays tab each year: France, or None to add them yourself." }
 ];
+
+/** Settings removed by a release; their rows are cleared on upgrade (onboarding moved to Task Types, ADR 0051). */
+var RETIRED_SETTINGS = ["Onboarding project ID", "Onboarding task title", "Onboarding task description"];
 
 function settingDefault(key) {
   var d = SETTINGS_DEFAULTS.filter(function(s) { return s.key === key; })[0];
@@ -58,7 +54,12 @@ function seedDefaultSettings(ss) {
   var sheet = getTable(ss, "settings");
   if (!sheet) return 0;
   var present = {};
-  readTableRows(sheet, 1, 100).forEach(function(r) { present[String(r.vals[0] || "").trim().toLowerCase()] = true; });
+  var retired = RETIRED_SETTINGS.map(function(l) { return l.toLowerCase(); });
+  readTableRows(sheet, 3, 100).forEach(function(r) {
+    var label = String(r.vals[0] || "").trim().toLowerCase();
+    if (retired.indexOf(label) !== -1) { sheet.getRange(r.row, 1, 1, 3).clearContent(); return; }
+    present[label] = true;
+  });
   var rows = SETTINGS_DEFAULTS.filter(function(s) { return !present[s.label.toLowerCase()] && !present[s.key]; })
     .map(function(s) { return [s.label, s.value, s.description]; });
   if (!rows.length) return 0;

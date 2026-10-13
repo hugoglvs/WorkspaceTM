@@ -94,7 +94,7 @@ function stopRecurringRule(ruleId, targetSpreadsheet, asOf) {
   var cancelled = 0;
   readTaskRows(ss).forEach(function(t) {
     if (t.ruleId === ruleId && t.due && t.due > today && isOpenStatus(t.status) && !t.manual) {
-      setTaskStatus(ss, t.row, "Cancelled", "", today);
+      setTaskStatus(ss, t.row, "Cancelled", today);
       cancelled++;
     }
   });

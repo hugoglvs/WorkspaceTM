@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -113,7 +113,7 @@ test('coverage: a leave on a public holiday is not a gap', () => {
 
 test('Check Workspace: hand-overs for people leaving, open tasks of people who left', () => {
   seed({ aliceEnd: '2026-10-30' });
-  getTable(mockSpreadsheet, 'tasks').getRange(2, 1, 2, 7).setValues([
+  setLegacyTasks(getTable(mockSpreadsheet, 'tasks'), 2, [
     ['T1', 'P1', 'Dan', 'Write the runbook', '', '', 'In Progress'],
     ['T2', 'P1', 'Dan', 'Old task', '', '', 'Done']
   ]);

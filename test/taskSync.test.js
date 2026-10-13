@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -90,7 +90,7 @@ test('syncGoogleTasks: pushes unsynced tasks with allUsers option', () => {
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed 2 unsynced tasks (columns: task_id, project_id, assigned_member, title, description, due_date, status, google_task_id)
-  tasksSheet.getRange(2, 1, 2, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-001', 'PRJ-001', 'Alice Smith', 'Implement OAuth flow', 'OAuth 2.0 flow with Google', '2026-06-30', 'Todo', ''],
     ['TSK-002', 'PRJ-001', 'Bob Jones', 'Build mobile layout', 'Responsive CSS adjustments', '2026-07-15', 'In Progress', '']
   ]);
@@ -100,7 +100,7 @@ test('syncGoogleTasks: pushes unsynced tasks with allUsers option', () => {
   assert.strictEqual(res.pushedCount, 2);
 
   // Check that google_task_id was written back to column 8
-  var updatedRows = tasksSheet.getRange(2, 1, 2, 8).getValues();
+  var updatedRows = getLegacyTasks(tasksSheet, 2, 2, 8);
   var gId1 = updatedRows[0][7];
   var gId2 = updatedRows[1][7];
 
@@ -128,7 +128,7 @@ test('syncGoogleTasks: strictly isolates push to active user tasks and ignores t
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Task 1 assigned to Alice (active user), Task 2 assigned to Bob (other member)
-  tasksSheet.getRange(2, 1, 2, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-010', 'PRJ-001', 'Alice Smith', 'Alice specific task', 'Alice task notes', '2026-06-30', 'Todo', ''],
     ['TSK-020', 'PRJ-001', 'Bob Jones', 'Bob specific task', 'Bob task notes', '2026-07-15', 'In Progress', '']
   ]);
@@ -138,7 +138,7 @@ test('syncGoogleTasks: strictly isolates push to active user tasks and ignores t
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.pushedCount, 1, 'Only Alice task should be pushed into Alice Google Tasks');
 
-  var rows = tasksSheet.getRange(2, 1, 2, 8).getValues();
+  var rows = getLegacyTasks(tasksSheet, 2, 2, 8);
   assert.ok(rows[0][7], 'Alice task should have google_task_id');
   assert.strictEqual(rows[1][7], '', 'Bob task should remain unsynced and not pushed to Alice Google Tasks');
 });
@@ -154,7 +154,7 @@ test('cleanupMisassignedGoogleTasks: unlinks and deletes foreign tasks from acti
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Alice task with ID, and Bob task erroneously with ID (synced during Alice session)
-  tasksSheet.getRange(2, 1, 2, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-010', 'PRJ-001', 'Alice Smith', 'Alice task', 'Alice notes', '2026-06-30', 'Todo', 'gtask_alice_123'],
     ['TSK-020', 'PRJ-001', 'Bob Jones', 'Bob task', 'Bob notes', '2026-07-15', 'In Progress', 'gtask_bob_456']
   ]);
@@ -170,7 +170,7 @@ test('cleanupMisassignedGoogleTasks: unlinks and deletes foreign tasks from acti
   assert.strictEqual(cleanupRes.cleanedCount, 1, 'Should clean 1 task assigned to Bob');
 
   // Verify Bob task ID in sheet was cleared
-  var rows = tasksSheet.getRange(2, 1, 2, 8).getValues();
+  var rows = getLegacyTasks(tasksSheet, 2, 2, 8);
   assert.strictEqual(rows[0][7], 'gtask_alice_123', 'Alice task ID should be preserved');
   assert.strictEqual(rows[1][7], '', 'Bob task ID should be cleared in sheet');
 
@@ -184,7 +184,7 @@ test('syncGoogleTasks: pulls completed status from Google Tasks and marks sheet 
   freshInit(mockSpreadsheet);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-100', 'PRJ-002', 'Alice Smith', 'Design API schema', 'Schema details', '2026-06-01', 'Todo', '']
   ]);
 
@@ -192,7 +192,7 @@ test('syncGoogleTasks: pulls completed status from Google Tasks and marks sheet 
   var pushRes = taskSyncService.syncGoogleTasks(mockSpreadsheet);
   assert.strictEqual(pushRes.pushedCount, 1);
 
-  var gId = tasksSheet.getRange(2, 8).getValue();
+  var gId = tasksSheet.getRange(2, legacyTaskCol(8)).getValue();
   assert.ok(gId);
 
   // Simulate user marking the task as completed in Google Tasks mobile app / web
@@ -205,7 +205,7 @@ test('syncGoogleTasks: pulls completed status from Google Tasks and marks sheet 
   assert.strictEqual(pullRes.pulledUpdatesCount, 1, '1 task status updated from Google Tasks');
 
   // Verify sheet status changed from Todo to Done
-  var updatedStatus = tasksSheet.getRange(2, 7).getValue();
+  var updatedStatus = tasksSheet.getRange(2, legacyTaskCol(7)).getValue();
   assert.strictEqual(updatedStatus, 'Done');
 });
 
@@ -213,15 +213,15 @@ test('syncGoogleTasks: patches Google Tasks when sheet status is marked Done', (
   freshInit(mockSpreadsheet);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-200', 'PRJ-003', 'Alice Smith', 'Write integration tests', 'End to end tests', '2026-06-10', 'Todo', '']
   ]);
 
   var pushRes = taskSyncService.syncGoogleTasks(mockSpreadsheet);
-  var gId = tasksSheet.getRange(2, 8).getValue();
+  var gId = tasksSheet.getRange(2, legacyTaskCol(8)).getValue();
 
   // User marks task Done in spreadsheet
-  tasksSheet.getRange(2, 7).setValue('Done');
+  tasksSheet.getRange(2, legacyTaskCol(7)).setValue('Done');
 
   // Sync
   taskSyncService.syncGoogleTasks(mockSpreadsheet);
@@ -235,7 +235,7 @@ test('syncTasks: public entry point toasts sync summary and handles missing serv
   freshInit(mockSpreadsheet);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-300', 'PRJ-004', 'Alice Smith', 'Setup CI pipeline', 'CI YAML pipeline', '2026-07-01', 'Todo', '']
   ]);
 
@@ -258,7 +258,7 @@ test('automatic task creation onEdit: creates Google Task ID once title is set',
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Simulate user entering a title on row 2 in tbl_tasks
-  var titleRange = tasksSheet.getRange(2, 4); // Column 4: title
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4)); // Column 4: title
   titleRange.setValue('Build authentication modal');
 
   // User triggers edit event
@@ -270,7 +270,7 @@ test('automatic task creation onEdit: creates Google Task ID once title is set',
   code.onEdit(editEvent);
 
   // Inspect row 2
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var taskId = row[0];
   var title = row[3];
   var status = row[6];
@@ -300,8 +300,8 @@ test('automatic task creation with description: includes description in Google T
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // User enters description first, then sets title
-  tasksSheet.getRange(2, 5).setValue('Detailed specifications for SSO SAML login integration');
-  var titleRange = tasksSheet.getRange(2, 4);
+  tasksSheet.getRange(2, legacyTaskCol(5)).setValue('Detailed specifications for SSO SAML login integration');
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Integrate SAML SSO');
 
   var editEvent = {
@@ -311,7 +311,7 @@ test('automatic task creation with description: includes description in Google T
 
   code.onEdit(editEvent);
 
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var gId = row[7];
   assert.ok(gId, 'Google Task ID created');
 
@@ -332,15 +332,15 @@ test('editing title/description on existing synced task: patches Google Tasks', 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Create task via onEdit first
-  var titleRange = tasksSheet.getRange(2, 4);
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Initial title');
   code.onEdit({ range: titleRange });
 
-  var gId = tasksSheet.getRange(2, 8).getValue();
+  var gId = tasksSheet.getRange(2, legacyTaskCol(8)).getValue();
   assert.ok(gId);
 
   // Now user edits description on existing task
-  var descRange = tasksSheet.getRange(2, 5);
+  var descRange = tasksSheet.getRange(2, legacyTaskCol(5));
   descRange.setValue('Updated description text');
   code.onEdit({ range: descRange });
 
@@ -361,13 +361,13 @@ test('automatic task creation onEdit: skips foreign members tasks (isolation)', 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Assign task to Bob Jones before setting title
-  tasksSheet.getRange(2, 3).setValue('Bob Jones');
-  var titleRange = tasksSheet.getRange(2, 4);
+  tasksSheet.getRange(2, legacyTaskCol(3)).setValue('Bob Jones');
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Bob feature task');
 
   code.onEdit({ range: titleRange });
 
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var gId = row[7];
   assert.strictEqual(gId, '', 'Google Task ID should remain empty for foreign member task during active user session');
 });
@@ -390,12 +390,12 @@ test('automatic task creation onEdit: generates task_id, defaults status, and cr
   ]);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  var projRange = tasksSheet.getRange(2, 2); // Column 2: project_id
+  var projRange = tasksSheet.getRange(2, legacyTaskCol(2)); // Column 2: project_id
   projRange.setValue('PRJ-INFRA');
 
   code.onEdit({ range: projRange, value: 'PRJ-INFRA' });
 
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var taskId = row[0];
   var projectId = row[1];
   var assignedMember = row[2];
@@ -419,12 +419,12 @@ test('automatic task creation onEdit: allows nullable due date and creates Googl
   freshInit(mockSpreadsheet);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  var titleRange = tasksSheet.getRange(2, 4);
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Task with no due date');
 
   code.onEdit({ range: titleRange, value: 'Task with no due date' });
 
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   assert.ok(row[0].startsWith('TSK-'), 'Task ID generated');
   assert.strictEqual(row[2], '', 'Assigned member remains blank');
   assert.strictEqual(row[3], 'Task with no due date');
@@ -448,11 +448,11 @@ test('automatic task creation onEdit: creates Google Task with task_id title on 
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // First, user entered project_id and description
-  var projRange = tasksSheet.getRange(2, 2);
+  var projRange = tasksSheet.getRange(2, legacyTaskCol(2));
   projRange.setValue('PRJ-009');
   code.onEdit({ range: projRange });
 
-  var row1 = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row1 = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var existingTaskId = row1[0];
   var initialGoogleTaskId = row1[7];
   assert.ok(existingTaskId, 'task_id generated');
@@ -463,11 +463,11 @@ test('automatic task creation onEdit: creates Google Task with task_id title on 
   assert.strictEqual(gTaskInitial.title, existingTaskId, 'Initial Google Task title should default to task_id');
 
   // Now, user enters the real title
-  var titleRange = tasksSheet.getRange(2, 4);
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Deploy Kubernetes cluster');
   code.onEdit({ range: titleRange });
 
-  var row2 = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row2 = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   assert.strictEqual(row2[0], existingTaskId, 'Existing task_id should be preserved');
   assert.strictEqual(row2[3], 'Deploy Kubernetes cluster');
   assert.strictEqual(row2[7], initialGoogleTaskId, 'Google Task ID should remain identical');
@@ -483,7 +483,7 @@ test('automatic task creation onEdit: resilient to human-readable headers with s
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Replace headers with human readable names
-  tasksSheet.getRange(1, 1, 1, 8).setValues([[
+  setLegacyTasks(tasksSheet, 1, [[
     'Task ID', 'Project ID', 'Assigned Member', 'Title', 'Description', 'Due Date', 'Status', 'Google Task ID'
   ]]);
 
@@ -493,11 +493,11 @@ test('automatic task creation onEdit: resilient to human-readable headers with s
   ]);
 
   // User enters title in Column 4
-  var titleRange = tasksSheet.getRange(2, 4);
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('Test human headers');
   code.onEdit({ range: titleRange });
 
-  var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   assert.ok(row[0].startsWith('TSK-'), 'Task ID should be created in column 1');
   assert.strictEqual(row[3], 'Test human headers', 'Title should be in column 4');
   assert.strictEqual(row[6], 'Todo', 'Status should be in column 7');
@@ -516,11 +516,11 @@ test('automatic task creation onEdit: in-sheet task creation succeeds even if Ta
   };
 
   try {
-    var titleRange = tasksSheet.getRange(2, 4);
+    var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
     titleRange.setValue('Offline created task');
     code.onEdit({ range: titleRange });
 
-    var row = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+    var row = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
     assert.ok(row[0].startsWith('TSK-'), 'Task ID should be generated despite Tasks API failure');
     assert.strictEqual(row[3], 'Offline created task');
     assert.strictEqual(row[6], 'Todo', 'Status should default to Todo despite Tasks API failure');
@@ -541,11 +541,11 @@ test('automatic task creation onEdit: multiple title revisions update Google Tas
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
 
   // Step 1: User fills description first (title is empty)
-  var descRange = tasksSheet.getRange(2, 5);
+  var descRange = tasksSheet.getRange(2, legacyTaskCol(5));
   descRange.setValue('Initial description without title');
   code.onEdit({ range: descRange });
 
-  var row1 = tasksSheet.getRange(2, 1, 1, 8).getValues()[0];
+  var row1 = getLegacyTasks(tasksSheet, 2, 1, 8)[0];
   var taskId = row1[0];
   var gId = row1[7];
   assert.ok(taskId, 'Task ID created');
@@ -556,7 +556,7 @@ test('automatic task creation onEdit: multiple title revisions update Google Tas
   assert.strictEqual(gTask1.title, taskId, 'Initial Google Task title is task_id');
 
   // Step 2: User sets title for the first time
-  var titleRange = tasksSheet.getRange(2, 4);
+  var titleRange = tasksSheet.getRange(2, legacyTaskCol(4));
   titleRange.setValue('First Real Title');
   code.onEdit({ range: titleRange });
 
@@ -581,8 +581,9 @@ test('automatic task creation onEdit: multiple title revisions update Google Tas
 test('validation: project_id in tasks is not required and passes validation', () => {
   freshInit(mockSpreadsheet);
   const { validateRow } = require('../src/ValidationManager');
-  // Columns: task_id, project_id, assigned_member, title, description, due_date, status, google_task_id
-  var rowWithoutProject = ['TSK-001', '', '', 'Test Task Without Project', 'Some notes', '2026-06-30', 'Todo', ''];
+  var cols = require('../src/Schema').SCHEMA_SPEC.tasks.columns;
+  var byKey = { task_id: 'TSK-001', title: 'Test Task Without Project', description: 'Some notes', due_date: '2026-06-30', status: 'Todo' };
+  var rowWithoutProject = cols.map(function(k) { return byKey[k] || ''; });
   var res = validateRow('tbl_tasks', rowWithoutProject);
   assert.strictEqual(res.valid, true, 'Task row without project_id must be valid');
   assert.strictEqual(res.missingColumns.includes('project_id'), false, 'project_id should not be in missingColumns');
@@ -593,19 +594,19 @@ test('syncGoogleTasks: updates all fields (title, description/notes, due_date, s
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed initial task
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-500', 'PRJ-CORE', 'Alice Smith', 'Initial Name', 'Initial Notes', '2026-06-01', 'Todo', '']
   ]);
 
   var pushRes = taskSyncService.syncGoogleTasks(mockSpreadsheet);
   assert.strictEqual(pushRes.pushedCount, 1);
-  var gId = tasksSheet.getRange(2, 8).getValue();
+  var gId = tasksSheet.getRange(2, legacyTaskCol(8)).getValue();
 
   // User edits title, description, due_date, and status in sheet
-  tasksSheet.getRange(2, 4).setValue('Renamed Feature');
-  tasksSheet.getRange(2, 5).setValue('Updated Architectural Notes');
-  tasksSheet.getRange(2, 6).setValue('2026-07-20');
-  tasksSheet.getRange(2, 7).setValue('Done');
+  tasksSheet.getRange(2, legacyTaskCol(4)).setValue('Renamed Feature');
+  tasksSheet.getRange(2, legacyTaskCol(5)).setValue('Updated Architectural Notes');
+  tasksSheet.getRange(2, legacyTaskCol(6)).setValue('2026-07-20');
+  tasksSheet.getRange(2, legacyTaskCol(7)).setValue('Done');
 
   // Trigger sync
   var syncRes = taskSyncService.syncGoogleTasks(mockSpreadsheet);
@@ -627,14 +628,14 @@ test('changing status from Done: user cancels -> reverts status to Done without 
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
   // Seed a Done task
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-600', 'PRJ-001', 'Alice Smith', 'Complete module A', 'Notes A', '2026-06-01', 'Done', 'gtask_600']
   ]);
   var listId = taskSyncService.getTasksListId(mockSpreadsheet);
   Tasks.Tasks.insert({ id: 'gtask_600', title: 'Complete module A', status: 'completed' }, listId);
 
   // User tries to change status to "In Progress", but cancels dialog (proceed = false)
-  var statusRange = tasksSheet.getRange(2, 7);
+  var statusRange = tasksSheet.getRange(2, legacyTaskCol(7));
   statusRange.setValue('In Progress');
 
   var editEvent = {
@@ -647,7 +648,7 @@ test('changing status from Done: user cancels -> reverts status to Done without 
   code.onEdit(editEvent);
 
   // Status should be reverted to Done
-  var currentStatus = tasksSheet.getRange(2, 7).getValue();
+  var currentStatus = tasksSheet.getRange(2, legacyTaskCol(7)).getValue();
   assert.strictEqual(currentStatus, 'Done', 'Status must revert to Done');
   assert.strictEqual(tasksSheet.getLastRow(), 2, 'No new row should be created');
   assert.strictEqual(tasksSheet.isRowHiddenByUser(2), false, 'Row must not be hidden');
@@ -662,14 +663,14 @@ test('changing status from Done: user proceeds -> hides original row, creates fo
   ]);
 
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  tasksSheet.getRange(2, 1, 1, 8).setValues([
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-700', 'PRJ-ALPHA', 'Alice Smith', 'Deliver feature X', 'Detailed spec X', '2026-06-15', 'Done', 'gtask_700']
   ]);
   var listId = taskSyncService.getTasksListId(mockSpreadsheet);
   Tasks.Tasks.insert({ id: 'gtask_700', title: 'Deliver feature X', status: 'completed' }, listId);
 
   // User tries to change status to "In Progress" and proceeds
-  var statusRange = tasksSheet.getRange(2, 7);
+  var statusRange = tasksSheet.getRange(2, legacyTaskCol(7));
   statusRange.setValue('In Progress');
 
   var editEvent = {
@@ -682,12 +683,12 @@ test('changing status from Done: user proceeds -> hides original row, creates fo
   code.onEdit(editEvent);
 
   // Original row 2 must be reverted to Done and hidden
-  assert.strictEqual(tasksSheet.getRange(2, 7).getValue(), 'Done', 'Original row stays Done');
+  assert.strictEqual(tasksSheet.getRange(2, legacyTaskCol(7)).getValue(), 'Done', 'Original row stays Done');
   assert.strictEqual(tasksSheet.isRowHiddenByUser(2), true, 'Original row must be hidden');
 
   // New row 3 must be created with incremented task ID and same metadata
   assert.strictEqual(tasksSheet.getLastRow(), 3, 'New follow-up row must be created');
-  var newRow = tasksSheet.getRange(3, 1, 1, 8).getValues()[0];
+  var newRow = getLegacyTasks(tasksSheet, 3, 1, 8)[0];
   var newTaskId = newRow[0];
   var newProjectId = newRow[1];
   var newAssignee = newRow[2];
@@ -716,7 +717,7 @@ test('changing status from Done: user proceeds -> hides original row, creates fo
 
   // Test secondary follow-up increment from TSK-700.1 -> TSK-700.2
   // Simulate user changing row 3 from Done to In Progress
-  var statusRange3 = tasksSheet.getRange(3, 7);
+  var statusRange3 = tasksSheet.getRange(3, legacyTaskCol(7));
   statusRange3.setValue('In Progress');
   var editEvent2 = {
     range: statusRange3,
@@ -727,7 +728,7 @@ test('changing status from Done: user proceeds -> hides original row, creates fo
   code.onEdit(editEvent2);
 
   assert.strictEqual(tasksSheet.getLastRow(), 4);
-  var row4 = tasksSheet.getRange(4, 1, 1, 8).getValues()[0];
+  var row4 = getLegacyTasks(tasksSheet, 4, 1, 8)[0];
   assert.strictEqual(row4[0], 'TSK-700.2', 'Task ID must be incremented from .1 to .2');
 });
 
@@ -748,17 +749,17 @@ test('live task sync: installTaskSyncTrigger registers onEdit trigger and trigge
 test('Google Tasks date: the Planned date when set, else the Deadline; the deadline is written in the notes', () => {
   freshInit(mockSpreadsheet);
   var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
-  assert.strictEqual(tasksSheet.getRange(1, 6).getValue(), 'Deadline');
-  assert.strictEqual(tasksSheet.getRange(1, 13).getValue(), 'Planned date');
-  tasksSheet.getRange(2, 1, 2, 8).setValues([
+  assert.strictEqual(tasksSheet.getRange(1, legacyTaskCol(6)).getValue(), 'Deadline');
+  assert.strictEqual(tasksSheet.getRange(1, legacyTaskCol(13)).getValue(), 'Planned date');
+  setLegacyTasks(tasksSheet, 2, [
     ['TSK-001', 'PRJ-001', 'Alice Smith', 'SoW', 'Sign the SoW', '2026-10-30', 'Todo', ''],
     ['TSK-002', 'PRJ-001', 'Alice Smith', 'PRM', '', '2026-10-31', 'Todo', '']
   ]);
-  tasksSheet.getRange(2, 13).setValue('2026-10-26');
+  tasksSheet.getRange(2, legacyTaskCol(13)).setValue('2026-10-26');
 
   var res = taskSyncService.syncGoogleTasks(mockSpreadsheet, { allUsers: true });
 
-  var rows = tasksSheet.getRange(2, 1, 2, 8).getValues();
+  var rows = getLegacyTasks(tasksSheet, 2, 2, 8);
   var planned = Tasks.Tasks.get(res.tasklistId, rows[0][7]);
   var deadlineOnly = Tasks.Tasks.get(res.tasklistId, rows[1][7]);
   assert.strictEqual(planned.due.substring(0, 10), '2026-10-26', 'planned day sent as the Google Tasks date');
@@ -766,7 +767,7 @@ test('Google Tasks date: the Planned date when set, else the Deadline; the deadl
   assert.strictEqual(deadlineOnly.due.substring(0, 10), '2026-10-31', 'no planned date: the deadline is the day');
 
   // Moving the planned date moves the Google task; the deadline stays in the notes
-  tasksSheet.getRange(2, 13).setValue('2026-10-28');
+  tasksSheet.getRange(2, legacyTaskCol(13)).setValue('2026-10-28');
   taskSyncService.syncGoogleTasks(mockSpreadsheet, { allUsers: true });
   var moved = Tasks.Tasks.get(res.tasklistId, rows[0][7]);
   assert.strictEqual(moved.due.substring(0, 10), '2026-10-28');

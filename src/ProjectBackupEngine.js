@@ -301,10 +301,12 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
   // Existing open interim-backup tasks, so each project gets at most one
   var openBackupTasks = {};
   if (tasksSheet && tasksSheet.getMaxRows() > 1) {
-    var tVals = tasksSheet.getRange(2, 1, readRowLimit(tasksSheet, 1000) - 1, 7).getValues();
+    var tc = {};
+    SCHEMA_SPEC.tasks.columns.forEach(function(k, i) { tc[k] = i; });
+    var tVals = tasksSheet.getRange(2, 1, readRowLimit(tasksSheet, 1000) - 1, SCHEMA_SPEC.tasks.columns.length).getValues();
     for (var t = 0; t < tVals.length; t++) {
-      var tProj = String(tVals[t][1] || "").trim();
-      if (tProj && String(tVals[t][3] || "").toLowerCase().indexOf("organize interim backup") !== -1 && String(tVals[t][6] || "").toLowerCase() !== "done") {
+      var tProj = String(tVals[t][tc.project_id] || "").trim();
+      if (tProj && String(tVals[t][tc.title] || "").toLowerCase().indexOf("organize interim backup") !== -1 && String(tVals[t][tc.status] || "").toLowerCase() !== "done") {
         openBackupTasks[tProj] = true;
       }
     }
@@ -402,18 +404,14 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     if (isConflict && createTasks && tasksSheet && !openBackupTasks[project.id]) {
       try {
         var assignee = absence(project.lead, todayDate) ? (project.backup || project.lead) : project.lead;
-        var tRow = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(tasksSheet) : tasksSheet.getLastRow() + 1;
-        tasksSheet.getRange(tRow, 1, 1, 8).setValues([[
-          "task_" + Math.random().toString(36).substring(2, 9), project.id, assignee,
-          "Organize interim backup for project " + project.name,
-          "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates with Project Management → Interim Backups.",
-          startStr, "Todo", ""
-        ]]);
         var assigneeRoster = membersRoster[String(assignee).toLowerCase()];
-        if (assigneeRoster && typeof copyCellChip === "function") {
-          try { copyCellChip(membersSheet, assigneeRoster.row, 1, tasksSheet, tRow, 3, assignee, ss.getId()); } catch (eChip) {}
-        }
-        if (typeof applyTypography === "function") applyTypography(tasksSheet.getRange(tRow, 1, 1, 8));
+        var newTask = (typeof createTaskRow === "function" ? createTaskRow : require("./RecurringTasks").createTaskRow)(ss, {
+          projectId: project.id,
+          member: assigneeRoster ? { name: assigneeRoster.name, row: assigneeRoster.row } : (assignee ? { name: assignee } : null),
+          title: "Organize interim backup for project " + project.name,
+          description: "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates with Project Management → Interim Backups.",
+          due: startStr, status: "Todo", origin: "trigger:coverageGap"
+        });
         openBackupTasks[project.id] = true;
         taskCreated = true;
       } catch (eTask) { Logger.log("Backup task note: " + eTask); }

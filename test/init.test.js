@@ -110,3 +110,49 @@ test('freshInit should throw actionable error if Sheets Advanced API is not pres
     global.Sheets = savedSheets;
   }
 });
+
+test('Tasks: technical columns hidden; a table whose columns moved is archived and rebuilt', () => {
+  freshInit(mockSpreadsheet);
+  var tasks = mockSpreadsheet.getSheetByName('Tasks');
+  var cols = schema.SCHEMA_SPEC.tasks.columns;
+  ['task_id', 'google_task_id', 'origin'].forEach(function(k) {
+    assert.ok(tasks.isColumnHiddenByUser(cols.indexOf(k) + 1), k + ' hidden');
+  });
+  assert.ok(!tasks.isColumnHiddenByUser(cols.indexOf('title') + 1));
+
+  // Former layout (ID first, Done by, Recurring) with data
+  var old = ['ID', 'Project ID', 'Assigned to', 'Title', 'Description', 'Due date', 'Status', 'Google Task ID', 'Type', 'Done on', 'Done by', 'Recurring'];
+  tasks.getRange(1, 1, 1, old.length).setValues([old]);
+  tasks.getRange(2, 1, 1, old.length).setValues([['TSK-1', 'P', 'Alice', 'Old task', '', '2026-01-01', 'Todo', '', '', '', '', '']]);
+
+  freshInit(mockSpreadsheet);
+
+  var archived = mockSpreadsheet.getSheets().filter(s => /^Archive – Tasks \d{4}-\d{2}-\d{2}$/.test(s.getName()))[0];
+  assert.ok(archived, 'old tab archived');
+  assert.strictEqual(archived.getRange(2, 4).getValue(), 'Old task', 'old data kept in the archive');
+  var fresh = mockSpreadsheet.getSheetByName('Tasks');
+  assert.notStrictEqual(fresh, archived);
+  assert.deepStrictEqual(fresh.getRange(1, 1, 1, cols.length).getValues()[0], schema.schemaHeaderRow(schema.SCHEMA_SPEC.tasks));
+  assert.strictEqual(fresh.getRange(2, 2).getValue(), '', 'new table starts empty');
+
+  // Upgrading again does not archive anything more
+  var count = mockSpreadsheet.getSheets().length;
+  fresh.getRange(2, 2).setValue('Kept');
+  freshInit(mockSpreadsheet);
+  assert.strictEqual(mockSpreadsheet.getSheets().length, count);
+  assert.strictEqual(mockSpreadsheet.getSheetByName('Tasks').getRange(2, 2).getValue(), 'Kept');
+});
+
+test('Tasks without data in the former 13-column layout: headers rewritten in place, the extra column cleared', () => {
+  var own = createMockSpreadsheet();
+  setupGasGlobals(own);
+  freshInit(own);
+  var tasks = own.getSheetByName('Tasks');
+  var old = ['ID', 'Project ID', 'Assigned to', 'Title', 'Description', 'Deadline', 'Status', 'Google Task ID', 'Type', 'Done on', 'Done by', 'Recurring', 'Planned date'];
+  tasks.getRange(1, 1, 1, old.length).setValues([old]);
+  freshInit(own);
+  var same = own.getSheetByName('Tasks');
+  assert.strictEqual(same, tasks, 'no archive without data');
+  assert.strictEqual(same.getRange(1, 1).getValue(), 'Type');
+  assert.strictEqual(same.getRange(1, 13).getValue(), '', 'former 13th column cleared');
+});

@@ -194,44 +194,47 @@ var SCHEMA_SPEC = {
     sheetName: "Tasks",
     legacyName: "tbl_tasks",
     headers: {
-      task_id: "ID",
-      project_id: "Project ID",
-      assigned_member: "Assigned to",
+      task_type: "Type",
       title: "Title",
-      description: "Description",
+      assigned_member: "Assigned to",
+      project_id: "Project ID",
+      planned_date: "Planned date",
       due_date: "Deadline",
       status: "Status",
-      google_task_id: "Google Task ID",
-      task_type: "Type",
+      description: "Description",
       done_on: "Done on",
-      done_by: "Done by",
-      recurrence: "Recurring",
-      planned_date: "Planned date"
+      task_id: "ID",
+      google_task_id: "Google Task ID",
+      origin: "Origin"
     },
-    // Type / Done on / Done by / Recurring: ADR 0045 (task types, calendar, recurring tasks, audit)
+    // One row = one task for one person with one deadline (ADR 0051).
     // Deadline (key due_date) drives reminders, overdue and the Calendar; Planned date is the
-    // day shown in Google Tasks (its only date field), the deadline when empty (ADR 0050)
-    columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "recurrence", "planned_date"],
+    // day shown in Google Tasks, the deadline when empty (ADR 0050). Origin: "<rule>|<period>"
+    // (recurring, "|manual" once changed by hand), "manual", or "trigger:<event>" (ADR 0051).
+    columns: ["task_type", "title", "assigned_member", "project_id", "planned_date", "due_date", "status", "description", "done_on", "task_id", "google_task_id", "origin"],
+    hiddenColumns: ["task_id", "google_task_id", "origin"],
+    // Labels of earlier layouts, so Initialize / Upgrade recognises a moved table (ADR 0051)
+    formerHeaders: { due_date: ["Due date"], origin: ["Recurring", "recurrence"] },
+    removedHeaders: ["Done by", "done_by"],
     requiredColumns: ["task_id", "title", "status"],
-    nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id", "task_type", "done_on", "done_by", "recurrence", "planned_date"],
-    strictlyProtectedColumns: ["task_id", "google_task_id", "recurrence"],
+    nullableColumns: ["task_type", "project_id", "assigned_member", "planned_date", "due_date", "description", "done_on", "google_task_id", "origin"],
+    strictlyProtectedColumns: ["task_id", "google_task_id", "origin"],
     warningProtectedColumns: [],
-    protectedColumns: ["task_id", "google_task_id", "recurrence"],
+    protectedColumns: ["task_id", "google_task_id", "origin"],
     taskTypeColumns: { task_type: true },
     columnTypes: {
-      task_id: "TEXT",
-      project_id: "TEXT",
-      assigned_member: "PEOPLE_CHIP",
+      task_type: "DROPDOWN",
       title: "TEXT",
-      description: "TEXT",
+      assigned_member: "PEOPLE_CHIP",
+      project_id: "TEXT",
+      planned_date: "DATE",
       due_date: "DATE",
       status: "DROPDOWN",
-      google_task_id: "TEXT",
-      task_type: "DROPDOWN",
+      description: "TEXT",
       done_on: "DATE",
-      done_by: "TEXT",
-      recurrence: "TEXT",
-      planned_date: "DATE"
+      task_id: "TEXT",
+      google_task_id: "TEXT",
+      origin: "TEXT"
     },
     validations: {
       status: ["Todo", "In Progress", "Done", "Blocked", "Cancelled"]
@@ -305,14 +308,19 @@ var SCHEMA_SPEC = {
   taskTypes: {
     sheetName: "Task Types",
     legacyName: "tbl_task_types",
-    headers: { type: "Type", frequency: "Frequency", due: "Due", mandatory: "Mandatory", active: "Active" },
-    columns: ["type", "frequency", "due", "mandatory", "active"],
+    headers: { type: "Type", frequency: "Frequency", due: "Due", mandatory: "Mandatory", active: "Active",
+      created_when: "Created when", days_after: "Days after", assign_to: "Assign to", instructions: "Instructions" },
+    // Created when / Days after / Assign to / Instructions: tasks created by an event (ADR 0051)
+    columns: ["type", "frequency", "due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions"],
     requiredColumns: ["type", "frequency"],
-    nullableColumns: ["due", "mandatory", "active"],
+    nullableColumns: ["due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions"],
     strictlyProtectedColumns: [],
     warningProtectedColumns: [],
     protectedColumns: [],
-    columnTypes: { type: "TEXT", frequency: "DROPDOWN", due: "TEXT", mandatory: "BOOLEAN", active: "BOOLEAN" },
+    columnTypes: { type: "TEXT", frequency: "DROPDOWN", due: "TEXT", mandatory: "BOOLEAN", active: "BOOLEAN",
+      created_when: "DROPDOWN", days_after: "DOUBLE", assign_to: "TEXT", instructions: "TEXT" },
+    // Filled at runtime from TASK_TRIGGERS (src/TaskTriggers.js)
+    triggerColumns: { created_when: true },
     validations: { frequency: ["Weekly", "Monthly", "One-off"] }
   },
   recurringTasks: {

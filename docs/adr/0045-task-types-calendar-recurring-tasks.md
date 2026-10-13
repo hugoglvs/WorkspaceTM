@@ -1,7 +1,7 @@
 # ADR 0045: Task Types, Calendar, Recurring Tasks, Audit Trail and Per-Person Google Tasks
 
 ## Status
-Accepted (2026-10-12)
+Accepted (2026-10-12); Done by dropped and Recurring renamed Origin by ADR 0051.
 
 ## Context
 The team keeps two hand-made sheets: a quiz calendar (one row per member, one column per week, a tick for who is in charge) and a "Team tasks" checklist of mandatory monthly tasks (peer reviews, SoWs, PRMs, forecasts, time & expenses) that are audited for the quality certification. Tasks only had a due date: no type, no recurrence, no completion record. Google Tasks sync only worked for the sheet owner, because a script can only write into the Google Tasks of the account it runs as.

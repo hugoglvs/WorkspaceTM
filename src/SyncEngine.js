@@ -49,7 +49,7 @@ function safeFormatDateIso(dateVal) {
  * 1. Reads tenures (columns: member, role, department, start_date, end_date, contract_type, fte_rate).
  * 2. Members added in tbl_tenures missing from tbl_members are copied as native People Chips.
  * 3. In tbl_members, current_role, current_department and tenure_status are formulas reading Contracts (ADR 0047).
- * 4. When a new member is added, an onboarding task is assigned to their People Chip in tbl_tasks
+ * 4. A new member's first contract fires the "New member" task trigger (onboarding, ADR 0051)
  *    prompting them to fill in accenture_email and phone_number.
  * 5. Applies column protections to locked fields.
  *
@@ -290,63 +290,15 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
   }
 
   // -------------------------------------------------------------
-  // 5. Assign Onboarding Task in tbl_tasks for new members
+  // 5. Tasks created by the "New member" trigger (Task Types tab, ADR 0051)
   // -------------------------------------------------------------
   var tasksCreated = 0;
-  if (tasksSheet && newlyAddedMembers.length > 0) {
-    try {
-      var taskDueDate = new Date();
-      taskDueDate.setDate(taskDueDate.getDate() + 7);
-      var dueDateStr = safeFormatDateIso(taskDueDate);
-      var nextTaskRow = findNextAvailableRow(tasksSheet);
-      // Onboarding task texts and project come from the Settings tab (ADR 0049)
-      var getSettingFn = (typeof getSetting === "function") ? getSetting
-        : (typeof require !== "undefined" ? require("./Settings").getSetting : null);
-      var setting = function(key) { return getSettingFn ? getSettingFn(ss, key) : ""; };
-
-      for (var nm = 0; nm < newlyAddedMembers.length; nm++) {
-        var newM = newlyAddedMembers[nm];
-        var targetTaskRow = nextTaskRow;
-        nextTaskRow++;
-
-        var taskId = "task_" + Math.random().toString(36).substring(2, 9);
-
-        // Columns: task_id, project_id
-        tasksSheet.getRange(targetTaskRow, tkColId).setValue(taskId);
-        tasksSheet.getRange(targetTaskRow, tkColProj).setValue(setting("onboarding_project_id"));
-
-        // Copy People Chip to assigned_member
-        copyCellChip(
-          membersSheet,
-          newM.memberRow,
-          mColMember,
-          tasksSheet,
-          targetTaskRow,
-          tkColMember,
-          newM.member,
-          ss.getId ? ss.getId() : ""
-        );
-
-        tasksSheet.getRange(targetTaskRow, tkColTitle).setValue(setting("onboarding_task_title"));
-        if (tkColDesc > 0 && tkColDesc <= tasksSheet.getLastColumn()) {
-          tasksSheet.getRange(targetTaskRow, tkColDesc).setValue(setting("onboarding_task_description"));
-        }
-        tasksSheet.getRange(targetTaskRow, tkColDue).setValue(dueDateStr);
-        tasksSheet.getRange(targetTaskRow, tkColStatus).setValue("Todo");
-        // Task type (ADR 0045), so onboarding shows in the Calendar
-        if (typeof SCHEMA_SPEC !== "undefined" && SCHEMA_SPEC.tasks && SCHEMA_SPEC.tasks.columns.indexOf("task_type") !== -1) {
-          tasksSheet.getRange(targetTaskRow, SCHEMA_SPEC.tasks.columns.indexOf("task_type") + 1).setValue("Onboarding");
-        }
-        if (tkColGTask <= tasksSheet.getLastColumn()) {
-          tasksSheet.getRange(targetTaskRow, tkColGTask).setValue("");
-        }
-
-        applyTypography(tasksSheet.getRange(targetTaskRow, 1, 1, Math.max(tasksSheet.getLastColumn(), 8)));
-        tasksCreated++;
-      }
-    } catch (eTasks) {
-      Logger.log("Onboarding task creation note: " + eTasks);
-    }
+  try {
+    var fireNewMembers = (typeof fireNewMemberTriggers === "function") ? fireNewMemberTriggers
+      : (typeof require !== "undefined" ? require("./TaskTriggers").fireNewMemberTriggers : null);
+    if (fireNewMembers && tasksSheet) tasksCreated = fireNewMembers(ss);
+  } catch (eTrig) {
+    Logger.log("New member tasks note: " + eTrig);
   }
 
   // -------------------------------------------------------------

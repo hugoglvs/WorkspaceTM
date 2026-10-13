@@ -506,6 +506,41 @@ function createMockSpreadsheet() {
   return ss;
 }
 
+
+/**
+ * Tests written for the former Tasks layout (ID, Project, Assigned, Title,
+ * Description, Deadline, Status, Google Task ID, ...) read and write rows in
+ * that order; these map them onto the current columns (ADR 0051).
+ */
+var LEGACY_TASK_KEYS = ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "origin", "planned_date"];
+
+function legacyTaskCol(n) {
+  var cols = require("../src/Schema").SCHEMA_SPEC.tasks.columns;
+  return cols.indexOf(LEGACY_TASK_KEYS[n - 1]) + 1;
+}
+
+function setLegacyTasks(sheet, startRow, rows) {
+  rows.forEach(function(r, i) {
+    r.forEach(function(v, j) {
+      var col = legacyTaskCol(j + 1);
+      if (col > 0) sheet.getRange(startRow + i, col).setValue(v);
+    });
+  });
+}
+
+function getLegacyTasks(sheet, startRow, numRows, width) {
+  var out = [];
+  for (var i = 0; i < numRows; i++) {
+    var row = [];
+    for (var j = 1; j <= (width || 8); j++) {
+      var col = legacyTaskCol(j);
+      row.push(col > 0 ? sheet.getRange(startRow + i, col).getValue() : "");
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 function setupGasGlobals(mockSpreadsheet) {
   // The shared helpers are globals in Apps Script (ADR 0049)
   Object.assign(global, require("../src/Utils"));
@@ -1094,6 +1129,9 @@ function setupGasGlobals(mockSpreadsheet) {
 }
 
 module.exports = {
+  setLegacyTasks: setLegacyTasks,
+  getLegacyTasks: getLegacyTasks,
+  legacyTaskCol: legacyTaskCol,
   createMockSpreadsheet: createMockSpreadsheet,
   setupGasGlobals: setupGasGlobals,
   get MailApp() { return global.MailApp; }

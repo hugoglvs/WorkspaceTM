@@ -12,7 +12,7 @@
  * "Applies to" lists members and roles ("Role: Consultant; Alice"); blank means
  * every member. Weekly rules are planned 8 weeks ahead, monthly ones 3 months.
  *
- * Generated rows carry "<rule id>|<period>" in Tasks.Recurring; a row changed by
+ * Generated rows carry "<rule id>|<period>" in Tasks.Origin; a row changed by
  * hand in the Calendar gets "|manual" and is never moved automatically.
  */
 
@@ -107,9 +107,12 @@ function rtWorksOn(ctx, member, date) {
 // Tasks rows
 // ---------------------------------------------------------------------------
 
-function parseRecurrence(text) {
-  var parts = String(text || "").split("|");
-  return { ruleId: parts[0] || "", periodKey: parts[1] || "", manual: parts[2] === "manual" };
+/** Origin of a task: "<rule id>|<period>[|manual]" for recurring rows, else "manual" or "trigger:<event>" (ADR 0051). */
+function parseOrigin(text) {
+  var s = String(text || "");
+  if (s.indexOf("|") === -1) return { ruleId: "", periodKey: "", manual: false, origin: s };
+  var parts = s.split("|");
+  return { ruleId: parts[0] || "", periodKey: parts[1] || "", manual: parts[2] === "manual", origin: s };
 }
 
 /** Every Tasks row, with the fields the recurring engine and the Calendar use. */
@@ -120,17 +123,20 @@ function readTaskRows(ss) {
   var range = sheet.getRange(2, 1, readRowLimit(sheet, 500) - 1, n);
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
+  var c = {};
+  SCHEMA_SPEC.tasks.columns.forEach(function(k, idx) { c[k] = idx; });
   var out = [];
   for (var i = 0; i < vals.length; i++) {
     var v = vals[i];
-    if (!v[0] && !v[3]) continue;
+    if (!v[c.task_id] && !v[c.title]) continue;
     var r = rich[i] || [];
-    var member = cellName(v[2], r[2]);
-    var rec = parseRecurrence(v[11]);
+    var member = cellName(v[c.assigned_member], r[c.assigned_member]);
+    var rec = parseOrigin(v[c.origin]);
     out.push({
-      row: i + 2, id: String(v[0] || ""), projectId: String(v[1] || "").trim(), member: member, memberKey: member.toLowerCase(),
-      title: String(v[3] || ""), due: toDate(v[5]), status: String(v[6] || "").trim(), googleTaskId: String(v[7] || ""),
-      type: String(v[8] || "").trim(), doneOn: v[9], doneBy: String(v[10] || ""), recurrence: String(v[11] || ""),
+      row: i + 2, id: String(v[c.task_id] || ""), projectId: String(v[c.project_id] || "").trim(), member: member, memberKey: member.toLowerCase(),
+      title: String(v[c.title] || ""), due: toDate(v[c.due_date]), planned: toDate(v[c.planned_date]),
+      status: String(v[c.status] || "").trim(), googleTaskId: String(v[c.google_task_id] || ""),
+      type: String(v[c.task_type] || "").trim(), doneOn: v[c.done_on], origin: rec.origin,
       ruleId: rec.ruleId, periodKey: rec.periodKey, manual: rec.manual
     });
   }
@@ -149,17 +155,20 @@ function copyMemberChip(ss, member, targetSheet, row, col) {
 
 /**
  * Adds a task row. t: {projectId, member (rtMembers entry), title, description,
- * due (Date), type, recurrence, status}.
+ * due (Date, the deadline), planned (Date), type, origin, status}.
  * @return {{row: number, id: string}}
  */
 function createTaskRow(ss, t) {
   var sheet = getTable(ss, "tasks");
   var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(sheet) : sheet.getLastRow() + 1;
   var id = (typeof generateTaskId === "function") ? generateTaskId() : "TSK-" + Date.now();
-  var values = [[
-    id, t.projectId || "", t.member ? t.member.name : "", t.title || t.type || "Task", t.description || "",
-    t.due ? isoDate(t.due) : "", t.status || "Todo", "", t.type || "", "", "", t.recurrence || ""
-  ]];
+  var byKey = {
+    task_id: id, project_id: t.projectId || "", assigned_member: t.member ? t.member.name : "",
+    title: t.title || t.type || "Task", description: t.description || "",
+    due_date: t.due ? isoDate(t.due) : "", planned_date: t.planned ? isoDate(t.planned) : "",
+    status: t.status || "Todo", google_task_id: "", task_type: t.type || "", done_on: "", origin: t.origin || "manual"
+  };
+  var values = [SCHEMA_SPEC.tasks.columns.map(function(k) { return byKey.hasOwnProperty(k) ? byKey[k] : ""; })];
   sheet.getRange(row, 1, 1, values[0].length).setValues(values);
   copyMemberChip(ss, t.member, sheet, row, taskCol("assigned_member"));
   if (typeof applyTypography === "function") {
@@ -168,25 +177,20 @@ function createTaskRow(ss, t) {
   return { row: row, id: id };
 }
 
-/** Writes a task's status and keeps Done on / Done by in step (audit). */
-function setTaskStatus(ss, row, status, doneBy, asOf) {
+/** Writes a task's status and keeps Done on in step (audit). */
+function setTaskStatus(ss, row, status, asOf) {
   var sheet = getTable(ss, "tasks");
   sheet.getRange(row, taskCol("status")).setValue(status);
-  stampTaskDone(sheet, row, status, doneBy, asOf);
+  stampTaskDone(sheet, row, status, asOf);
 }
 
-/** Done on / Done by follow the status: set when it becomes Done, cleared otherwise. */
-function stampTaskDone(sheet, row, status, doneBy, asOf) {
+/** Done on follows the status: set when it becomes Done, cleared otherwise (ADR 0051: no Done by). */
+function stampTaskDone(sheet, row, status, asOf) {
   var onCell = sheet.getRange(row, taskCol("done_on"));
-  var byCell = sheet.getRange(row, taskCol("done_by"));
   if (String(status || "").trim().toLowerCase() === "done") {
-    if (!onCell.getValue()) {
-      onCell.setValue(isoDate(rtToday(asOf)));
-      byCell.setValue(doneBy || "");
-    }
-  } else if (onCell.getValue() || byCell.getValue()) {
+    if (!onCell.getValue()) onCell.setValue(isoDate(rtToday(asOf)));
+  } else if (onCell.getValue()) {
     onCell.setValue("");
-    byCell.setValue("");
   }
 }
 
@@ -299,7 +303,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
           if (!rtWorksOn(ctx, m, due)) return;
           if (inPeriod.some(function(t) { return t.memberKey === m.key; })) return;
           var made = createTaskRow(ss, { projectId: rule.projectId, member: m, title: type.name, due: due, type: type.name,
-            recurrence: rule.id + "|" + p.key });
+            origin: rule.id + "|" + p.key });
           var t = { row: made.row, memberKey: m.key, periodKey: p.key, ruleId: rule.id, status: "Todo" };
           ruleTasks.push(t);
           res.created++;
@@ -309,7 +313,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key);
         if (!pick) { res.unassigned.push(type.name + " " + p.key); continue; }
         var made2 = createTaskRow(ss, { projectId: rule.projectId, member: pick, title: type.name, due: due, type: type.name,
-          recurrence: rule.id + "|" + p.key });
+          origin: rule.id + "|" + p.key });
         ruleTasks.push({ row: made2.row, memberKey: pick.key, periodKey: p.key, ruleId: rule.id, status: "Todo" });
         res.created++;
       }

@@ -112,7 +112,8 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
     var table = { tableId: own.tableId };
     if (own.name !== tableName) { table.name = tableName; fields.push("name"); }
     var r = own.range;
-    if (r && typeof r.endColumnIndex === "number" && r.endColumnIndex < numCols) {
+    // Widened when the schema gained columns, narrowed when a release removed some (ADR 0051)
+    if (r && typeof r.endColumnIndex === "number" && r.endColumnIndex !== numCols) {
       table.range = {
         sheetId: sheetId,
         startRowIndex: r.startRowIndex || 0,

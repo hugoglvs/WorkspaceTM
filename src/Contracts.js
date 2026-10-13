@@ -180,6 +180,14 @@ function saveContract(payload, targetSpreadsheet) {
         ", so " + member.name + " shows as Departed then and counts no capacity.";
     }
   }
+  // A first contract fires the "New member" task trigger (onboarding, ADR 0051)
+  if (!editRow && !others.length) {
+    try {
+      var fireNew = (typeof fireNewMemberTriggers === "function") ? fireNewMemberTriggers
+        : (typeof require !== "undefined" ? require("./TaskTriggers").fireNewMemberTriggers : null);
+      if (fireNew) fireNew(ss);
+    } catch (eTrig) { Logger.log("New member tasks note: " + eTrig); }
+  }
   return { success: true, message: message };
 }
 
@@ -376,6 +384,7 @@ function restoreMemberFormulas(targetSpreadsheet) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     memberHasContract: memberHasContract,
+    ctContracts: ctContracts,
     contractProfile: contractProfile,
     memberFormulas: memberFormulas,
     MEMBER_FORMULA_COLUMNS: MEMBER_FORMULA_COLUMNS,

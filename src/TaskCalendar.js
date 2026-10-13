@@ -7,7 +7,7 @@
  *   "Done"   done                   (green)
  *   empty    nothing                (grey when on approved leave, orange when a leave is requested)
  * Editing a cell writes Tasks: "To do" assigns (refused on approved leave),
- * "Done" marks done (Done on / Done by stamped), clearing cancels the task.
+ * "Done" marks done (Done on stamped), clearing cancels the task.
  * Changing a period before the current month asks for confirmation (audit).
  */
 
@@ -101,7 +101,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
         var done = String(t.status).toLowerCase() === "done";
         row.push(done ? "Done" : "To do");
         bg.push(done ? CALENDAR_STYLES.done : (t.due < today ? CALENDAR_STYLES.late : CALENDAR_STYLES.todo));
-        nt.push(done ? "Done" + (t.doneOn ? " on " + isoDate(toDate(t.doneOn)) : "") + (t.doneBy ? " by " + t.doneBy : "") : "Due " + isoDate(t.due) + (leave === "approved" ? " · on leave!" : ""));
+        nt.push(done ? "Done" + (t.doneOn ? " on " + isoDate(toDate(t.doneOn)) : "") + "" : "Due " + isoDate(t.due) + (leave === "approved" ? " · on leave!" : ""));
       } else {
         row.push("");
         bg.push(leave === "approved" ? CALENDAR_STYLES.leave : (leave === "requested" ? CALENDAR_STYLES.requested : CALENDAR_STYLES.none));
@@ -159,15 +159,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   return { success: true, type: type.name, project: project ? project.name : CALENDAR_ALL_PROJECTS, members: people.length, periods: periods.length };
 }
 
-function calEditorName(e, members) {
-  var email = "";
-  try { if (e && e.user && typeof e.user.getEmail === "function") email = e.user.getEmail(); } catch (eU) {}
-  if (!email) { try { email = Session.getActiveUser().getEmail(); } catch (eS) {} }
-  var m = members.filter(function(x) {
-    return email && ((x.email && x.email.toLowerCase() === email.toLowerCase()) || (x.googleEmail && x.googleEmail.toLowerCase() === email.toLowerCase()));
-  })[0];
-  return m ? m.name : email;
-}
+
 
 /** A period ending before the current month is closed (audit). */
 function isClosedPeriod(period, today) {
@@ -242,25 +234,24 @@ function handleTaskCalendarEdit(e, asOf) {
       periodOf(freq, t.due).key === periodKey;
   });
   var due = dueDateFor(type, period, ctx.holidays);
-  var by = calEditorName(e, ctx.members);
   var outcome;
 
   if (newVal === "") {
     existing.forEach(function(t) {
-      setTaskStatus(ss, t.row, "Cancelled", by, today);
-      if (t.ruleId && !t.manual) getTable(ss, "tasks").getRange(t.row, taskCol("recurrence")).setValue(t.ruleId + "|" + t.periodKey + "|manual");
+      setTaskStatus(ss, t.row, "Cancelled", today);
+      if (t.ruleId && !t.manual) getTable(ss, "tasks").getRange(t.row, taskCol("origin")).setValue(t.ruleId + "|" + t.periodKey + "|manual");
     });
     outcome = existing.length ? "cancelled" : "nothing";
   } else if (newVal === "Done") {
-    if (existing.length) existing.forEach(function(t) { setTaskStatus(ss, t.row, "Done", by, today); });
+    if (existing.length) existing.forEach(function(t) { setTaskStatus(ss, t.row, "Done", today); });
     else {
       var made = createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name });
-      setTaskStatus(ss, made.row, "Done", by, today);
+      setTaskStatus(ss, made.row, "Done", today);
     }
     outcome = "done";
   } else {
     if (existing.length) {
-      existing.forEach(function(t) { if (String(t.status).toLowerCase() === "done") setTaskStatus(ss, t.row, "Todo", by, today); });
+      existing.forEach(function(t) { if (String(t.status).toLowerCase() === "done") setTaskStatus(ss, t.row, "Todo", today); });
       outcome = "reopened";
     } else {
       var leave = leaveStatusOn(ctx.leaves, memberKey, due);
@@ -281,7 +272,7 @@ function handleTaskCalendarEdit(e, asOf) {
 }
 
 /**
- * onEdit of Tasks.Status: Done on / Done by follow the status, and a change in
+ * onEdit of Tasks.Status: Done on follows the status, and a change in
  * a closed month asks for confirmation first.
  */
 function handleTaskStatusEdit(e, asOf) {
@@ -297,7 +288,7 @@ function handleTaskStatusEdit(e, asOf) {
     e.range.setValue(e.oldValue);
     return "kept";
   }
-  stampTaskDone(sheet, row, status, calEditorName(e, rtMembers(ss)), today);
+  stampTaskDone(sheet, row, status, today);
   return "stamped";
 }
 

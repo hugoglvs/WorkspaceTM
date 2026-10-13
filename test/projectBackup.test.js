@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { createMockSpreadsheet, setupGasGlobals, MailApp } = require('./mockGas');
+const { createMockSpreadsheet, setupGasGlobals, MailApp, setLegacyTasks, getLegacyTasks, legacyTaskCol } = require('./mockGas');
 Object.assign(global, require('../src/Tables'));
 Object.assign(global, require('../src/Locations'));
 global.schemaHeaderRow = require('../src/Schema').schemaHeaderRow;
@@ -357,7 +357,7 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
   assert.ok(sentEmails[0].subject.includes('Phoenix Initiative'));
 
   // 3. Verify interim backup task created in tbl_tasks assigned to Alice (Lead, not yet absent)
-  var taskRows = tasksSheet.getRange(2, 1, 1, 8).getValues();
+  var taskRows = getLegacyTasks(tasksSheet, 2, 1, 8);
   assert.strictEqual(taskRows[0][1], 'PRJ-001');
   assert.strictEqual(taskRows[0][2], 'Alice');
   assert.strictEqual(taskRows[0][3], 'Organize interim backup for project Phoenix Initiative');
@@ -474,7 +474,7 @@ test('Project conflict task assignment: assigns backup member when lead is alrea
 
   assert.strictEqual(auditRes.conflictsFound, 1);
 
-  var taskRows = tasksSheet.getRange(2, 1, 1, 8).getValues();
+  var taskRows = getLegacyTasks(tasksSheet, 2, 1, 8);
   assert.strictEqual(taskRows[0][1], 'PRJ-003');
   // Since Alice is already absent, Bob is assigned
   assert.strictEqual(taskRows[0][2], 'Bob');

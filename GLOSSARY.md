@@ -156,7 +156,7 @@ A Member's birth date, in the last Members column (a date; whether the year is r
 _Avoid_: Date of birth
 
 **Settings**:
-The hidden Settings tab (menu *Edit Settings*) holding the organisation-specific values: default role and department, public holidays country, onboarding task project, title and description (ADR 0049).
+The hidden Settings tab (menu *Edit Settings*) holding the organisation-specific values: default role and department, public holidays country (ADR 0049).
 _Avoid_: Config, Parameters
 
 **Public Holiday**:
@@ -166,6 +166,14 @@ _Avoid_: Holiday (a personal leave type), Bank holiday
 **Deadline**:
 The date by which a task must be done (Tasks column *Deadline*). It drives reminders, overdue and the audit, and is written in the Google Task notes (ADR 0050).
 _Avoid_: Due date (Google Tasks uses "due" for the planned day)
+
+**Origin**:
+Where a task row comes from, in the hidden Tasks column *Origin*: a recurring rule and period, "manual", or a task trigger (ADR 0051).
+_Avoid_: Recurring (former column name), Source
+
+**Task Trigger**:
+An event the app notices (first: *New member*) that creates the tasks configured for it in Task Types (*Created when*, *Days after*, *Assign to*, *Instructions*), once per occurrence (ADR 0051).
+_Avoid_: Automation, Hook
 
 **Planned Date**:
 The day someone plans to do a task (Tasks column *Planned date*), sent to Google Tasks as the task's date; the Deadline when empty (ADR 0050).

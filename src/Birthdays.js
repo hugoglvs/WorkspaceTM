@@ -1,8 +1,8 @@
 /**
  * Birthdays (ADR 0042).
  *
- * Members has a "Birthday" column holding day and month only ("14 Mar"): no
- * year, so no ages in a sheet everyone can read. On the working day before a
+ * Members has a "Birthday" date column (ADR 0049: a full date; whether the
+ * year is real is up to each person). Only day and month are used: on the working day before a
  * birthday (Friday for a Saturday, Sunday or Monday birthday), every other Active
  * Member gets an email with an "Add to my Google Calendar" link (a yearly
  * all-day event). The script also keeps a shared "Team Birthdays" calendar that
@@ -35,9 +35,6 @@ function bdSetJson(key, value) {
   if (props) props.setProperty(key, JSON.stringify(value));
 }
 
-function bdIso(d) {
-  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
-}
 
 function bdMidnight(v) {
   if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
@@ -80,6 +77,21 @@ function parseBirthday(value) {
   else if ((m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-zéû.]+)(?:\s+\d{4})?$/))) out = { month: bdMonthIndex(m[2]) + 1, day: +m[1] };
   else if ((m = s.match(/^([A-Za-zéû.]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?(?:\s+\d{4})?$/))) out = { month: bdMonthIndex(m[1]) + 1, day: +m[2] };
   return out && bdValid(out.month, out.day) ? out : null;
+}
+
+/**
+ * A birthday typed as text with a year ("14/03/1990", "1990-03-14", "March 14, 1990")
+ * as a Date, or null when there is no year or it cannot be read.
+ */
+function parseBirthDate(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  var s = String(value === null || value === undefined ? "" : value).trim();
+  var y = s.match(/(\d{4})/);
+  var b = parseBirthday(s);
+  if (!y || !b) return null;
+  var year = +y[1];
+  var d = new Date(year, b.month - 1, b.day);
+  return d.getMonth() === b.month - 1 ? d : null;
 }
 
 /** "14 Mar" */
@@ -135,27 +147,23 @@ function readBirthdayMembers(ss) {
 }
 
 /**
- * onEdit (Members, Birthday column): rewrites what was typed as "14 Mar", or
- * explains the expected format.
+ * onEdit (Members, Birthday column): the column is a date column (ADR 0049).
+ * A date is kept as typed; text with a year that Sheets did not read as a date
+ * ("1990-03-14", "March 14, 1990") is stored as a date; anything else gets a toast.
  *
- * @return {string|null} The stored text, "invalid", or null when not concerned
+ * @return {string|null} "date", "converted", "invalid", or null when not concerned
  */
 function normalizeBirthdayEdit(e) {
   if (!e || !e.range || e.range.getRow() < 2 || e.range.getColumn() !== bdColumn()) return null;
   var cell = e.range;
   var raw = cell.getValue();
   if (raw === "" || raw === null) return null;
-  var b = parseBirthday(raw);
+  if (raw instanceof Date) return "date";
+  var d = parseBirthDate(raw);
+  if (d) { cell.setValue(d); return "converted"; }
   var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
-  if (!b) {
-    try { ss.toast("Write the birthday as day and month, e.g. 14 Mar or 14/03. No year needed.", "Birthday", 8); } catch (eT) {}
-    return "invalid";
-  }
-  var text = formatBirthday(b);
-  // The Birthday column is a typed TEXT column, so the text stays text (and
-  // Sheets refuses number formats there)
-  if (raw !== text) cell.setValue(text);
-  return text;
+  try { ss.toast("Write the full birth date, e.g. 14/03/1990.", "Birthday", 8); } catch (eT) {}
+  return "invalid";
 }
 
 /**
@@ -166,7 +174,7 @@ function normalizeBirthdayEdit(e) {
 function birthdayAnnouncementDays(asOf, holidays) {
   var d = bdMidnight(asOf);
   var working = function(x) {
-    return x.getDay() !== 0 && x.getDay() !== 6 && !(holidays && holidays[bdIso(x)]);
+    return x.getDay() !== 0 && x.getDay() !== 6 && !(holidays && holidays[isoDate(x)]);
   };
   if (!working(d)) return [];
   var days = [];
@@ -182,7 +190,7 @@ function birthdayAnnouncementDays(asOf, holidays) {
 /** Google Calendar link that opens a yearly all-day event, ready to save. */
 function birthdayCalendarLink(name, date) {
   var end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-  var compact = function(d) { return bdIso(d).replace(/-/g, ""); };
+  var compact = function(d) { return isoDate(d).replace(/-/g, ""); };
   return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
     "&text=" + encodeURIComponent("🎂 " + name + "'s birthday") +
     "&dates=" + compact(date) + "/" + compact(end) +
@@ -197,9 +205,6 @@ function birthdaySubscribeLink() {
   return id ? "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(id) : "";
 }
 
-function bdHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 /**
  * Emails every Active Member about the birthdays of the coming days (their own
@@ -214,7 +219,7 @@ function sendBirthdayReminders(targetSpreadsheet, asOf) {
   var today = bdMidnight(asOf || new Date());
   var res = { celebrants: [], sent: [] };
   var props = bdProps();
-  if (props && props.getProperty(BD_PROP_SENT_ON) === bdIso(today)) { res.skipped = "already_sent_today"; return res; }
+  if (props && props.getProperty(BD_PROP_SENT_ON) === isoDate(today)) { res.skipped = "already_sent_today"; return res; }
 
   var days = birthdayAnnouncementDays(today, (typeof readHolidays === "function") ? readHolidays(ss) : {});
   if (!days.length) return res;
@@ -225,7 +230,7 @@ function sendBirthdayReminders(targetSpreadsheet, asOf) {
     if (!m.birthday) return;
     days.forEach(function(d) {
       var on = bdInYear(m.birthday, d.getFullYear());
-      if (bdIso(on) === bdIso(d)) celebrants.push({ key: m.key, name: m.name, date: d, birthday: m.birthday });
+      if (isoDate(on) === isoDate(d)) celebrants.push({ key: m.key, name: m.name, date: d, birthday: m.birthday });
     });
   });
   res.celebrants = celebrants.map(function(c) { return c.name; });
@@ -247,7 +252,7 @@ function sendBirthdayReminders(targetSpreadsheet, asOf) {
       return c.name + "'s birthday is " + when(c) + ".\nAdd it to your Google Calendar (every year): " + birthdayCalendarLink(c.name, c.date);
     }).join("\n\n");
     var html = list.map(function(c) {
-      return "<p>🎂 <b>" + bdHtml(c.name) + "</b>'s birthday is " + bdHtml(when(c)) + ".<br>" +
+      return "<p>🎂 <b>" + escapeHtml(c.name) + "</b>'s birthday is " + escapeHtml(when(c)) + ".<br>" +
         "<a href=\"" + birthdayCalendarLink(c.name, c.date) + "\">Add to my Google Calendar (every year)</a></p>";
     }).join("");
     if (subscribe) {
@@ -258,7 +263,7 @@ function sendBirthdayReminders(targetSpreadsheet, asOf) {
     res.sent.push(r.name);
   });
 
-  if (props) props.setProperty(BD_PROP_SENT_ON, bdIso(today));
+  if (props) props.setProperty(BD_PROP_SENT_ON, isoDate(today));
   Logger.log("[birthdayReminderJob] " + res.celebrants.join(", ") + " → " + res.sent.length + " email(s)");
   return res;
 }
@@ -369,6 +374,7 @@ function dailyRemindersJob() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     parseBirthday: parseBirthday,
+    parseBirthDate: parseBirthDate,
     formatBirthday: formatBirthday,
     nextBirthdayDate: nextBirthdayDate,
     readBirthdayMembers: readBirthdayMembers,

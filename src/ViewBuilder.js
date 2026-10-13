@@ -38,18 +38,6 @@ function formatIsoWeekString(date) {
   return "W" + (w < 10 ? "0" + w : w);
 }
 
-/**
- * Formats a Date object as ISO date string "YYYY-MM-DD".
- *
- * @param {Date} date
- * @return {string}
- */
-function formatMatrixDateIso(date) {
-  var y = date.getFullYear();
-  var m = String(date.getMonth() + 1).padStart(2, "0");
-  var d = String(date.getDate()).padStart(2, "0");
-  return y + "-" + m + "-" + d;
-}
 
 /**
  * Formats a Date object into standard datetime string: YYYY-MM-DD HH:mm:ss
@@ -68,31 +56,6 @@ function formatMatrixDateTime(d) {
   return yr + "-" + mo + "-" + da + " " + hr + ":" + mi + ":" + se;
 }
 
-/**
- * Parses a date value (string or Date) into a midnight UTC/local Date object.
- *
- * @param {string|Date} val
- * @return {Date|null}
- */
-function parseMatrixDate(val) {
-  if (!val) return null;
-  if (val instanceof Date) {
-    var d = new Date(val.getTime());
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  var s = String(val).trim();
-  var match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (match) {
-    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10), 0, 0, 0, 0);
-  }
-  var parsed = new Date(s);
-  if (!isNaN(parsed.getTime())) {
-    parsed.setHours(0, 0, 0, 0);
-    return parsed;
-  }
-  return null;
-}
 
 /**
  * Returns array of all consecutive Date objects between start and end (inclusive),
@@ -213,10 +176,10 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
       for (var l = 0; l < lVals.length; l++) {
         var dVal = lVals[l][1];
         if (!dVal) continue;
-        var dObj = parseMatrixDate(dVal);
+        var dObj = toDate(dVal);
         if (!dObj) continue;
 
-        var dIso = formatMatrixDateIso(dObj);
+        var dIso = isoDate(dObj);
         var mVal = lVals[l][2];
         var mR = (lRich && lRich[l]) ? lRich[l][2] : null;
         var mName = (typeof extractCellValue === "function") ? extractCellValue(mVal, mR) : String(mVal).trim();
@@ -235,10 +198,10 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
   }
 
   // 3. Determine planning window (aligned to full weeks: Monday to Sunday)
-  var startD = parseMatrixDate(startDateStr);
-  var endD = parseMatrixDate(endDateStr);
+  var startD = toDate(startDateStr);
+  var endD = toDate(endDateStr);
 
-  var today = asOfDateParam ? (parseMatrixDate(asOfDateParam) || new Date()) : new Date();
+  var today = asOfDateParam ? (toDate(asOfDateParam) || new Date()) : new Date();
   today.setHours(0, 0, 0, 0);
 
   if (!startD) {
@@ -314,7 +277,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
   for (var w = 0; w < allDays.length; w++) {
     var dayDate = allDays[w];
     var weekStr = formatIsoWeekString(dayDate);
-    var dateStr = formatMatrixDateIso(dayDate);
+    var dateStr = isoDate(dayDate);
 
     // Track week groups for Column A merging
     if (weekStr !== currentWeekStr) {
@@ -454,7 +417,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
     for (var dIdx = 0; dIdx < allDays.length; dIdx++) {
       var dCheck = allDays[dIdx];
       var dDayNum = dCheck.getDay();
-      var holidayName = matrixHolidays[formatMatrixDateIso(dCheck)];
+      var holidayName = matrixHolidays[isoDate(dCheck)];
       if (holidayName) {
         try { viewSheet.getRange(3 + dIdx, 2).setNote(holidayName); } catch (eNote) {}
       }
@@ -476,7 +439,7 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
     try {
       var locationChoices = ((typeof activeLocationNames === "function") ? activeLocationNames(ss) : ["Remote"])
         .concat(["Off", "Vacation", "Sick Leave", "Holiday"]);
-      var mondayIso = formatMatrixDateIso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7)));
+      var mondayIso = isoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7)));
       var firstEditable = numDataRows;
       for (var fr = 0; fr < rows.length; fr++) {
         if (String(rows[fr][1]) >= mondayIso) { firstEditable = fr; break; }
@@ -539,8 +502,8 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
     rowsRendered: numDataRows,
     membersCount: numMembers,
     totalWeeks: weekGroups.length,
-    startDate: formatMatrixDateIso(startD),
-    endDate: formatMatrixDateIso(endD)
+    startDate: isoDate(startD),
+    endDate: isoDate(endD)
   };
 }
 
@@ -567,9 +530,9 @@ function handleWeeklyMatrixEdit(e) {
 
   // 1. Identify date from Column 2 on that row
   var dateVal = sheet.getRange(editedRow, 2).getValue();
-  var dateObj = parseMatrixDate(dateVal);
+  var dateObj = toDate(dateVal);
   if (!dateObj) return null;
-  var dateIso = formatMatrixDateIso(dateObj);
+  var dateIso = isoDate(dateObj);
 
   // 2. Identify member and period (AM or PM) from column
   var memberIdx = Math.floor((editedCol - 3) / 2);
@@ -601,9 +564,9 @@ function handleWeeklyMatrixEdit(e) {
     var lRich = (typeof lRange.getRichTextValues === "function") ? lRange.getRichTextValues() : [];
 
     for (var l = 0; l < lVals.length; l++) {
-      var lDate = parseMatrixDate(lVals[l][1]);
+      var lDate = toDate(lVals[l][1]);
       if (!lDate) continue;
-      if (formatMatrixDateIso(lDate) === dateIso) {
+      if (isoDate(lDate) === dateIso) {
         var mVal = lVals[l][2];
         var mR = (lRich && lRich[l]) ? lRich[l][2] : null;
         var mName = (typeof extractCellValue === "function") ? extractCellValue(mVal, mR) : String(mVal).trim();
@@ -669,7 +632,7 @@ function handleWeeklyMatrixEdit(e) {
   }
 
   // 4. Update today_presence in tbl_members if date is today
-  var todayIso = formatMatrixDateIso(new Date());
+  var todayIso = isoDate(new Date());
   if (dateIso === todayIso) {
     var membersSheet2 = getTable(ss, "members");
     if (membersSheet2) {
@@ -733,9 +696,7 @@ if (typeof module !== 'undefined' && module.exports) {
     handleWeeklyMatrixEdit: handleWeeklyMatrixEdit,
     getIsoWeekNumber: getIsoWeekNumber,
     formatIsoWeekString: formatIsoWeekString,
-    formatMatrixDateIso: formatMatrixDateIso,
     formatMatrixDateTime: formatMatrixDateTime,
-    parseMatrixDate: parseMatrixDate,
     getAllMatrixDays: getAllMatrixDays,
     applyMatrixConditionalFormatting: applyMatrixConditionalFormatting
   };

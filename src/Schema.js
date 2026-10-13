@@ -55,7 +55,7 @@ var SCHEMA_SPEC = {
       current_department: "TEXT",
       tenure_status: "DROPDOWN",
       today_presence: "TEXT",
-      birthday: "TEXT" // day and month only, e.g. "14 Mar" (ADR 0042)
+      birthday: "DATE" // full birth date; only day and month are used (ADR 0049)
     },
     validations: {
       // The four values syncMembersAndTenures writes (shown as coloured chips)
@@ -103,9 +103,8 @@ var SCHEMA_SPEC = {
       location_pm: "DROPDOWN"
     },
     validations: {
-      day_of_week: ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      location_am: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off"],
-      location_pm: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off"]
+      day_of_week: ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+      // location_am / location_pm: the Locations tab plus "Off" (locationColumns)
     },
     // Filled at runtime from the Locations tab (src/Locations.js)
     locationColumns: { location_am: "plain", location_pm: "plain" }
@@ -153,10 +152,8 @@ var SCHEMA_SPEC = {
       location_pm: "DROPDOWN",
       timestamp: "TEXT"
     },
-    validations: {
-      location_am: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"],
-      location_pm: ["OneRoof", "Remote", "JLL", "C04", "C60", "Off", "Vacation", "Sick Leave", "Maternity/Paternity", "Unpaid Leave", "Holiday"]
-    },
+    // location_am / location_pm: the Locations tab, "Off" and leave types (locationColumns)
+    validations: {},
     // Filled at runtime from the Locations tab (src/Locations.js)
     locationColumns: { location_am: "withLeaves", location_pm: "withLeaves" }
   },
@@ -327,6 +324,19 @@ var SCHEMA_SPEC = {
     columnTypes: { rule_id: "TEXT", task_type: "DROPDOWN", project_id: "TEXT", mode: "DROPDOWN", applies_to: "TEXT", start_date: "DATE", end_date: "DATE", active: "BOOLEAN" },
     taskTypeColumns: { task_type: true },
     validations: { mode: ["Rotation", "Each person"] }
+  },
+  settings: {
+    sheetName: "Settings",
+    legacyName: "tbl_settings",
+    headers: { setting: "Setting", value: "Value", description: "Description" },
+    columns: ["setting", "value", "description"],
+    requiredColumns: ["setting"],
+    nullableColumns: ["value", "description"],
+    strictlyProtectedColumns: [],
+    warningProtectedColumns: ["setting"],
+    protectedColumns: ["setting"],
+    columnTypes: { setting: "TEXT", value: "TEXT", description: "TEXT" },
+    validations: {}
   }
 };
 

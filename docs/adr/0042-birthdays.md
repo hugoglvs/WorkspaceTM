@@ -1,7 +1,7 @@
 # ADR 0042: Birthdays: Day and Month in Members, Reminder Email and Team Birthdays Calendar
 
 ## Status
-Accepted (2026-10-12)
+Accepted (2026-10-12); the day-and-month storage is amended by ADR 0049 (full birth date).
 
 ## Context
 The team wants each Member's birthday in Members, a reminder to the rest of the team, and an easy way to put it in their Google Calendar. The sheet is fully transparent (no privacy model), so a full birth date would expose everyone's age.

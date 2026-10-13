@@ -47,7 +47,8 @@ test('freshInit should create all operational tables and set SCHEMA_VERSION = 1'
     'Backups',
     'Holidays',
     'Task Types',
-    'Recurring Tasks'
+    'Recurring Tasks',
+    'Settings'
   ];
 
   assert.deepStrictEqual(result.sheetsCreated, expectedSheets);

@@ -63,16 +63,23 @@ test('parseBirthday reads common formats, drops the year, rejects nonsense', () 
   assert.strictEqual(parseBirthday('soon'), null);
 });
 
-test('typing a birthday in Members stores "14 Mar"; an unreadable one shows a toast', () => {
+test('Birthday is a full date: a date is kept, text with a year becomes a date, the rest gets a toast', () => {
   seed(TEAM);
   var sheet = getTable(mockSpreadsheet, 'members');
   var cell = sheet.getRange(3, 8);
-  cell.setValue('3/7');
-  code.onEdit({ range: cell, value: '3/7', source: mockSpreadsheet });
-  assert.strictEqual(cell.getValue(), '3 Jul');
-  cell.setValue('someday');
-  code.onEdit({ range: cell, value: 'someday', source: mockSpreadsheet });
+  var typed = new Date(1990, 6, 3);
+  cell.setValue(typed);
+  code.onEdit({ range: cell, value: typed, source: mockSpreadsheet });
+  assert.strictEqual(cell.getValue(), typed);
+  cell.setValue('1988-07-03');
+  code.onEdit({ range: cell, value: '1988-07-03', source: mockSpreadsheet });
+  assert.strictEqual(cell.getValue().getTime(), new Date(1988, 6, 3).getTime());
+  cell.setValue('3 Jul');
+  code.onEdit({ range: cell, value: '3 Jul', source: mockSpreadsheet });
   assert.strictEqual(mockSpreadsheet.lastToast.title, 'Birthday');
+  assert.match(mockSpreadsheet.lastToast.msg, /full birth date/);
+  assert.strictEqual(parseBirthDate('29/02/2001'), null, 'no 29 Feb in 2001');
+  assert.strictEqual(parseBirthDate('14/03'), null, 'no year');
 });
 
 test('announcement days: the next day, and Saturday to Monday on a Friday, nothing at weekends', () => {

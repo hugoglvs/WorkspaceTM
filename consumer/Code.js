@@ -36,6 +36,7 @@ function onOpen(e) {
     .addItem("Edit Locations", "showLocationsTab")
     .addItem("Edit Holidays", "showHolidaysTab")
     .addItem("Edit Task Types", "showTaskTypesTab")
+    .addItem("Edit Settings", "showSettingsTab")
     .addToUi();
 
   // Forward onOpen lifecycle to library for diagnostics and audits without rebuilding menu
@@ -269,6 +270,10 @@ function showLocationsTab() {
   return safeInvokeLibrary("showLocationsTab");
 }
 
+function showSettingsTab() {
+  return safeInvokeLibrary("showSettingsTab");
+}
+
 function showHolidaysTab() {
   return safeInvokeLibrary("showHolidaysTab");
 }
@@ -420,6 +425,7 @@ if (typeof module !== 'undefined' && module.exports) {
     saveContract: saveContract,
     restoreMemberFormulas: restoreMemberFormulas,
     showHolidaysTab: showHolidaysTab,
+    showSettingsTab: showSettingsTab,
     showBackupSidebar: showBackupSidebar,
     getBackupSidebarData: getBackupSidebarData,
     saveInterimBackup: saveInterimBackup,

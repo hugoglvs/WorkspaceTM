@@ -23,23 +23,8 @@ var DEFAULT_TASK_TYPES = [
 var TT_WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 var TT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function ttIso(d) {
-  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
-}
 
-/** Date at local midnight from a Date or "YYYY-MM-DD…" (null when empty). */
-function ttDate(v) {
-  if (v instanceof Date && !isNaN(v.getTime())) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
-  var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
-  if (!v) return null;
-  var d = new Date(String(v));
-  return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
 
-function ttAddDays(d, n) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-}
 
 function ttTruthy(v) {
   if (v === true) return true;
@@ -118,7 +103,7 @@ function isoWeekKey(d) {
 }
 
 function ttMonday(d) {
-  return ttAddDays(d, -((d.getDay() + 6) % 7));
+  return addDays(d, -((d.getDay() + 6) % 7));
 }
 
 /**
@@ -126,7 +111,7 @@ function ttMonday(d) {
  * @return {{key: string, start: Date, end: Date, label: string, frequency: string}}
  */
 function periodOf(frequency, date) {
-  var d = ttDate(date);
+  var d = toDate(date);
   if (normalizeFrequency(frequency) === "Monthly") {
     var start = new Date(d.getFullYear(), d.getMonth(), 1);
     var end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
@@ -135,15 +120,15 @@ function periodOf(frequency, date) {
   }
   var mon = ttMonday(d);
   var key = isoWeekKey(mon);
-  return { key: key, start: mon, end: ttAddDays(mon, 6),
+  return { key: key, start: mon, end: addDays(mon, 6),
     label: "W" + key.slice(-2) + " · " + mon.getDate() + " " + TT_MONTHS[mon.getMonth()], frequency: "Weekly" };
 }
 
 /** Period n periods after the one holding `date` (n may be negative). */
 function periodShift(frequency, date, n) {
-  var d = ttDate(date);
+  var d = toDate(date);
   if (normalizeFrequency(frequency) === "Monthly") return periodOf("Monthly", new Date(d.getFullYear(), d.getMonth() + n, 1));
-  return periodOf("Weekly", ttAddDays(ttMonday(d), 7 * n));
+  return periodOf("Weekly", addDays(ttMonday(d), 7 * n));
 }
 
 /** Period from its key ("2026-W42" or "2026-10"). */
@@ -154,12 +139,12 @@ function periodFromKey(key) {
   if (!w) return null;
   // Monday of ISO week 1 is the Monday of the week holding 4 January
   var week1 = ttMonday(new Date(+w[1], 0, 4));
-  return periodOf("Weekly", ttAddDays(week1, 7 * (+w[2] - 1)));
+  return periodOf("Weekly", addDays(week1, 7 * (+w[2] - 1)));
 }
 
 function ttIsWorking(d, holidays) {
   if (typeof isWorkingDay === "function") return isWorkingDay(d, holidays);
-  return d.getDay() !== 0 && d.getDay() !== 6 && !(holidays && holidays[ttIso(d)]);
+  return d.getDay() !== 0 && d.getDay() !== 6 && !(holidays && holidays[isoDate(d)]);
 }
 
 /**
@@ -178,7 +163,7 @@ function dueDateFor(type, period, holidays) {
   if (normalizeFrequency(type && type.frequency) === "Monthly") {
     if (rule.indexOf("first") === 0) {
       d = new Date(period.start.getTime());
-      while (!ttIsWorking(d, holidays) && d < period.end) d = ttAddDays(d, 1);
+      while (!ttIsWorking(d, holidays) && d < period.end) d = addDays(d, 1);
       return d;
     }
     var n = parseInt(rule, 10);
@@ -187,14 +172,14 @@ function dueDateFor(type, period, holidays) {
   } else {
     var idx = TT_WEEKDAYS.indexOf(rule);
     if (idx < 0) idx = 5; // Friday
-    d = ttAddDays(period.start, (idx + 6) % 7);
+    d = addDays(period.start, (idx + 6) % 7);
   }
   var due = d;
-  while (!ttIsWorking(due, holidays) && due > period.start) due = ttAddDays(due, -1);
+  while (!ttIsWorking(due, holidays) && due > period.start) due = addDays(due, -1);
   if (ttIsWorking(due, holidays)) return due;
   // Nothing earlier in the period: take the next working day
   due = d;
-  while (!ttIsWorking(due, holidays) && due < period.end) due = ttAddDays(due, 1);
+  while (!ttIsWorking(due, holidays) && due < period.end) due = addDays(due, 1);
   return due;
 }
 
@@ -224,10 +209,7 @@ if (typeof module !== 'undefined' && module.exports) {
     periodShift: periodShift,
     periodFromKey: periodFromKey,
     dueDateFor: dueDateFor,
-    ttDate: ttDate,
-    ttIso: ttIso,
     ttTruthy: ttTruthy,
-    ttAddDays: ttAddDays,
     ttIsWorking: ttIsWorking,
     showTaskTypesTab: showTaskTypesTab
   };

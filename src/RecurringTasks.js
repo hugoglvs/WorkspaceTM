@@ -24,12 +24,9 @@ function taskCol(name) {
   return SCHEMA_SPEC.tasks.columns.indexOf(name) + 1;
 }
 
-function rtName(val, rich) {
-  return (typeof extractCellValue === "function") ? extractCellValue(val, rich) : String(val || "").trim();
-}
 
 function rtToday(asOf) {
-  return ttDate(asOf || new Date());
+  return toDate(asOf || new Date());
 }
 
 /** Members with role, status and emails, in tab order. */
@@ -42,7 +39,7 @@ function rtMembers(ss) {
   var out = [];
   for (var i = 0; i < vals.length; i++) {
     var r = rich[i] || [];
-    var name = rtName(vals[i][0], r[0]);
+    var name = cellName(vals[i][0], r[0]);
     if (!name) continue;
     var google = (typeof extractEmailFromChip === "function") ? String(extractEmailFromChip(vals[i][0], r[0]) || "").trim() : "";
     var work = String(vals[i][1] || "").trim();
@@ -128,11 +125,11 @@ function readTaskRows(ss) {
     var v = vals[i];
     if (!v[0] && !v[3]) continue;
     var r = rich[i] || [];
-    var member = rtName(v[2], r[2]);
+    var member = cellName(v[2], r[2]);
     var rec = parseRecurrence(v[11]);
     out.push({
       row: i + 2, id: String(v[0] || ""), projectId: String(v[1] || "").trim(), member: member, memberKey: member.toLowerCase(),
-      title: String(v[3] || ""), due: ttDate(v[5]), status: String(v[6] || "").trim(), googleTaskId: String(v[7] || ""),
+      title: String(v[3] || ""), due: toDate(v[5]), status: String(v[6] || "").trim(), googleTaskId: String(v[7] || ""),
       type: String(v[8] || "").trim(), doneOn: v[9], doneBy: String(v[10] || ""), recurrence: String(v[11] || ""),
       ruleId: rec.ruleId, periodKey: rec.periodKey, manual: rec.manual
     });
@@ -161,7 +158,7 @@ function createTaskRow(ss, t) {
   var id = (typeof generateTaskId === "function") ? generateTaskId() : "TSK-" + Date.now();
   var values = [[
     id, t.projectId || "", t.member ? t.member.name : "", t.title || t.type || "Task", t.description || "",
-    t.due ? ttIso(t.due) : "", t.status || "Todo", "", t.type || "", "", "", t.recurrence || ""
+    t.due ? isoDate(t.due) : "", t.status || "Todo", "", t.type || "", "", "", t.recurrence || ""
   ]];
   sheet.getRange(row, 1, 1, values[0].length).setValues(values);
   copyMemberChip(ss, t.member, sheet, row, taskCol("assigned_member"));
@@ -184,7 +181,7 @@ function stampTaskDone(sheet, row, status, doneBy, asOf) {
   var byCell = sheet.getRange(row, taskCol("done_by"));
   if (String(status || "").trim().toLowerCase() === "done") {
     if (!onCell.getValue()) {
-      onCell.setValue(ttIso(rtToday(asOf)));
+      onCell.setValue(isoDate(rtToday(asOf)));
       byCell.setValue(doneBy || "");
     }
   } else if (onCell.getValue() || byCell.getValue()) {
@@ -215,7 +212,7 @@ function readRecurringRules(ss) {
     out.push({
       row: i + 2, id: String(v[0] || "").trim() || ("R" + (i + 2)), type: String(v[1] || "").trim(),
       projectId: String(v[2] || "").trim(), mode: /rotat/i.test(String(v[3] || "")) ? "Rotation" : "Each person",
-      appliesTo: String(v[4] || ""), start: ttDate(v[5]), end: ttDate(v[6]),
+      appliesTo: String(v[4] || ""), start: toDate(v[5]), end: toDate(v[6]),
       active: (activeCell === "" || activeCell === null || activeCell === undefined) ? true : ttTruthy(activeCell)
     });
   }
@@ -229,7 +226,7 @@ function addRecurringRule(ss, rule) {
   var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(sheet) : sheet.getLastRow() + 1;
   sheet.getRange(row, 1, 1, 8).setValues([[
     id, rule.type, rule.projectId || "", rule.mode === "Rotation" ? "Rotation" : "Each person", rule.appliesTo || "",
-    rule.start ? ttIso(ttDate(rule.start)) : "", rule.end ? ttIso(ttDate(rule.end)) : "", true
+    rule.start ? isoDate(toDate(rule.start)) : "", rule.end ? isoDate(toDate(rule.end)) : "", true
   ]]);
   return id;
 }
@@ -257,7 +254,7 @@ function pickRotationMember(ctx, people, ruleTasks, due, excludeKey, periodKey) 
 
 function notifyReassignment(ss, from, to, typeName, due) {
   if (typeof MailApp === "undefined") return;
-  var when = ttIso(due);
+  var when = isoDate(due);
   try {
     if (from && from.email) MailApp.sendEmail({ to: from.email, subject: typeName + " on " + when + ": handed over",
       body: "You are on leave on " + when + ", so " + (to ? to.name : "nobody yet") + " takes your " + typeName + " turn." });
@@ -345,15 +342,15 @@ function workingDaysAfter(d, n, holidays) {
   var x = d;
   var count = 0;
   while (count < n) {
-    x = ttAddDays(x, 1);
+    x = addDays(x, 1);
     if (ttIsWorking(x, holidays)) count++;
   }
   return x;
 }
 
 function previousWorkingDay(d, holidays) {
-  var x = ttAddDays(d, -1);
-  while (!ttIsWorking(x, holidays)) x = ttAddDays(x, -1);
+  var x = addDays(d, -1);
+  while (!ttIsWorking(x, holidays)) x = addDays(x, -1);
   return x;
 }
 
@@ -370,15 +367,15 @@ function sendTaskReminders(targetSpreadsheet, asOf) {
   var holidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
   if (!ttIsWorking(today, holidays)) { res.skipped = "non_working_day"; return res; }
   var props = (typeof PropertiesService !== "undefined") ? PropertiesService.getDocumentProperties() : null;
-  if (props && props.getProperty("TASK_REMINDERS_SENT_ON") === ttIso(today)) { res.skipped = "already_sent_today"; return res; }
+  if (props && props.getProperty("TASK_REMINDERS_SENT_ON") === isoDate(today)) { res.skipped = "already_sent_today"; return res; }
 
-  var soon = ttIso(workingDaysAfter(today, 3, holidays));
-  var lastDue = ttIso(previousWorkingDay(today, holidays));
+  var soon = isoDate(workingDaysAfter(today, 3, holidays));
+  var lastDue = isoDate(previousWorkingDay(today, holidays));
   var members = rtMembers(ss);
   var byMember = {};
   readTaskRows(ss).forEach(function(t) {
     if (!t.type || !t.due || !isOpenStatus(t.status) || !t.memberKey) return;
-    var d = ttIso(t.due);
+    var d = isoDate(t.due);
     var kind = d === soon ? "soon" : (d === lastDue ? "late" : null);
     if (!kind) return;
     (byMember[t.memberKey] = byMember[t.memberKey] || []).push({ title: t.title || t.type, due: d, kind: kind });
@@ -398,7 +395,7 @@ function sendTaskReminders(targetSpreadsheet, asOf) {
     });
     res.sent.push(m.name);
   });
-  if (props) props.setProperty("TASK_REMINDERS_SENT_ON", ttIso(today));
+  if (props) props.setProperty("TASK_REMINDERS_SENT_ON", isoDate(today));
   return res;
 }
 
@@ -407,7 +404,7 @@ function findOverdueTasks(ss, asOf) {
   var today = rtToday(asOf);
   return readTaskRows(ss).filter(function(t) {
     return t.type && t.due && t.due < today && isOpenStatus(t.status);
-  }).map(function(t) { return (t.title || t.type) + ": " + (t.member || "unassigned") + ", due " + ttIso(t.due); });
+  }).map(function(t) { return (t.title || t.type) + ": " + (t.member || "unassigned") + ", due " + isoDate(t.due); });
 }
 
 /** Open tasks assigned to someone on approved leave on the due date. */
@@ -416,7 +413,7 @@ function findTasksOnLeave(ss, asOf) {
   var leaves = (typeof readCoverageLeaves === "function") ? readCoverageLeaves(ss) : {};
   return readTaskRows(ss).filter(function(t) {
     return t.due && t.due >= today && t.memberKey && isOpenStatus(t.status) && leaveStatusOn(leaves, t.memberKey, t.due) === "approved";
-  }).map(function(t) { return (t.title || t.type) + " on " + ttIso(t.due) + ": " + t.member + " is on leave"; });
+  }).map(function(t) { return (t.title || t.type) + " on " + isoDate(t.due) + ": " + t.member + " is on leave"; });
 }
 
 if (typeof module !== 'undefined' && module.exports) {

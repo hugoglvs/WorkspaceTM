@@ -299,6 +299,10 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
       taskDueDate.setDate(taskDueDate.getDate() + 7);
       var dueDateStr = safeFormatDateIso(taskDueDate);
       var nextTaskRow = findNextAvailableRow(tasksSheet);
+      // Onboarding task texts and project come from the Settings tab (ADR 0049)
+      var getSettingFn = (typeof getSetting === "function") ? getSetting
+        : (typeof require !== "undefined" ? require("./Settings").getSetting : null);
+      var setting = function(key) { return getSettingFn ? getSettingFn(ss, key) : ""; };
 
       for (var nm = 0; nm < newlyAddedMembers.length; nm++) {
         var newM = newlyAddedMembers[nm];
@@ -309,7 +313,7 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
 
         // Columns: task_id, project_id
         tasksSheet.getRange(targetTaskRow, tkColId).setValue(taskId);
-        tasksSheet.getRange(targetTaskRow, tkColProj).setValue("ONBOARDING");
+        tasksSheet.getRange(targetTaskRow, tkColProj).setValue(setting("onboarding_project_id"));
 
         // Copy People Chip to assigned_member
         copyCellChip(
@@ -323,13 +327,9 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
           ss.getId ? ss.getId() : ""
         );
 
-        tasksSheet.getRange(targetTaskRow, tkColTitle).setValue(
-          "Complete profile: enter Accenture email and phone number in Team Directory"
-        );
+        tasksSheet.getRange(targetTaskRow, tkColTitle).setValue(setting("onboarding_task_title"));
         if (tkColDesc > 0 && tkColDesc <= tasksSheet.getLastColumn()) {
-          tasksSheet.getRange(targetTaskRow, tkColDesc).setValue(
-            "Please enter your Accenture email address and phone number in the Members tab (columns Accenture email and Phone)."
-          );
+          tasksSheet.getRange(targetTaskRow, tkColDesc).setValue(setting("onboarding_task_description"));
         }
         tasksSheet.getRange(targetTaskRow, tkColDue).setValue(dueDateStr);
         tasksSheet.getRange(targetTaskRow, tkColStatus).setValue("Todo");

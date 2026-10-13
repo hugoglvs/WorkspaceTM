@@ -21,9 +21,9 @@ function getAssignSidebarData(targetSpreadsheet) {
     members: members.map(function(m) { return { name: m.name, role: m.role }; }),
     rules: readRecurringRules(ss).map(function(r) {
       return { id: r.id, type: r.type, project: projectName[r.projectId] || r.projectId || "", mode: r.mode,
-        appliesTo: r.appliesTo || "Everyone", start: r.start ? ttIso(r.start) : "", end: r.end ? ttIso(r.end) : "", active: r.active };
+        appliesTo: r.appliesTo || "Everyone", start: r.start ? isoDate(r.start) : "", end: r.end ? isoDate(r.end) : "", active: r.active };
     }),
-    today: ttIso(ttDate(new Date()))
+    today: isoDate(toDate(new Date()))
   };
 }
 
@@ -35,7 +35,7 @@ function getAssignSidebarData(targetSpreadsheet) {
 function assignTasks(payload, targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var p = payload || {};
-  var today = ttDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var ctx = rtContext(ss);
   var type = findTaskType(ss, p.type, ctx.types);
   if (!type) return { success: false, message: "Choose a task type." };
@@ -48,8 +48,8 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
   try {
     var message;
     if (p.repeat || mode === "Rotation") {
-      var start = ttDate(p.start) || today;
-      var end = ttDate(p.end);
+      var start = toDate(p.start) || today;
+      var end = toDate(p.end);
       if (end && end < start) return { success: false, message: "The end date is before the start date." };
       addRecurringRule(ss, { type: type.name, projectId: p.projectId || "", mode: mode, appliesTo: p.appliesTo || "", start: start, end: end });
       var gen = generateRecurringTasks(ss, today);
@@ -57,7 +57,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
         " people). " + gen.created + " task(s) planned ahead.";
     } else {
       var freq = type.frequency === "Monthly" ? "Monthly" : "Weekly";
-      var period = periodOf(freq, ttDate(p.date) || today);
+      var period = periodOf(freq, toDate(p.date) || today);
       var due = dueDateFor(type, period, ctx.holidays);
       var existing = readTaskRows(ss).filter(function(t) {
         return t.due && String(t.status).toLowerCase() !== "cancelled" && t.type.toLowerCase() === type.name.toLowerCase() &&
@@ -72,7 +72,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
         createTaskRow(ss, { projectId: p.projectId || "", member: m, title: type.name, due: due, type: type.name });
         created++;
       });
-      message = created + " " + type.name + " task(s) assigned, due " + ttIso(due) + "." +
+      message = created + " " + type.name + " task(s) assigned, due " + isoDate(due) + "." +
         (onLeave.length ? " On leave that day: " + onLeave.join(", ") + "." : "");
     }
     try {
@@ -87,7 +87,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
 /** Stops a recurring rule and cancels its future open tasks. */
 function stopRecurringRule(ruleId, targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var today = ttDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var rule = readRecurringRules(ss).filter(function(r) { return r.id === ruleId; })[0];
   if (!rule) return { success: false, message: "Rule not found." };
   getTable(ss, "recurringTasks").getRange(rule.row, 8).setValue(false);

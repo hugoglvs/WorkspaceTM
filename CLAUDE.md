@@ -4,11 +4,14 @@
 
 - **WorkspacePM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
 - No build, no `package.json`. Each `src/*.js` and `consumer/Code.js` is a global script in Apps Script and ends with a `if (typeof module !== 'undefined') module.exports = {...}` guard so Node tests can `require` it. Keep that guard when adding files or exports.
-- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-12: **229 pass, 0 fail**.
+- Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-12: **239 pass, 0 fail**.
 - Spec and tickets: `.scratch/workspace-pm-library/` (`spec.md`, `issues/NN-*.md`). Status words in use: `resolved`/`closed` = done, `open`, `ready-for-agent`.
-- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0049); new domain terms land in `GLOSSARY.md`.
+- Every new decision lands as a `docs/adr/NNNN-*.md` (next number: 0050); new domain terms land in `GLOSSARY.md`.
 - Product principles (ADR 0034): every grid stays editable, and there is no privacy model; data tables are hidden for declutter, never locked; sidebars are an extra entry path; KPIs go to Looker Studio through `fact_presence`.
 - **Never hard-code a tab name** (ADR 0039): look tabs up with `getTable(ss, "<key>")` / `tableKeyOfSheet(sheet)` from `src/Tables.js`; keys: locations ("Locations"), members, tenures (tab "Contracts"), baselines ("Routines"), leaves, presenceLog, projects, tasks, events, backups, weeklyMatrix ("Weekly Presence"), kpiData ("KPI Data"). `SCHEMA_SPEC` is keyed the same way; visible tables have readable `headers` labels, so match header text normalised (key or label).
+- Shared helpers live in `src/Utils.js` (`isoDate`, `toDate`, `addDays`, `shiftIso`, `cellName`, `readTableRows`, `escapeHtml`; loaded as globals in tests by `test/mockGas.js`): use them instead of writing new date or name helpers (ADR 0049).
+- Organisation-specific values come from the Settings tab via `getSetting(ss, key)` (`src/Settings.js`); add a row to `SETTINGS_DEFAULTS` rather than writing such a value in code (ADR 0049).
+- Edits are dispatched per table by `EDIT_HANDLERS` in `src/EditHandlers.js` (`only` for views, `before` / `after` around the common checks): add a handler function to the table's entry, never a branch in `handleSheetEdit` (ADR 0049).
 - Members Role, Department and Status are formulas reading Contracts (ADR 0047, `src/Contracts.js`): never write values there; `applyMemberFormulas` (run by the members sync) writes them, and the mock evaluates them with `contractProfile`.
 - Work Locations come from the Locations tab via `src/Locations.js` (`activeLocationNames`, `allLocationNames`, `locationCategory`, `defaultOfficeLocation`); never hard-code a location (ADR 0040).
 - Visible tabs are Members, Weekly Presence, Projects, Tasks and Events (ADR 0036, `src/Layout.js`); every other Library sheet is hidden on upgrade. KPIs exist only as `fact_presence` for Looker.

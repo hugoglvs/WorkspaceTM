@@ -81,8 +81,8 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   function checkDate(rawVal) {
     if (!rawVal) return;
     var d = null;
-    if (typeof parseMatrixDate === "function") {
-      d = parseMatrixDate(rawVal);
+    if (typeof toDate === "function") {
+      d = toDate(rawVal);
     } else if (rawVal instanceof Date) {
       d = new Date(rawVal.getTime());
       d.setHours(0, 0, 0, 0);
@@ -160,10 +160,6 @@ function findEarliestHistoricalDate(targetSpreadsheet) {
   return earliestTime !== null ? new Date(earliestTime) : null;
 }
 
-/** Local YYYY-MM-DD of a Date (public-holiday lookups). */
-function peIsoDate(d) {
-  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
-}
 
 /**
  * Compiles presence logs for a given date range across all active members.
@@ -460,7 +456,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     var isWeekendDay = (wDate.getDay() === 0 || wDate.getDay() === 6);
     var wDateStr = typeof formatDateIso === "function" ? formatDateIso(wDate) : String(wDate).substring(0, 10);
     // Public holiday: nothing is logged unless someone enters it by hand (ADR 0043)
-    var isPublicHoliday = !!publicHolidays[peIsoDate(wDate)];
+    var isPublicHoliday = !!publicHolidays[isoDate(wDate)];
     var dayName = getWeekdayName(wDate);
 
     for (var mi = 0; mi < membersList.length; mi++) {
@@ -588,7 +584,7 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   for (var um = 0; um < membersList.length; um++) {
     var uMem = membersList[um];
     var todayVal = todayPresenceMap[uMem.key];
-    if (!todayVal && publicHolidays[peIsoDate(todayDate)]) todayVal = "Public holiday";
+    if (!todayVal && publicHolidays[isoDate(todayDate)]) todayVal = "Public holiday";
     if (!todayVal) {
       if (isWeekendToday) {
         var tLeave = resolveLeave(uMem.key, todayDate);

@@ -6,31 +6,10 @@
  * are formulas reading Contracts (ADR 0047).
  */
 
-function ctName(val, rich) {
-  return (typeof extractCellValue === "function") ? extractCellValue(val, rich) : String(val || "").trim();
-}
 
 var CT_COLS = { member: 1, role: 2, department: 3, start_date: 4, end_date: 5, contract_type: 6, fte_rate: 7 };
 
-function ctIso(val) {
-  if (val === "" || val === null || val === undefined) return "";
-  if (val instanceof Date && !isNaN(val.getTime())) {
-    var m = String(val.getMonth() + 1), d = String(val.getDate());
-    return val.getFullYear() + "-" + (m.length < 2 ? "0" + m : m) + "-" + (d.length < 2 ? "0" + d : d);
-  }
-  var str = String(val).trim();
-  var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return iso[0];
-  var parsed = new Date(str);
-  return isNaN(parsed.getTime()) ? "" : ctIso(parsed);
-}
 
-function ctShift(iso, days) {
-  var p = iso.split("-");
-  var d = new Date(+p[0], +p[1] - 1, +p[2]);
-  d.setDate(d.getDate() + days);
-  return ctIso(d);
-}
 
 function ctFtePercent(raw) {
   var n = parseFloat(String(raw === undefined ? "" : raw).replace("%", "").replace(",", "."));
@@ -48,7 +27,7 @@ function ctMembers(ss) {
   var statusIdx = SCHEMA_SPEC.members.columns.indexOf("tenure_status");
   var out = [];
   for (var r = 0; r < vals.length; r++) {
-    var name = ctName(vals[r][0], rich[r] ? rich[r][0] : null);
+    var name = cellName(vals[r][0], rich[r] ? rich[r][0] : null);
     if (name) out.push({ row: r + 2, name: name, key: name.toLowerCase(), status: String(vals[r][statusIdx] || "").trim() });
   }
   return out;
@@ -63,12 +42,12 @@ function ctContracts(ss) {
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   var out = [];
   for (var r = 0; r < vals.length; r++) {
-    var name = ctName(vals[r][0], rich[r] ? rich[r][0] : null);
+    var name = cellName(vals[r][0], rich[r] ? rich[r][0] : null);
     if (!name) continue;
     out.push({
       row: r + 2, key: name.toLowerCase(),
       role: String(vals[r][1] || "").trim(), department: String(vals[r][2] || "").trim(),
-      startDate: ctIso(vals[r][3]), endDate: ctIso(vals[r][4]),
+      startDate: isoDate(vals[r][3]), endDate: isoDate(vals[r][4]),
       contractType: String(vals[r][5] || "").trim(), ftePercent: ctFtePercent(vals[r][6])
     });
   }
@@ -113,7 +92,7 @@ function getContractsSidebarData(targetSpreadsheet) {
     roles: Object.keys(roles).sort(),
     departments: Object.keys(departments).sort(),
     contractTypes: ctContractTypes(),
-    today: ctIso(new Date())
+    today: isoDate(new Date())
   };
 }
 
@@ -138,7 +117,7 @@ function saveContract(payload, targetSpreadsheet) {
   var key = String(p.member || "").trim().toLowerCase();
   var c = {
     role: String(p.role || "").trim(), department: String(p.department || "").trim(),
-    startDate: ctIso(p.startDate), endDate: ctIso(p.endDate),
+    startDate: isoDate(p.startDate), endDate: isoDate(p.endDate),
     contractType: String(p.contractType || "").trim(), ftePercent: ctFtePercent(p.ftePercent)
   };
   if (!key || !c.role || !c.department || !c.startDate || !c.contractType) {
@@ -166,7 +145,7 @@ function saveContract(payload, targetSpreadsheet) {
     if (later) return { success: false, message: member.name + " already has a contract starting " + later.startDate + ". Edit that one, or choose a later start date." };
     toClose = others.filter(function(x) { return !x.endDate || x.endDate >= c.startDate; });
     if (toClose.length) {
-      previousEnd = ctIso(p.previousEndDate) || ctShift(c.startDate, -1);
+      previousEnd = isoDate(p.previousEndDate) || shiftIso(c.startDate, -1);
       if (previousEnd >= c.startDate) return { success: false, message: "The current contract must end before the new one starts (" + c.startDate + ")." };
       for (var i = 0; i < toClose.length; i++) {
         if (previousEnd < toClose[i].startDate) return { success: false, message: "The current contract cannot end before it started (" + toClose[i].startDate + ")." };
@@ -186,7 +165,7 @@ function saveContract(payload, targetSpreadsheet) {
     if (typeof copyCellChip === "function") {
       try { copyCellChip(membersSheet, member.row, 1, sheet, row, 1, member.name, ss.getId ? ss.getId() : ""); } catch (eChip) {}
     }
-    if (!ctName(sheet.getRange(row, 1).getValue(), null)) sheet.getRange(row, 1).setValue(member.name);
+    if (!cellName(sheet.getRange(row, 1).getValue(), null)) sheet.getRange(row, 1).setValue(member.name);
     if (typeof applyTypography === "function") applyTypography(sheet.getRange(row, 1, 1, 7));
   }
 
@@ -196,8 +175,8 @@ function saveContract(payload, targetSpreadsheet) {
     .sort(function(a, b) { return a.startDate < b.startDate ? -1 : 1; });
   for (var g = 1; g < all.length; g++) {
     var prevEnd = all[g - 1].endDate;
-    if (prevEnd && prevEnd < ctShift(all[g].startDate, -1)) {
-      message += " Note: no contract between " + ctShift(prevEnd, 1) + " and " + ctShift(all[g].startDate, -1) +
+    if (prevEnd && prevEnd < shiftIso(all[g].startDate, -1)) {
+      message += " Note: no contract between " + shiftIso(prevEnd, 1) + " and " + shiftIso(all[g].startDate, -1) +
         ", so " + member.name + " shows as Departed then and counts no capacity.";
     }
   }
@@ -227,7 +206,7 @@ function promptContractForNewMember(e) {
   if (!e || !e.range || e.range.getColumn() !== 1 || e.range.getRow() < 2) return null;
   var sheet = e.range.getSheet();
   var ss = e.source || (sheet.getParent ? sheet.getParent() : null) || SpreadsheetApp.getActiveSpreadsheet();
-  var name = ctName(e.range.getValue(), typeof e.range.getRichTextValue === "function" ? e.range.getRichTextValue() : null);
+  var name = cellName(e.range.getValue(), typeof e.range.getRichTextValue === "function" ? e.range.getRichTextValue() : null);
   if (!name || memberHasContract(ss, name)) return null;
   try {
     showContractsSidebar(name);
@@ -245,12 +224,15 @@ function promptContractForNewMember(e) {
  *   Active: a contract has started (or has no start) and has not ended (end blank or >= today).
  *   Upcoming: no active contract, one starts later. Departed: only past contracts.
  *   Role/Department come from the earliest active contract, else the earliest
- *   upcoming one, else the contract that started last ("Team Member"/"Delivery" if blank).
+ *   upcoming one, else the contract that started last (the default role and
+ *   department of the Settings tab when blank, ADR 0049).
  *
  * @param {Array<{role: string, department: string, start: (Date|null), end: (Date|null)}>} records
  * @param {Date} today
+ * @param {{role: string, department: string}} [defaults]
  */
-function contractProfile(records, today) {
+function contractProfile(records, today, defaults) {
+  var dflt = defaults || { role: "Team Member", department: "Delivery" };
   if (!records || !records.length) return { role: "", department: "", status: "No Contract" };
   var t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   var at = function(d) { return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : null; };
@@ -267,7 +249,7 @@ function contractProfile(records, today) {
   };
   var status = active.length ? "Active" : (upcoming.length ? "Upcoming" : "Departed");
   var pick = active.length ? byStart(active, true) : (upcoming.length ? byStart(upcoming, true) : byStart(records, false));
-  return { role: pick.role || "Team Member", department: pick.department || "Delivery", status: status };
+  return { role: pick.role || dflt.role, department: pick.department || dflt.department, status: status };
 }
 
 /** Members columns computed by formula from Contracts (ADR 0047). */
@@ -278,9 +260,12 @@ var MEMBER_FORMULA_COLUMNS = ["current_role", "current_department", "tenure_stat
  *
  * @param {string} contractsSheetName the Contracts tab's current name
  * @param {number} row Members row
+ * @param {{role: string, department: string}} [defaults] shown when a contract has no role / department
  * @return {Object.<string, string>} keyed by Members column
  */
-function memberFormulas(contractsSheetName, row) {
+function memberFormulas(contractsSheetName, row, defaults) {
+  var dflt = defaults || { role: "Team Member", department: "Delivery" };
+  var text = function(s) { return String(s).replace(/"/g, '""'); };
   var q = "'" + String(contractsSheetName).replace(/'/g, "''") + "'!";
   var rng = function(key) {
     var c = String.fromCharCode(65 + SCHEMA_SPEC.tenures.columns.indexOf(key));
@@ -294,9 +279,19 @@ function memberFormulas(contractsSheetName, row) {
   var pick = function(key, fallback) {
     return "=IF(" + a + '="","",ARRAYFORMULA(LET(' + base + ",v," + rng(key) +
       ",p,IF(SUM(a)>0,a,IF(SUM(u)>0,u,k*1))," +
-      'IF(SUM(p)=0,"",LET(x,SORT(FILTER(HSTACK(v,s),p>0),2,SUM(a)+SUM(u)>0),y,INDEX(x,1,1),IF(y="","' + fallback + '",y))))))';
+      'IF(SUM(p)=0,"",LET(x,SORT(FILTER(HSTACK(v,s),p>0),2,SUM(a)+SUM(u)>0),y,INDEX(x,1,1),IF(y="","' + text(fallback) + '",y))))))';
   };
-  return { current_role: pick("role", "Team Member"), current_department: pick("department", "Delivery"), tenure_status: status };
+  return { current_role: pick("role", dflt.role), current_department: pick("department", dflt.department), tenure_status: status };
+}
+
+/** Default role and department from the Settings tab (ADR 0049). */
+function memberDefaults(ss) {
+  var get = (typeof getSetting === "function") ? getSetting
+    : (typeof require !== "undefined" ? require("./Settings").getSetting : null);
+  return {
+    role: get ? get(ss, "default_role") : "Team Member",
+    department: get ? get(ss, "default_department") : "Delivery"
+  };
 }
 
 /** Last row of the Members table (its native table range), at least the last row with content. */
@@ -335,8 +330,9 @@ function applyMemberFormulas(ss) {
   var current = range.getFormulas();
   var wanted = [];
   var written = 0;
+  var defaults = memberDefaults(ss);
   for (var r = 0; r < end - 1; r++) {
-    var f = memberFormulas(contracts.getName(), r + 2);
+    var f = memberFormulas(contracts.getName(), r + 2, defaults);
     var row = MEMBER_FORMULA_COLUMNS.map(function(c) { return f[c]; });
     for (var c = 0; c < width; c++) if ((current[r] && current[r][c]) !== row[c]) written++;
     wanted.push(row);
@@ -362,7 +358,7 @@ function findTypedOverMemberCells(ss) {
   var formulas = members.getRange(2, first, n, MEMBER_FORMULA_COLUMNS.length).getFormulas();
   var out = [];
   for (var r = 0; r < n; r++) {
-    var name = ctName(nameVals[r][0], nameRich[r] ? nameRich[r][0] : null);
+    var name = cellName(nameVals[r][0], nameRich[r] ? nameRich[r][0] : null);
     if (!name) continue;
     var typed = MEMBER_FORMULA_COLUMNS.filter(function(c, i) { return !formulas[r][i]; })
       .map(function(c) { return SCHEMA_SPEC.members.headers[c] || c; });

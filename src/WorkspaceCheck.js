@@ -12,36 +12,14 @@
 
 var WC_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function wcIso(d) {
-  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
-}
 
-/** Date from a cell (Date or "YYYY-MM-DD…"), at local midnight; null if empty. */
-function wcDate(v) {
-  if (v instanceof Date && !isNaN(v.getTime())) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
-  var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
-  if (!v) return null;
-  var d = new Date(String(v));
-  return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
 
-function wcName(val, rich) {
-  return (typeof extractCellValue === "function") ? extractCellValue(val, rich) : String(val || "").trim();
-}
 
-function wcRows(sheet, numCols, cap) {
-  if (!sheet || sheet.getMaxRows() < 2) return [];
-  var range = sheet.getRange(2, 1, readRowLimit(sheet, cap) - 1, numCols);
-  var vals = range.getValues();
-  var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
-  return vals.map(function(v, i) { return { row: i + 2, vals: v, rich: rich[i] || [] }; });
-}
 
 /** Members with their status, emails and today's presence. */
 function wcMembers(ss) {
-  return wcRows(getTable(ss, "members"), 7, 300).map(function(r) {
-    var name = wcName(r.vals[0], r.rich[0]);
+  return readTableRows(getTable(ss, "members"), 7, 300).map(function(r) {
+    var name = cellName(r.vals[0], r.rich[0]);
     if (!name) return null;
     var email = String(r.vals[1] || "").trim();
     if (!email && typeof extractEmailFromChip === "function") email = String(extractEmailFromChip(r.vals[0], r.rich[0]) || "").trim();
@@ -51,7 +29,7 @@ function wcMembers(ss) {
 
 /** Monday to Friday of the week holding asOf (a weekend looks at the next week). */
 function wcWorkWeek(asOf) {
-  var d = wcDate(asOf || new Date());
+  var d = toDate(asOf || new Date());
   var dow = d.getDay();
   var monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (dow === 0 ? 1 : (dow === 6 ? 2 : 1 - dow)));
   var days = [];
@@ -69,19 +47,19 @@ function wcWorkWeek(asOf) {
  */
 function findUndeclaredDays(ss, asOf) {
   var holidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
-  var week = wcWorkWeek(asOf).filter(function(d) { return !holidays[wcIso(d)]; });
+  var week = wcWorkWeek(asOf).filter(function(d) { return !holidays[isoDate(d)]; });
   var logged = {};
-  wcRows(getTable(ss, "presenceLog"), 5, 2000).forEach(function(r) {
-    var d = wcDate(r.vals[1]);
-    var who = wcName(r.vals[2], r.rich[2]).toLowerCase();
-    if (d && who && (r.vals[3] || r.vals[4])) logged[wcIso(d) + "|" + who] = true;
+  readTableRows(getTable(ss, "presenceLog"), 5, 2000).forEach(function(r) {
+    var d = toDate(r.vals[1]);
+    var who = cellName(r.vals[2], r.rich[2]).toLowerCase();
+    if (d && who && (r.vals[3] || r.vals[4])) logged[isoDate(d) + "|" + who] = true;
   });
   var routines = {};
-  wcRows(getTable(ss, "baselines"), 7, 500).forEach(function(r) {
-    var who = wcName(r.vals[1], r.rich[1]).toLowerCase();
+  readTableRows(getTable(ss, "baselines"), 7, 500).forEach(function(r) {
+    var who = cellName(r.vals[1], r.rich[1]).toLowerCase();
     if (!who) return;
     (routines[who] = routines[who] || []).push({
-      start: wcDate(r.vals[2]), end: wcDate(r.vals[3]), day: String(r.vals[4] || "").trim().toLowerCase()
+      start: toDate(r.vals[2]), end: toDate(r.vals[3]), day: String(r.vals[4] || "").trim().toLowerCase()
     });
   });
   var leaves = (typeof readCoverageLeaves === "function") ? readCoverageLeaves(ss) : {};
@@ -90,7 +68,7 @@ function findUndeclaredDays(ss, asOf) {
   wcMembers(ss).forEach(function(m) {
     if (m.status.toLowerCase() !== "active") return;
     var missing = week.filter(function(day) {
-      if (logged[wcIso(day) + "|" + m.key]) return false;
+      if (logged[isoDate(day) + "|" + m.key]) return false;
       var dayName = WC_WEEKDAYS[day.getDay()].toLowerCase();
       var hasRoutine = (routines[m.key] || []).some(function(rt) {
         if (rt.day && rt.day !== "all" && rt.day !== dayName) return false;
@@ -99,7 +77,7 @@ function findUndeclaredDays(ss, asOf) {
       if (hasRoutine) return false;
       return !(leaves[m.key] || []).some(function(l) { return l.startDate <= day && l.endDate >= day; });
     });
-    if (missing.length) res.push({ name: m.name, email: m.email, days: missing.map(wcIso) });
+    if (missing.length) res.push({ name: m.name, email: m.email, days: missing.map(isoDate) });
   });
   return res;
 }
@@ -114,15 +92,15 @@ function findPresenceDuplicates(ss) {
   var seen = {};
   var dupRows = [];
   var examples = [];
-  var rows = wcRows(getTable(ss, "presenceLog"), 3, 2000);
+  var rows = readTableRows(getTable(ss, "presenceLog"), 3, 2000);
   for (var i = rows.length - 1; i >= 0; i--) {
-    var d = wcDate(rows[i].vals[1]);
-    var who = wcName(rows[i].vals[2], rows[i].rich[2]);
+    var d = toDate(rows[i].vals[1]);
+    var who = cellName(rows[i].vals[2], rows[i].rich[2]);
     if (!d || !who) continue;
-    var key = wcIso(d) + "|" + who.toLowerCase();
+    var key = isoDate(d) + "|" + who.toLowerCase();
     if (seen[key]) {
       dupRows.push(rows[i].row);
-      if (examples.length < 5) examples.push(who + " on " + wcIso(d));
+      if (examples.length < 5) examples.push(who + " on " + isoDate(d));
     } else {
       seen[key] = true;
     }
@@ -175,7 +153,7 @@ function removePresenceDuplicates(targetSpreadsheet) {
  */
 function runWorkspaceCheck(targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var today = wcDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var members = wcMembers(ss);
   var sections = [];
 
@@ -196,12 +174,12 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
     action: typedOver.length ? "formulas" : undefined, items: typedOver
   });
 
-  var projects = wcRows(getTable(ss, "projects"), 7, 500).filter(function(r) {
+  var projects = readTableRows(getTable(ss, "projects"), 7, 500).filter(function(r) {
     return String(r.vals[1] || "").trim() && String(r.vals[2] || "").trim().toLowerCase() !== "completed";
   });
   sections.push({
     key: "backups", title: "Projects without a backup", ok: "Every open project has a backup.",
-    items: projects.filter(function(r) { return !wcName(r.vals[6], r.rich[6]); }).map(function(r) { return String(r.vals[1]).trim(); })
+    items: projects.filter(function(r) { return !cellName(r.vals[6], r.rich[6]); }).map(function(r) { return String(r.vals[1]).trim(); })
   });
 
   var coverage = [];
@@ -223,7 +201,7 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
 
   sections.push({ key: "coverage", title: "Coverage gaps", ok: "Every project is covered every working day.", action: "backups", items: coverage });
 
-  var holidayToday = ((typeof readHolidays === "function") ? readHolidays(ss) : {})[wcIso(today)];
+  var holidayToday = ((typeof readHolidays === "function") ? readHolidays(ss) : {})[isoDate(today)];
   var weekend = today.getDay() === 0 || today.getDay() === 6 || !!holidayToday;
   sections.push({
     key: "notLogged", title: "Not logged today", ok: holidayToday ? holidayToday + ": nothing to log." : (weekend ? "Weekend: nothing to log." : "Everyone is logged today."),
@@ -242,11 +220,11 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
   });
 
   var issues = sections.reduce(function(n, s) { return n + s.items.length; }, 0);
-  return { asOf: wcIso(today), issues: issues, sections: sections };
+  return { asOf: isoDate(today), issues: issues, sections: sections };
 }
 
 function wcShortDay(iso) {
-  var d = wcDate(iso);
+  var d = toDate(iso);
   return WC_WEEKDAYS[d.getDay()].substring(0, 3) + " " + d.getDate();
 }
 
@@ -264,7 +242,7 @@ function findLeaverHandovers(ss, today, members) {
     var list = contracts[key];
     if (list.some(function(c) { return !c.end; })) return;
     var last = list.reduce(function(max, c) { return (!max || c.end > max) ? c.end : max; }, null);
-    if (last && last < horizon) leaving[key] = (last < today ? "left on " : "leaves on ") + wcIso(last);
+    if (last && last < horizon) leaving[key] = (last < today ? "left on " : "leaves on ") + isoDate(last);
   });
   (members || wcMembers(ss)).forEach(function(m) {
     if (!leaving[m.key] && m.status.toLowerCase() === "departed") leaving[m.key] = "has left";
@@ -272,18 +250,18 @@ function findLeaverHandovers(ss, today, members) {
   if (!Object.keys(leaving).length) return [];
 
   var items = [];
-  wcRows(getTable(ss, "projects"), 7, 500).forEach(function(r) {
+  readTableRows(getTable(ss, "projects"), 7, 500).forEach(function(r) {
     var name = String(r.vals[1] || "").trim();
     if (!name || String(r.vals[2] || "").trim().toLowerCase() === "completed") return;
     [["lead", 5], ["backup", 6]].forEach(function(role) {
-      var who = wcName(r.vals[role[1]], r.rich[role[1]]);
+      var who = cellName(r.vals[role[1]], r.rich[role[1]]);
       if (who && leaving[who.toLowerCase()]) items.push(name + ": " + role[0] + " " + who + " " + leaving[who.toLowerCase()]);
     });
   });
-  wcRows(getTable(ss, "tasks"), 7, 1000).forEach(function(r) {
+  readTableRows(getTable(ss, "tasks"), 7, 1000).forEach(function(r) {
     var title = String(r.vals[3] || "").trim();
     var status = String(r.vals[6] || "").trim().toLowerCase();
-    var who = wcName(r.vals[2], r.rich[2]);
+    var who = cellName(r.vals[2], r.rich[2]);
     if (!title || !who || status === "done" || status === "completed" || status === "cancelled") return;
     if (leaving[who.toLowerCase()]) items.push("Task \"" + title + "\": " + who + " " + leaving[who.toLowerCase()]);
   });
@@ -321,7 +299,7 @@ function sendPresenceReminders(targetSpreadsheet, asOf) {
       subject: "Please declare your presence for this week",
       body: "Hi " + first + ",\n\nThese days of this week have no presence yet: " + days.join(", ") +
         ".\n\nFill them in Weekly Presence, or set a routine with Project Management → Declare Presence & Leaves:\n" + link + "\n",
-      htmlBody: "<p>Hi " + wcHtml(first) + ",</p><p>These days of this week have no presence yet: <b>" + wcHtml(days.join(", ")) +
+      htmlBody: "<p>Hi " + escapeHtml(first) + ",</p><p>These days of this week have no presence yet: <b>" + escapeHtml(days.join(", ")) +
         "</b>.</p><p>Fill them in <a href=\"" + link + "\">Weekly Presence</a>, or set a routine with " +
         "<i>Project Management → Declare Presence &amp; Leaves</i>.</p>"
     });
@@ -331,9 +309,6 @@ function sendPresenceReminders(targetSpreadsheet, asOf) {
   return res;
 }
 
-function wcHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 /** Time trigger entry point (Mondays, 8 am). */
 function mondayPresenceReminder() {

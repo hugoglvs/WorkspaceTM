@@ -104,6 +104,11 @@ function freshInit(targetSpreadsheet) {
     createdSheets.push(config.sheetName);
   }
 
+  // Organisation settings, before anything that reads them (ADR 0049)
+  if (typeof seedDefaultSettings === "function") {
+    try { seedDefaultSettings(ss); } catch (eSet) { Logger.log("Settings seed note: " + eSet); }
+  }
+
   // Default Work Locations in a new, empty Locations tab (ADR 0040)
   if (typeof seedDefaultLocations === "function") {
     try { seedDefaultLocations(ss); } catch (eSeed) { Logger.log("Locations seed note: " + eSeed); }

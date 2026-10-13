@@ -60,7 +60,7 @@ function calFrequency(type) {
  */
 function renderTaskCalendar(targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var today = ttDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var sheet = getTable(ss, "taskCalendar");
   if (!sheet) sheet = ss.insertSheet(tableSheetName("taskCalendar"));
 
@@ -101,7 +101,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
         var done = String(t.status).toLowerCase() === "done";
         row.push(done ? "Done" : "To do");
         bg.push(done ? CALENDAR_STYLES.done : (t.due < today ? CALENDAR_STYLES.late : CALENDAR_STYLES.todo));
-        nt.push(done ? "Done" + (t.doneOn ? " on " + ttIso(ttDate(t.doneOn)) : "") + (t.doneBy ? " by " + t.doneBy : "") : "Due " + ttIso(t.due) + (leave === "approved" ? " · on leave!" : ""));
+        nt.push(done ? "Done" + (t.doneOn ? " on " + isoDate(toDate(t.doneOn)) : "") + (t.doneBy ? " by " + t.doneBy : "") : "Due " + isoDate(t.due) + (leave === "approved" ? " · on leave!" : ""));
       } else {
         row.push("");
         bg.push(leave === "approved" ? CALENDAR_STYLES.leave : (leave === "requested" ? CALENDAR_STYLES.requested : CALENDAR_STYLES.none));
@@ -194,7 +194,7 @@ function handleTaskCalendarEdit(e, asOf) {
   var ss = e.source || (sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
   var r = e.range.getRow();
   var c = e.range.getColumn();
-  var today = ttDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
 
   // Type or project picked
   if (r === 1 && (c === 2 || c === 4)) {
@@ -266,11 +266,11 @@ function handleTaskCalendarEdit(e, asOf) {
       var leave = leaveStatusOn(ctx.leaves, memberKey, due);
       if (leave === "approved") {
         e.range.setValue(oldVal);
-        try { ss.toast(member.name + " is on leave on " + ttIso(due) + ". Pick someone else.", "On leave", 6); } catch (eT2) {}
+        try { ss.toast(member.name + " is on leave on " + isoDate(due) + ". Pick someone else.", "On leave", 6); } catch (eT2) {}
         return "refused_leave";
       }
       if (leave === "requested") {
-        try { ss.toast(member.name + " has requested leave on " + ttIso(due) + ".", "Leave requested", 6); } catch (eT3) {}
+        try { ss.toast(member.name + " has requested leave on " + isoDate(due) + ".", "Leave requested", 6); } catch (eT3) {}
       }
       createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name });
       outcome = "assigned";
@@ -288,12 +288,12 @@ function handleTaskStatusEdit(e, asOf) {
   if (!e || !e.range || e.range.getColumn() !== taskCol("status") || e.range.getRow() < 2 || e.range.getNumRows() > 1) return null;
   var sheet = e.range.getSheet();
   var ss = e.source || (sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
-  var today = ttDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var row = e.range.getRow();
-  var due = ttDate(sheet.getRange(row, taskCol("due_date")).getValue());
+  var due = toDate(sheet.getRange(row, taskCol("due_date")).getValue());
   var status = String(e.range.getValue() || "");
   if (due && due < new Date(today.getFullYear(), today.getMonth(), 1) && e.oldValue !== undefined &&
-      !confirmClosedChange(String(sheet.getRange(row, taskCol("title")).getValue() || "This task") + " (due " + ttIso(due) + ")")) {
+      !confirmClosedChange(String(sheet.getRange(row, taskCol("title")).getValue() || "This task") + " (due " + isoDate(due) + ")")) {
     e.range.setValue(e.oldValue);
     return "kept";
   }

@@ -21,7 +21,8 @@ var TABLE_REGISTRY = {
   holidays:     { sheetName: "Holidays",        legacyName: "tbl_holidays" },
   taskTypes:    { sheetName: "Task Types",      legacyName: "tbl_task_types" },
   recurringTasks: { sheetName: "Recurring Tasks", legacyName: "tbl_recurring_tasks" },
-  taskCalendar: { sheetName: "Calendar",        legacyName: "view_task_calendar" }
+  taskCalendar: { sheetName: "Calendar",        legacyName: "view_task_calendar" },
+  settings:     { sheetName: "Settings",        legacyName: "tbl_settings" }
 };
 
 var ARCHIVE_PREFIX = "Archive – ";

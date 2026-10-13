@@ -18,7 +18,7 @@ function bsIso(d) {
  */
 function getBackupSidebarData(targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var today = parseBackupDate(asOf || new Date());
+  var today = toDate(asOf || new Date());
   var todayIso = bsIso(today);
 
   var gapsByProject = {};
@@ -38,13 +38,13 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
     bVals.forEach(function(v, i) {
       var projId = String(v[1] || "").trim();
       var status = String(v[6] || "").trim();
-      var end = parseBackupDate(v[5]);
+      var end = toDate(v[5]);
       if (!projId || !end || bsIso(end) < todayIso) return;
       if (["active", "planned"].indexOf(status.toLowerCase()) === -1) return;
       (interims[projId] = interims[projId] || []).push({
-        id: String(v[0] || ""), primary: backupCellName(v[2], bRich[i] ? bRich[i][2] : null),
-        backup: backupCellName(v[3], bRich[i] ? bRich[i][3] : null),
-        start: bsIso(parseBackupDate(v[4])), end: bsIso(end), status: status, notes: String(v[7] || "")
+        id: String(v[0] || ""), primary: cellName(v[2], bRich[i] ? bRich[i][2] : null),
+        backup: cellName(v[3], bRich[i] ? bRich[i][3] : null),
+        start: bsIso(toDate(v[4])), end: bsIso(end), status: status, notes: String(v[7] || "")
       });
     });
   }
@@ -61,8 +61,8 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
       if (!id || !name || String(v[2] || "").trim().toLowerCase() === "completed") return;
       projects.push({
         id: id, name: name, status: String(v[2] || ""),
-        lead: backupCellName(v[5], pRich[i] ? pRich[i][5] : null),
-        backup: backupCellName(v[6], pRich[i] ? pRich[i][6] : null),
+        lead: cellName(v[5], pRich[i] ? pRich[i][5] : null),
+        backup: cellName(v[6], pRich[i] ? pRich[i][6] : null),
         gaps: gapsByProject[id] || [], interims: interims[id] || []
       });
     });
@@ -76,7 +76,7 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
     var mVals = mRange.getValues();
     var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
     mVals.forEach(function(v, i) {
-      var name = backupCellName(v[0], mRich[i] ? mRich[i][0] : null);
+      var name = cellName(v[0], mRich[i] ? mRich[i][0] : null);
       var status = String(v[5] || "").trim().toLowerCase();
       if (name && status !== "departed") members.push(name);
     });
@@ -102,8 +102,8 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
 function saveInterimBackup(payload, targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var p = payload || {};
-  var start = parseBackupDate(p.startDate);
-  var end = parseBackupDate(p.endDate);
+  var start = toDate(p.startDate);
+  var end = toDate(p.endDate);
   if (!p.projectId || !p.backupMember) return { success: false, message: "Choose a project and a backup." };
   if (!start || !end) return { success: false, message: "An interim backup needs a start and an end date." };
   if (end < start) return { success: false, message: "The end date is before the start date." };
@@ -117,7 +117,7 @@ function saveInterimBackup(payload, targetSpreadsheet, asOf) {
   var lock = (typeof acquireSyncLock === "function") ? acquireSyncLock(10000) : null;
   if (typeof acquireSyncLock === "function" && !lock) return { success: false, message: "A sync is running. Try again in a minute." };
   try {
-    var today = parseBackupDate(asOf || new Date());
+    var today = toDate(asOf || new Date());
     var res = assignProjectBackup({
       projectId: p.projectId, primaryMember: project.lead || project.backup, backupMember: p.backupMember,
       startDate: bsIso(start), endDate: bsIso(end), status: start > today ? "Planned" : "Active", notes: p.notes || ""
@@ -138,8 +138,8 @@ function getBackupSidebarProject(ss, projectId) {
   for (var i = 0; i < vals.length; i++) {
     if (String(vals[i][0] || "").trim() === String(projectId)) {
       return { id: projectId, name: String(vals[i][1] || "").trim(),
-        lead: backupCellName(vals[i][5], rich[i] ? rich[i][5] : null),
-        backup: backupCellName(vals[i][6], rich[i] ? rich[i][6] : null) };
+        lead: cellName(vals[i][5], rich[i] ? rich[i][5] : null),
+        backup: cellName(vals[i][6], rich[i] ? rich[i][6] : null) };
     }
   }
   return null;

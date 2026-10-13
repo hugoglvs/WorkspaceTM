@@ -215,15 +215,6 @@ function refreshLocationDropdowns(ss) {
   return updated;
 }
 
-function locIsoDate(v) {
-  if (v instanceof Date && !isNaN(v.getTime())) {
-    return v.getFullYear() + "-" + ("0" + (v.getMonth() + 1)).slice(-2) + "-" + ("0" + v.getDate()).slice(-2);
-  }
-  var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[0];
-  var d = new Date(String(v || ""));
-  return isNaN(d.getTime()) ? "" : locIsoDate(d);
-}
 
 /**
  * Where a location is still planned: ongoing or future routines, and Presence Log
@@ -235,7 +226,7 @@ function locIsoDate(v) {
  * @return {{routineMembers: string[], routineCount: number, futureDays: number}}
  */
 function findLocationUsage(ss, name, asOf) {
-  var todayIso = locIsoDate(asOf || new Date());
+  var todayIso = isoDate(asOf || new Date());
   var key = String(name || "").trim().toLowerCase();
   var res = { routineMembers: [], routineCount: 0, futureDays: 0 };
   var read = function(sheet, numCols) {
@@ -254,7 +245,7 @@ function findLocationUsage(ss, name, asOf) {
     var row = routines.vals[r];
     var member = memberOf(routines, r, 1);
     if (!member) continue;
-    var end = locIsoDate(row[3]);
+    var end = isoDate(row[3]);
     if (end && end < todayIso) continue;
     if (String(row[5]).trim().toLowerCase() === key || String(row[6]).trim().toLowerCase() === key) {
       res.routineCount++;
@@ -265,7 +256,7 @@ function findLocationUsage(ss, name, asOf) {
   // Presence Log: log_id, date, member, location_am, location_pm, timestamp
   var log = read(getTable(ss, "presenceLog"), 5);
   for (var l = 0; l < log.vals.length; l++) {
-    var date = locIsoDate(log.vals[l][1]);
+    var date = isoDate(log.vals[l][1]);
     if (!date || date < todayIso) continue;
     if (String(log.vals[l][3]).trim().toLowerCase() === key || String(log.vals[l][4]).trim().toLowerCase() === key) res.futureDays++;
   }

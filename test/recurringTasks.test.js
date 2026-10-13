@@ -58,7 +58,7 @@ function leave(member, from, to, status) {
   var row = Math.max(sheet.getLastRow(), 1) + 1;
   sheet.getRange(row, 1, 1, 8).setValues([['lv' + row, member, from, 'AM', to, 'PM', 'Vacation', status || 'Approved']]);
 }
-const iso = d => ttIso(d);
+const iso = d => isoDate(d);
 function tasksOf(type) { return readTaskRows(mockSpreadsheet).filter(t => t.type === type && t.status !== 'Cancelled').sort((a, b) => iso(a.due) < iso(b.due) ? -1 : 1); }
 
 test('task types: defaults, periods and due dates (weekends and holidays move earlier)', () => {
@@ -130,7 +130,7 @@ test('calendar: members x weeks of the chosen type; assign, refuse on leave, don
   assert.strictEqual(edit(3, col, 'Done', 'To do'), 'done');
   var t = tasksOf('Quiz')[0];
   assert.strictEqual(t.status, 'Done');
-  assert.strictEqual(iso(ttDate(t.doneOn)), MON);
+  assert.strictEqual(iso(toDate(t.doneOn)), MON);
 
   assert.strictEqual(edit(3, col, '', 'Done'), 'cancelled');
   assert.strictEqual(tasksOf('Quiz').length, 0);
@@ -150,7 +150,7 @@ test('calendar: a closed month asks first; "No" keeps the old value', () => {
 
 test('tasks grid: setting Done stamps Done on, reopening clears it', () => {
   seed();
-  var made = createTaskRow(mockSpreadsheet, { projectId: 'ACN', member: rtMembers(mockSpreadsheet)[0], title: 'Forecast', due: ttDate('2026-10-20'), type: 'Forecast' });
+  var made = createTaskRow(mockSpreadsheet, { projectId: 'ACN', member: rtMembers(mockSpreadsheet)[0], title: 'Forecast', due: toDate('2026-10-20'), type: 'Forecast' });
   var tasks = getTable(mockSpreadsheet, 'tasks');
   var cell = tasks.getRange(made.row, taskCol('status'));
   cell.setValue('Done');
@@ -164,9 +164,9 @@ test('tasks grid: setting Done stamps Done on, reopening clears it', () => {
 test('reminders: due in 3 working days and overdue since the last working day, once a day', () => {
   seed();
   var m = rtMembers(mockSpreadsheet);
-  createTaskRow(mockSpreadsheet, { member: m[0], title: 'Forecast', due: ttDate('2026-10-15'), type: 'Forecast' }); // Thu = Mon + 3 working days
-  createTaskRow(mockSpreadsheet, { member: m[1], title: 'SoW', due: ttDate('2026-10-09'), type: 'SoW' });           // previous working day (Fri)
-  createTaskRow(mockSpreadsheet, { member: m[2], title: 'PRM', due: ttDate('2026-10-14'), type: 'PRM' });           // not a reminder day
+  createTaskRow(mockSpreadsheet, { member: m[0], title: 'Forecast', due: toDate('2026-10-15'), type: 'Forecast' }); // Thu = Mon + 3 working days
+  createTaskRow(mockSpreadsheet, { member: m[1], title: 'SoW', due: toDate('2026-10-09'), type: 'SoW' });           // previous working day (Fri)
+  createTaskRow(mockSpreadsheet, { member: m[2], title: 'PRM', due: toDate('2026-10-14'), type: 'PRM' });           // not a reminder day
   var res = sendTaskReminders(mockSpreadsheet, MON);
   assert.deepStrictEqual(res.sent.sort(), ['Alice', 'Bob']);
   assert.ok(MailApp.getSentEmails().some(e => e.subject === 'Overdue task reminder' && e.to === 'bob@accenture.com'));
@@ -200,8 +200,8 @@ function gList(listId) { return Tasks.Tasks.list(listId).items; }
 test('Google Tasks per person: each syncs only their own tasks into their own list', () => {
   seed();
   var m = rtMembers(mockSpreadsheet);
-  createTaskRow(mockSpreadsheet, { member: m[0], title: 'Forecast', due: ttDate('2026-10-20'), type: 'Forecast' });
-  createTaskRow(mockSpreadsheet, { member: m[1], title: 'SoW', due: ttDate('2026-10-20'), type: 'SoW' });
+  createTaskRow(mockSpreadsheet, { member: m[0], title: 'Forecast', due: toDate('2026-10-20'), type: 'Forecast' });
+  createTaskRow(mockSpreadsheet, { member: m[1], title: 'SoW', due: toDate('2026-10-20'), type: 'SoW' });
   asUser('alice@accenture.com', 'listA');
   myTasksSyncJob();
   asUser('bob@accenture.com', 'listB');
@@ -213,8 +213,8 @@ test('Google Tasks per person: each syncs only their own tasks into their own li
 test('Google Tasks per person: a reassigned task leaves the old list and reaches the new one; cancelled ones go', () => {
   seed();
   var m = rtMembers(mockSpreadsheet);
-  var a = createTaskRow(mockSpreadsheet, { member: m[0], title: 'Quiz', due: ttDate('2026-10-16'), type: 'Quiz' });
-  var c = createTaskRow(mockSpreadsheet, { member: m[0], title: 'PRM', due: ttDate('2026-10-30'), type: 'PRM' });
+  var a = createTaskRow(mockSpreadsheet, { member: m[0], title: 'Quiz', due: toDate('2026-10-16'), type: 'Quiz' });
+  var c = createTaskRow(mockSpreadsheet, { member: m[0], title: 'PRM', due: toDate('2026-10-30'), type: 'PRM' });
   asUser('alice@accenture.com', 'listA2');
   myTasksSyncJob();
   assert.strictEqual(gList('listA2').length, 2);
@@ -231,7 +231,7 @@ test('Google Tasks per person: a reassigned task leaves the old list and reaches
 test('Google Tasks per person: ticked in Google Tasks marks Done with Done on / Done by', () => {
   seed();
   var m = rtMembers(mockSpreadsheet);
-  var t = createTaskRow(mockSpreadsheet, { member: m[0], title: 'Time & expenses', due: ttDate('2026-10-30'), type: 'Time & expenses' });
+  var t = createTaskRow(mockSpreadsheet, { member: m[0], title: 'Time & expenses', due: toDate('2026-10-30'), type: 'Time & expenses' });
   asUser('alice@accenture.com', 'listA3');
   myTasksSyncJob();
   var g = gList('listA3')[0];

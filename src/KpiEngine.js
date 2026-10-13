@@ -6,31 +6,6 @@
  * (ADR 0034, 0036). AM and PM each weigh 0.5 day; capacity follows the Tenure FTE.
  */
 
-/**
- * Normalizes and parses raw date cell into Date object at midnight.
- *
- * @param {Date|string|number} rawDate
- * @return {Date|null}
- */
-function parseKpiDate(rawDate) {
-  if (!rawDate) return null;
-  if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
-    var d = new Date(rawDate.getTime());
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  var str = String(rawDate).trim();
-  var isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10), 0, 0, 0, 0);
-  }
-  var parsed = new Date(str);
-  if (!isNaN(parsed.getTime())) {
-    parsed.setHours(0, 0, 0, 0);
-    return parsed;
-  }
-  return null;
-}
 
 /**
  * Returns month key in YYYY-MM format.
@@ -160,11 +135,6 @@ var FACT_PRESENCE_HEADERS = [
 ];
 var WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function formatIsoDate(d) {
-  var m = String(d.getMonth() + 1);
-  var day = String(d.getDate());
-  return d.getFullYear() + "-" + (m.length < 2 ? "0" + m : m) + "-" + (day.length < 2 ? "0" + day : day);
-}
 
 function formatIsoWeek(d) {
   var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -217,7 +187,7 @@ function readSheetRows(sheet, numCols, maxRows) {
  */
 function buildPresenceFacts(targetSpreadsheet, options) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var asOf = parseKpiDate((options && options.asOfDate) || new Date());
+  var asOf = toDate((options && options.asOfDate) || new Date());
   var locationList = (typeof readLocations === "function") ? readLocations(ss) : [];
 
   // Members: department fallback from tbl_members
@@ -242,8 +212,8 @@ function buildPresenceFacts(targetSpreadsheet, options) {
     memberEntry(tName).tenures.push({
       role: String(tRows.vals[t][1] || "").trim(),
       department: String(tRows.vals[t][2] || "").trim(),
-      start: parseKpiDate(tRows.vals[t][3]),
-      end: parseKpiDate(tRows.vals[t][4]),
+      start: toDate(tRows.vals[t][3]),
+      end: toDate(tRows.vals[t][4]),
       fte: normalizeFteRate(tRows.vals[t][6])
     });
   }
@@ -252,10 +222,10 @@ function buildPresenceFacts(targetSpreadsheet, options) {
   var firstDate = null;
   var lRows = readSheetRows(getTable(ss, "presenceLog"), 6, 20000);
   for (var r = 0; r < lRows.vals.length; r++) {
-    var d = parseKpiDate(lRows.vals[r][1]);
+    var d = toDate(lRows.vals[r][1]);
     var lName = readCellName(lRows.vals, lRows.rich, r, 2);
     if (!d || !lName || d > asOf) continue;
-    memberEntry(lName).logs[formatIsoDate(d)] = { am: lRows.vals[r][3], pm: lRows.vals[r][4] };
+    memberEntry(lName).logs[isoDate(d)] = { am: lRows.vals[r][3], pm: lRows.vals[r][4] };
     if (!firstDate || d < firstDate) firstDate = d;
   }
 
@@ -267,7 +237,7 @@ function buildPresenceFacts(targetSpreadsheet, options) {
   for (var k = 0; k < keys.length; k++) {
     var mem = members[keys[k]];
     for (var cur = new Date(firstDate.getTime()); cur <= asOf; cur.setDate(cur.getDate() + 1)) {
-      var iso = formatIsoDate(cur);
+      var iso = isoDate(cur);
       var dow = cur.getDay();
       var isWeekend = (dow === 0 || dow === 6);
       var isPublicHoliday = !!kpiHolidays[iso];
@@ -327,7 +297,6 @@ function renderPresenceFacts(targetSpreadsheet, options) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    parseKpiDate: parseKpiDate,
     formatMonthKey: formatMonthKey,
     countMonthWeekdays: countMonthWeekdays,
     isLeaveLocation: isLeaveLocation,

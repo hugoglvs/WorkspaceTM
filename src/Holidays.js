@@ -8,18 +8,7 @@
 
 var HOLIDAYS_SEEDED_PROP = "HOLIDAYS_SEEDED_YEARS";
 
-function hdIso(d) {
-  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
-}
 
-function hdToIso(v) {
-  if (v instanceof Date && !isNaN(v.getTime())) return hdIso(v);
-  var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[0];
-  if (!v) return "";
-  var d = new Date(String(v));
-  return isNaN(d.getTime()) ? "" : hdIso(d);
-}
 
 /** Easter Sunday (Gregorian calendar, anonymous algorithm). */
 function easterSunday(year) {
@@ -36,8 +25,8 @@ function easterSunday(year) {
 /** The 11 French public holidays of a year, as [iso, name]. */
 function frenchPublicHolidays(year) {
   var easter = easterSunday(year);
-  var plus = function(n) { return hdIso(new Date(easter.getFullYear(), easter.getMonth(), easter.getDate() + n)); };
-  var fixed = function(m, d) { return hdIso(new Date(year, m - 1, d)); };
+  var plus = function(n) { return isoDate(new Date(easter.getFullYear(), easter.getMonth(), easter.getDate() + n)); };
+  var fixed = function(m, d) { return isoDate(new Date(year, m - 1, d)); };
   return [
     [fixed(1, 1), "New Year's Day"],
     [plus(1), "Easter Monday"],
@@ -70,10 +59,15 @@ function seedPublicHolidays(ss, asOf) {
   var res = { added: 0, years: [] };
   var sheet = getTable(ss, "holidays");
   if (!sheet) return res;
+  // Settings tab: "France", or "None" to keep the list by hand (ADR 0049)
+  var getSettingFn = (typeof getSetting === "function") ? getSetting
+    : (typeof require !== "undefined" ? require("./Settings").getSetting : null);
+  var country = String(getSettingFn ? getSettingFn(ss, "public_holidays") : "France").trim().toLowerCase();
+  if (country !== "france") { res.skipped = country || "none"; return res; }
   var props = hdProps();
   var seeded = [];
   try { seeded = JSON.parse((props && props.getProperty(HOLIDAYS_SEEDED_PROP)) || "[]"); } catch (e) { seeded = []; }
-  var year = (asOf ? new Date(hdToIso(asOf) + "T00:00:00") : new Date()).getFullYear();
+  var year = (asOf ? new Date(isoDate(asOf) + "T00:00:00") : new Date()).getFullYear();
   var existing = readHolidays(ss);
   var rows = [];
   [year, year + 1].forEach(function(y) {
@@ -101,7 +95,7 @@ function readHolidays(ss) {
   if (!sheet || sheet.getMaxRows() < 2) return out;
   var vals = sheet.getRange(2, 1, readRowLimit(sheet, 200) - 1, 2).getValues();
   for (var i = 0; i < vals.length; i++) {
-    var iso = hdToIso(vals[i][0]);
+    var iso = isoDate(vals[i][0]);
     if (iso) out[iso] = String(vals[i][1] || "").trim() || "Public holiday";
   }
   return out;
@@ -111,7 +105,7 @@ function readHolidays(ss) {
 function isWorkingDay(date, holidays) {
   var dow = date.getDay();
   if (dow === 0 || dow === 6) return false;
-  return !(holidays && holidays[hdIso(date)]);
+  return !(holidays && holidays[isoDate(date)]);
 }
 
 /** Menu: Edit Holidays. Shows the hidden tab. */

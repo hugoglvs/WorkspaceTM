@@ -56,7 +56,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | Group | Functions |
 | :--- | :--- |
 | Menu & lifecycle | `onOpen` (builds the menu), `onEdit` (forwards; steps aside when the installable trigger exists) |
-| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showContractsSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab` |
+| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showContractsSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab`, `showSettingsTab` |
 | Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `dailyRemindersJob` (daily 9 am; `birthdayReminderJob` kept as an alias), `myTasksSyncJob` (hourly, one per connected person) |
 | Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getContractsSidebarData`, `saveContract`, `restoreMemberFormulas`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `getAssignSidebarData`, `assignTasks`, `stopRecurringRule`, `runWorkspaceCheck`, `removePresenceDuplicates` |
 
@@ -97,6 +97,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
 | **Edit Task Types** | Shows the hidden Task Types tab (Type, Frequency, Due rule, Mandatory, Active). |
+| **Edit Settings** | Shows the hidden Settings tab: default role and department, public holidays (France or None), onboarding task project, title and description. An empty value means the default. |
 
 ---
 
@@ -104,7 +105,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 
 | Job | Trigger | What it does |
 | :--- | :--- | :--- |
-| Edit handling | Installable on-edit (`installedTaskEditHandler`) | Every grid edit: IDs, validation toasts, Google Tasks / Calendar push, Weekly Presence saves, member sync, birthday format, location warnings, coverage re-check. The simple `onEdit` steps aside once this trigger exists (one run per edit). |
+| Edit handling | Installable on-edit (`installedTaskEditHandler`) | Every grid edit: IDs, validation toasts, Google Tasks / Calendar push, Weekly Presence saves, member sync, birth date check, location warnings, coverage re-check. The simple `onEdit` steps aside once this trigger exists (one run per edit). |
 | Nightly sync | Daily, 2 am (`nightlySyncJob`) | Member sync, presence compile, Weekly Presence, KPI Data, recurring tasks planned ahead (rotation turns moved off approved leaves), Calendar refresh, coverage check (emails + tasks for conflicts), Google Tasks and Calendar sync, next year's holidays, Team Birthdays calendar. Each step is timed in the log and the run stops cleanly before Apps Script's 6-minute limit. |
 | Monday reminder | Mondays, 8 am (`mondayPresenceReminder`) | Emails each Active member who has a working day this week with no presence, routine or leave. |
 | Daily reminders | Daily, 9 am (`dailyRemindersJob`) | Birthdays: on the working day before (Friday for Sat–Mon), every other Active member gets an "Add to my Google Calendar" link. Tasks: an email 3 working days before a typed task is due and on the first working day after if still open. |

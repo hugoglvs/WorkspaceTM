@@ -39,10 +39,13 @@ function evaluateMockFormula(sheet, row, col, formula) {
     if (r < 2 || !g || mockCellText(g[1]).toLowerCase() !== name) return;
     records.push({ role: mockCellText(g[2]), department: mockCellText(g[3]), start: mockDate(g[4]), end: mockDate(g[5]) });
   });
-  var prof = require("../src/Contracts").contractProfile(records, new Date());
+  // The default shown for a blank role / department is written in the formula
+  var dflt = /IF\(y="","((?:[^"]|"")*)",y\)/.exec(formula);
+  var fallback = dflt ? dflt[1].replace(/""/g, '"') : "";
+  var prof = require("../src/Contracts").contractProfile(records, new Date(), { role: fallback, department: fallback });
   if (formula.indexOf('"No Contract"') !== -1) return prof.status;
-  if (formula.indexOf('"Team Member"') !== -1) return prof.role;
-  if (formula.indexOf('"Delivery"') !== -1) return prof.department;
+  if (formula.indexOf("$B$2:$B") !== -1) return prof.role;
+  if (formula.indexOf("$C$2:$C") !== -1) return prof.department;
   return "";
 }
 
@@ -504,6 +507,8 @@ function createMockSpreadsheet() {
 }
 
 function setupGasGlobals(mockSpreadsheet) {
+  // The shared helpers are globals in Apps Script (ADR 0049)
+  Object.assign(global, require("../src/Utils"));
   var docProps = {};
   var batchUpdateCalls = [];
   var mockTables = [];

@@ -30,46 +30,13 @@ function formatBackupDateIso(d) {
   }
 }
 
-/**
- * Parses date safely to Date object set at 00:00:00.
- *
- * @param {Date|string} d
- * @return {Date|null}
- */
-function parseBackupDate(d) {
-  if (!d) return null;
-  if (d instanceof Date) {
-    var dt = new Date(d.getTime());
-    dt.setHours(0, 0, 0, 0);
-    return dt;
-  }
-  var s = String(d).trim();
-  var match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (match) {
-    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10), 0, 0, 0, 0);
-  }
-  var parsed = new Date(s);
-  if (!isNaN(parsed.getTime())) {
-    parsed.setHours(0, 0, 0, 0);
-    return parsed;
-  }
-  return null;
-}
 
 var PROJECT_COLS = { id: 1, name: 2, status: 3, start: 4, target: 5, lead: 6, backup: 7, active: 8 };
 var CONFLICT_STYLE = { bg: "#F8D7DA", color: "#721C24" };
 var WARNING_STYLE = { bg: "#FCE8B2", color: "#7A4F01" };
 var COVERAGE_HORIZON_DAYS = 366;
 
-function backupCellName(val, rich) {
-  return (typeof extractCellValue === "function") ? extractCellValue(val, rich) : String(val || "").trim();
-}
 
-function addDays(d, n) {
-  var x = new Date(d.getTime());
-  x.setDate(x.getDate() + n);
-  return x;
-}
 
 function isWeekendDay(d) {
   return d.getDay() === 0 || d.getDay() === 6;
@@ -90,13 +57,13 @@ function readCoverageLeaves(ss) {
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   for (var r = 0; r < vals.length; r++) {
-    var name = backupCellName(vals[r][colMap.member - 1], rich[r] ? rich[r][colMap.member - 1] : null);
+    var name = cellName(vals[r][colMap.member - 1], rich[r] ? rich[r][colMap.member - 1] : null);
     if (!name) continue;
     var status = String(vals[r][colMap.status - 1] || "").trim().toLowerCase();
     if (status !== "approved" && status !== "requested") continue;
-    var start = parseBackupDate(vals[r][colMap.start_date - 1]);
+    var start = toDate(vals[r][colMap.start_date - 1]);
     if (!start) continue;
-    var end = parseBackupDate(vals[r][colMap.end_date - 1]) || new Date(start.getTime());
+    var end = toDate(vals[r][colMap.end_date - 1]) || new Date(start.getTime());
     var key = name.toLowerCase();
     (byMember[key] = byMember[key] || []).push({
       startDate: start, endDate: end, status: status,
@@ -118,10 +85,10 @@ function readCoverageContracts(ss) {
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   for (var r = 0; r < vals.length; r++) {
-    var name = backupCellName(vals[r][0], rich[r] ? rich[r][0] : null);
+    var name = cellName(vals[r][0], rich[r] ? rich[r][0] : null);
     if (!name) continue;
     (byMember[name.toLowerCase()] = byMember[name.toLowerCase()] || []).push({
-      start: parseBackupDate(vals[r][3]), end: parseBackupDate(vals[r][4])
+      start: toDate(vals[r][3]), end: toDate(vals[r][4])
     });
   }
   return byMember;
@@ -155,10 +122,10 @@ function readBackupAssignments(ss) {
     if (status !== "active" && status !== "planned") continue;
     (byProject[projId] = byProject[projId] || []).push({
       row: r + 2,
-      primary: backupCellName(vals[r][2], rich[r] ? rich[r][2] : null),
-      backup: backupCellName(vals[r][3], rich[r] ? rich[r][3] : null),
-      startDate: parseBackupDate(vals[r][4]),
-      endDate: parseBackupDate(vals[r][5])
+      primary: cellName(vals[r][2], rich[r] ? rich[r][2] : null),
+      backup: cellName(vals[r][3], rich[r] ? rich[r][3] : null),
+      startDate: toDate(vals[r][4]),
+      endDate: toDate(vals[r][5])
     });
   }
   return byProject;
@@ -196,8 +163,8 @@ function syncProjectBackups(ss, todayDate) {
       projectsSheet.getRange(p + 2, PROJECT_COLS.id).setValue(projId);
       res.idsCreated++;
     }
-    var lead = backupCellName(pVals[p][5], pRich[p] ? pRich[p][5] : null);
-    var backup = backupCellName(pVals[p][6], pRich[p] ? pRich[p][6] : null);
+    var lead = cellName(pVals[p][5], pRich[p] ? pRich[p][5] : null);
+    var backup = cellName(pVals[p][6], pRich[p] ? pRich[p][6] : null);
     if (!backup) continue;
 
     var permanent = (assignments[projId] || []).filter(function(a) { return !a.endDate; });
@@ -208,7 +175,7 @@ function syncProjectBackups(ss, todayDate) {
       backupsSheet.getRange(permanent[k].row, 6).setValue(yesterdayIso);
       res.rowsEnded++;
     }
-    var startIso = permanent.length ? todayIso : (formatBackupDateIso(parseBackupDate(pVals[p][3])) || todayIso);
+    var startIso = permanent.length ? todayIso : (formatBackupDateIso(toDate(pVals[p][3])) || todayIso);
     var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(backupsSheet) : backupsSheet.getLastRow() + 1;
     backupsSheet.getRange(row, 1, 1, 8).setValues([[
       "bkp_" + Math.random().toString(36).substring(2, 9), projId, lead, backup, startIso, "", "Active", "Permanent backup"
@@ -244,7 +211,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
   var opt = options || {};
   var sendNotifications = opt.sendNotifications !== false;
   var createTasks = opt.createTasks !== false;
-  var todayDate = parseBackupDate(opt.asOfDateParam ? opt.asOfDateParam : new Date());
+  var todayDate = toDate(opt.asOfDateParam ? opt.asOfDateParam : new Date());
   var todayIso = formatBackupDateIso(todayDate);
 
   syncProjectBackups(ss, todayDate);
@@ -257,7 +224,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     var mVals = mRange.getValues();
     var mRich = (typeof mRange.getRichTextValues === "function") ? mRange.getRichTextValues() : [];
     for (var m = 0; m < mVals.length; m++) {
-      var nameM = backupCellName(mVals[m][0], mRich[m] ? mRich[m][0] : null);
+      var nameM = cellName(mVals[m][0], mRich[m] ? mRich[m][0] : null);
       if (!nameM) continue;
       var emailM = String(mVals[m][1] || "").trim().toLowerCase();
       if (!emailM && typeof extractEmailFromChip === "function") emailM = String(extractEmailFromChip(mVals[m][0], mRich[m] ? mRich[m][0] : null) || "").toLowerCase();
@@ -355,8 +322,8 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
       id: String(pVals[p][0] || "").trim(),
       name: String(pVals[p][1] || pVals[p][0] || "").trim(),
       status: String(pVals[p][2] || "").trim().toLowerCase(),
-      lead: backupCellName(pVals[p][5], pRich[p] ? pRich[p][5] : null),
-      backup: backupCellName(pVals[p][6], pRich[p] ? pRich[p][6] : null)
+      lead: cellName(pVals[p][5], pRich[p] ? pRich[p][5] : null),
+      backup: cellName(pVals[p][6], pRich[p] ? pRich[p][6] : null)
     };
     var rowRange = projectsSheet.getRange(rowNum, 1, 1, 8);
     if (!project.id && !project.name) { activeColumn.push([pVals[p][7] || ""]); continue; }
@@ -598,10 +565,8 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    backupCellName: backupCellName,
     readCoverageContracts: readCoverageContracts,
     withinContract: withinContract,
-    parseBackupDate: parseBackupDate,
     formatBackupDateIso: formatBackupDateIso,
     readCoverageLeaves: readCoverageLeaves,
     checkProjectBackupConflicts: checkProjectBackupConflicts,

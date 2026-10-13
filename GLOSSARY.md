@@ -152,8 +152,12 @@ The menu report of everything that needs attention (contracts, backups, Project 
 _Avoid_: Health check, Audit
 
 **Birthday**:
-A Member's day and month of birth ("14 Mar"), never the year, in the last Members column. Drives the birthday reminder and the Team Birthdays calendar (ADR 0042).
-_Avoid_: Birth date, Date of birth (they imply the year)
+A Member's birth date, in the last Members column (a date; whether the year is real is up to each person, ADR 0049). Only day and month drive the birthday reminder and the Team Birthdays calendar (ADR 0042).
+_Avoid_: Date of birth
+
+**Settings**:
+The hidden Settings tab (menu *Edit Settings*) holding the organisation-specific values: default role and department, public holidays country, onboarding task project, title and description (ADR 0049).
+_Avoid_: Config, Parameters
 
 **Public Holiday**:
 A day in the hidden Holidays tab (French public holidays pre-filled, team days added by hand). Treated like a weekend by presence, Weekly Presence, KPIs, coverage, reminders and birthdays (ADR 0043).

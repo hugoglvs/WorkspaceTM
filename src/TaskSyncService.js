@@ -176,6 +176,33 @@ function generateTaskId() {
 }
 
 /**
+ * The day a task shows in Google Tasks: its Planned date, else its Deadline
+ * (the API has a single date field, "due", documented as the scheduled day,
+ * not a deadline; ADR 0050).
+ */
+function taskGoogleDay(row, colMap) {
+  var planned = (colMap.plannedDate > 0) ? row[colMap.plannedDate - 1] : "";
+  return planned || row[colMap.dueDate - 1];
+}
+
+/**
+ * Google Task notes: description, then the deadline (the API has no deadline
+ * field), then the sheet references.
+ */
+function taskGoogleNotes(description, deadline, taskId, projectId, assignedMember) {
+  var notesParts = [];
+  if (description) notesParts.push(description);
+  var deadlineIso = isoDate(deadline);
+  if (deadlineIso) notesParts.push("Deadline: " + deadlineIso);
+  var metaParts = [];
+  if (taskId) metaParts.push("Task ID: " + taskId);
+  if (projectId) metaParts.push("Project: " + projectId);
+  if (assignedMember) metaParts.push("Assigned: " + assignedMember);
+  if (metaParts.length > 0) notesParts.push(metaParts.join(" | "));
+  return notesParts.join("\n\n");
+}
+
+/**
  * Resolves column positions for tbl_tasks dynamically from headers,
  * handling both the new 8-column layout (with description) and legacy 7-column layout.
  * Supports case-insensitive matching, spaces, and underscores.
@@ -192,7 +219,8 @@ function getTaskColumnMap(tasksSheet) {
     description: 5,
     dueDate: 6,
     status: 7,
-    googleTaskId: 8
+    googleTaskId: 8,
+    plannedDate: 0
   };
   if (!tasksSheet) return map;
   var lastCol = Math.max(typeof tasksSheet.getLastColumn === "function" ? (tasksSheet.getLastColumn() || 0) : 0, 8);
@@ -214,8 +242,10 @@ function getTaskColumnMap(tasksSheet) {
     } else if (norm === "description" || norm === "desc" || norm === "notes" || norm === "details") {
       map.description = c + 1;
       hasDesc = true;
-    } else if (norm === "duedate" || norm === "due") {
+    } else if (norm === "duedate" || norm === "due" || norm === "deadline") {
       map.dueDate = c + 1;
+    } else if (norm === "planneddate" || norm === "planned") {
+      map.plannedDate = c + 1;
     } else if (norm === "status" || norm === "state") {
       map.status = c + 1;
     } else if (norm === "googletaskid" || norm === "gtaskid" || norm === "googletasks" || norm === "googletask") {
@@ -355,6 +385,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     var title = String(row[colMap.title - 1] || "").trim();
     var description = (colMap.description > 0) ? String(row[colMap.description - 1] || "").trim() : "";
     var dueDate = row[colMap.dueDate - 1];
+    var googleDay = taskGoogleDay(row, colMap);
     var status = String(row[colMap.status - 1] || "Todo").trim();
     var googleTaskId = String(row[colMap.googleTaskId - 1] || "").trim();
 
@@ -404,23 +435,13 @@ function syncGoogleTasks(targetSpreadsheet, options) {
         continue;
       }
       try {
-        var notesParts = [];
-        if (description) notesParts.push(description);
-        var metaParts = [];
-        if (taskId) metaParts.push("Task ID: " + taskId);
-        if (projectId) metaParts.push("Project: " + projectId);
-        if (assignedMember) metaParts.push("Assigned: " + assignedMember);
-        if (metaParts.length > 0) {
-          notesParts.push(metaParts.join(" | "));
-        }
-
         var taskResource = {
           title: title,
-          notes: notesParts.join("\n\n"),
+          notes: taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember),
           status: mapSheetStatusToGoogleTaskStatus(status)
         };
 
-        var dueStr = formatTaskDueRfc3339(dueDate);
+        var dueStr = formatTaskDueRfc3339(googleDay);
         if (dueStr) {
           taskResource.due = dueStr;
         }
@@ -473,8 +494,8 @@ function syncGoogleTasks(targetSpreadsheet, options) {
           patchResource.title = effectiveTitle;
         }
 
-        // 3. Due Date Reconciliation
-        var dueStr = formatTaskDueRfc3339(dueDate);
+        // 3. Date Reconciliation (the Planned date, else the Deadline; ADR 0050)
+        var dueStr = formatTaskDueRfc3339(googleDay);
         var gDueStr = matchedGTask.due ? matchedGTask.due.substring(0, 10) : "";
         var sDueStr = dueStr ? dueStr.substring(0, 10) : "";
         if (sDueStr !== gDueStr) {
@@ -482,14 +503,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
         }
 
         // 4. Description & Notes Reconciliation
-        var notesParts = [];
-        if (description) notesParts.push(description);
-        var metaParts = [];
-        if (taskId) metaParts.push("Task ID: " + taskId);
-        if (projectId) metaParts.push("Project: " + projectId);
-        if (assignedMember) metaParts.push("Assigned: " + assignedMember);
-        if (metaParts.length > 0) notesParts.push(metaParts.join(" | "));
-        var expectedNotes = notesParts.join("\n\n");
+        var expectedNotes = taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember);
 
         if ((matchedGTask.notes || "").trim() !== expectedNotes.trim()) {
           patchResource.notes = expectedNotes;
@@ -811,21 +825,13 @@ function createGoogleTaskForTaskRow(tasksSheet, rowIndex) {
   var description = (colMap.description > 0) ? String(rowVals[colMap.description - 1] || "").trim() : "";
   var dueDate = rowVals[colMap.dueDate - 1];
 
-  var notesParts = [];
-  if (description) notesParts.push(description);
-  var metaParts = [];
-  if (taskId) metaParts.push("Task ID: " + taskId);
-  if (projectId) metaParts.push("Project: " + projectId);
-  if (assignedMember) metaParts.push("Assigned: " + assignedMember);
-  if (metaParts.length > 0) notesParts.push(metaParts.join(" | "));
-
   var taskResource = {
     title: effectiveTitle,
-    notes: notesParts.join("\n\n"),
+    notes: taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember),
     status: mapSheetStatusToGoogleTaskStatus(status)
   };
 
-  var dueStr = formatTaskDueRfc3339(dueDate);
+  var dueStr = formatTaskDueRfc3339(taskGoogleDay(rowVals, colMap));
   if (dueStr) taskResource.due = dueStr;
 
   try {
@@ -948,6 +954,7 @@ function handleDoneStatusChange(sheet, editedRow, taskId, rowVals, richMember, c
   if (colMap.title > 0) newRowData[colMap.title - 1] = title;
   if (colMap.description > 0) newRowData[colMap.description - 1] = description;
   if (colMap.dueDate > 0) newRowData[colMap.dueDate - 1] = dueDate;
+  if (colMap.plannedDate > 0) newRowData[colMap.plannedDate - 1] = rowVals[colMap.plannedDate - 1];
   if (colMap.status > 0) newRowData[colMap.status - 1] = effectiveNewStatus;
   newRowData[colMap.googleTaskId - 1] = "";
 

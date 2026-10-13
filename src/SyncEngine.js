@@ -145,7 +145,7 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
       else if (tkhName === "assignedmember" || tkhName === "assignedto") tkColMember = tkh + 1;
       else if (tkhName === "title") tkColTitle = tkh + 1;
       else if (tkhName === "description") tkColDesc = tkh + 1;
-      else if (tkhName === "duedate") tkColDue = tkh + 1;
+      else if (tkhName === "duedate" || tkhName === "deadline") tkColDue = tkh + 1;
       else if (tkhName === "status") tkColStatus = tkh + 1;
       else if (tkhName === "googletaskid") tkColGTask = tkh + 1;
     }

@@ -199,18 +199,21 @@ var SCHEMA_SPEC = {
       assigned_member: "Assigned to",
       title: "Title",
       description: "Description",
-      due_date: "Due date",
+      due_date: "Deadline",
       status: "Status",
       google_task_id: "Google Task ID",
       task_type: "Type",
       done_on: "Done on",
       done_by: "Done by",
-      recurrence: "Recurring"
+      recurrence: "Recurring",
+      planned_date: "Planned date"
     },
     // Type / Done on / Done by / Recurring: ADR 0045 (task types, calendar, recurring tasks, audit)
-    columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "recurrence"],
+    // Deadline (key due_date) drives reminders, overdue and the Calendar; Planned date is the
+    // day shown in Google Tasks (its only date field), the deadline when empty (ADR 0050)
+    columns: ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "recurrence", "planned_date"],
     requiredColumns: ["task_id", "title", "status"],
-    nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id", "task_type", "done_on", "done_by", "recurrence"],
+    nullableColumns: ["project_id", "assigned_member", "description", "due_date", "google_task_id", "task_type", "done_on", "done_by", "recurrence", "planned_date"],
     strictlyProtectedColumns: ["task_id", "google_task_id", "recurrence"],
     warningProtectedColumns: [],
     protectedColumns: ["task_id", "google_task_id", "recurrence"],
@@ -227,7 +230,8 @@ var SCHEMA_SPEC = {
       task_type: "DROPDOWN",
       done_on: "DATE",
       done_by: "TEXT",
-      recurrence: "TEXT"
+      recurrence: "TEXT",
+      planned_date: "DATE"
     },
     validations: {
       status: ["Todo", "In Progress", "Done", "Blocked", "Cancelled"]

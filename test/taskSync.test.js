@@ -744,3 +744,31 @@ test('live task sync: installTaskSyncTrigger registers onEdit trigger and trigge
 });
 
 
+
+test('Google Tasks date: the Planned date when set, else the Deadline; the deadline is written in the notes', () => {
+  freshInit(mockSpreadsheet);
+  var tasksSheet = mockSpreadsheet.getSheetByName('Tasks');
+  assert.strictEqual(tasksSheet.getRange(1, 6).getValue(), 'Deadline');
+  assert.strictEqual(tasksSheet.getRange(1, 13).getValue(), 'Planned date');
+  tasksSheet.getRange(2, 1, 2, 8).setValues([
+    ['TSK-001', 'PRJ-001', 'Alice Smith', 'SoW', 'Sign the SoW', '2026-10-30', 'Todo', ''],
+    ['TSK-002', 'PRJ-001', 'Alice Smith', 'PRM', '', '2026-10-31', 'Todo', '']
+  ]);
+  tasksSheet.getRange(2, 13).setValue('2026-10-26');
+
+  var res = taskSyncService.syncGoogleTasks(mockSpreadsheet, { allUsers: true });
+
+  var rows = tasksSheet.getRange(2, 1, 2, 8).getValues();
+  var planned = Tasks.Tasks.get(res.tasklistId, rows[0][7]);
+  var deadlineOnly = Tasks.Tasks.get(res.tasklistId, rows[1][7]);
+  assert.strictEqual(planned.due.substring(0, 10), '2026-10-26', 'planned day sent as the Google Tasks date');
+  assert.match(planned.notes, /Sign the SoW\n\nDeadline: 2026-10-30\n\nTask ID: TSK-001/);
+  assert.strictEqual(deadlineOnly.due.substring(0, 10), '2026-10-31', 'no planned date: the deadline is the day');
+
+  // Moving the planned date moves the Google task; the deadline stays in the notes
+  tasksSheet.getRange(2, 13).setValue('2026-10-28');
+  taskSyncService.syncGoogleTasks(mockSpreadsheet, { allUsers: true });
+  var moved = Tasks.Tasks.get(res.tasklistId, rows[0][7]);
+  assert.strictEqual(moved.due.substring(0, 10), '2026-10-28');
+  assert.match(moved.notes, /Deadline: 2026-10-30/);
+});

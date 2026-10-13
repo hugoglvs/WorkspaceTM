@@ -163,6 +163,14 @@ _Avoid_: Config, Parameters
 A day in the hidden Holidays tab (French public holidays pre-filled, team days added by hand). Treated like a weekend by presence, Weekly Presence, KPIs, coverage, reminders and birthdays (ADR 0043).
 _Avoid_: Holiday (a personal leave type), Bank holiday
 
+**Deadline**:
+The date by which a task must be done (Tasks column *Deadline*). It drives reminders, overdue and the audit, and is written in the Google Task notes (ADR 0050).
+_Avoid_: Due date (Google Tasks uses "due" for the planned day)
+
+**Planned Date**:
+The day someone plans to do a task (Tasks column *Planned date*), sent to Google Tasks as the task's date; the Deadline when empty (ADR 0050).
+_Avoid_: Scheduled date, Due date
+
 **Task Type**:
 A kind of task (Quiz, Onboarding, Time & expenses…) with a frequency (weekly, monthly, one-off), a due rule and a Mandatory flag for audited tasks. Listed in the hidden Task Types tab (ADR 0045).
 _Avoid_: Category, Task kind

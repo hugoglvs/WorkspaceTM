@@ -474,7 +474,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
                 else if (cName === "assignedmember" || cName === "assignedto") m.assignedMember = ci + 1;
                 else if (cName === "title") m.title = ci + 1;
                 else if (cName === "description") m.description = ci + 1;
-                else if (cName === "duedate") m.dueDate = ci + 1;
+                else if (cName === "duedate" || cName === "deadline") m.dueDate = ci + 1;
                 else if (cName === "status") m.status = ci + 1;
                 else if (cName === "googletaskid") m.googleTaskId = ci + 1;
               }

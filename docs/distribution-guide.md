@@ -92,7 +92,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Interim Backups** | Sidebar: cover a project for given dates. Shows coverage gaps (click one to fill the dates) and lets you cancel a planned backup. |
 | **Assign Tasks** | Sidebar: give a task type to several people (by role and/or name), once or every week/month (each person, or a rotation that skips people on leave). Lists and stops recurring tasks. |
 | **Calendar** | Opens the Calendar tab: pick a Type and a Project, then members × weeks (or months). *To do* assigns, *Done* marks done, clearing cancels. Refuses someone on approved leave. |
-| **Connect my Google Tasks** | Each member clicks it once: their own tasks then sync every hour with their Google Tasks (both ways). |
+| **Connect my Google Tasks** | Each member clicks it once: their own tasks then sync every hour with their Google Tasks (both ways for status). Google Tasks shows the task's **Planned date** (else its **Deadline**); the deadline is written in the task notes, since the Google Tasks API has no deadline field. |
 | **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, overdue tasks, tasks falling on a leave, members not connected to Google Tasks, duplicate presence rows. |
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |

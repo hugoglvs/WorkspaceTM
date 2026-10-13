@@ -143,6 +143,8 @@ function configureWorkspacePM() {
 }
 ```
 
+Members Role, Department and Status are formulas reading Contracts (ADR 0047): they update the moment a contract is typed and change on their own when a contract starts or ends. Check Workspace reports a cell typed over and restores the formula.
+
 `ADMIN_EMAILS` adds people who may edit strictly protected columns (computed ones such as Members Role, Status, Today, and IDs), on top of the sheet owner. Note: the `ADMIN_EMAILS` line writes the consumer's own document properties; if admins are not picked up, ask a maintainer to set it through the library.
 
 ---

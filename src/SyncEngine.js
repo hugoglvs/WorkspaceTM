@@ -48,7 +48,7 @@ function safeFormatDateIso(dateVal) {
  * Synchronizes tbl_members from tbl_tenures:
  * 1. Reads tenures (columns: member, role, department, start_date, end_date, contract_type, fte_rate).
  * 2. Members added in tbl_tenures missing from tbl_members are copied as native People Chips.
- * 3. In tbl_members, current_role, current_department, and tenure_status are updated based on active tenure.
+ * 3. In tbl_members, current_role, current_department and tenure_status are formulas reading Contracts (ADR 0047).
  * 4. When a new member is added, an onboarding task is assigned to their People Chip in tbl_tasks
  *    prompting them to fill in accenture_email and phone_number.
  * 5. Applies column protections to locked fields.
@@ -204,47 +204,6 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
     }
   }
 
-  // Helper to evaluate member tenure stats
-  function evaluateTenureProfile(mKey) {
-    var records = tenuresByMember[mKey];
-    if (!records || records.length === 0) {
-      return { role: "", department: "", status: "No Contract" };
-    }
-
-    // Active tenure: start <= today && (!end || end >= today)
-    for (var i = 0; i < records.length; i++) {
-      var r = records[i];
-      var startOk = !r.startDate || r.startDate <= todayDate;
-      var endOk = !r.endDate || r.endDate >= todayDate;
-      if (startOk && endOk) {
-        return {
-          role: r.role || "Team Member",
-          department: r.department || "Delivery",
-          status: "Active"
-        };
-      }
-    }
-
-    // Upcoming tenure: start > today
-    for (var j = 0; j < records.length; j++) {
-      if (records[j].startDate && records[j].startDate > todayDate) {
-        return {
-          role: records[j].role || "Team Member",
-          department: records[j].department || "Delivery",
-          status: "Upcoming"
-        };
-      }
-    }
-
-    // Past tenure: Departed
-    var lastRecord = records[records.length - 1];
-    return {
-      role: lastRecord.role || "Team Member",
-      department: lastRecord.department || "Delivery",
-      status: "Departed"
-    };
-  }
-
   // -------------------------------------------------------------
   // 2. Read tbl_members
   // -------------------------------------------------------------
@@ -264,32 +223,14 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
       if (!mVal) continue;
 
       var key = mVal.toLowerCase();
-      var profile = evaluateTenureProfile(key);
-
-      existingMembers.push({
-        row: m + 2,
-        member: mVal,
-        accentureEmail: safeExtractCell(mValues[m][mColAccentureEmail - 1]),
-        phoneNumber: safeExtractCell(mValues[m][mColPhone - 1]),
-        currentRole: profile.role || safeExtractCell(mValues[m][mColRole - 1]),
-        currentDepartment: profile.department || safeExtractCell(mValues[m][mColDept - 1]),
-        tenureStatus: profile.status,
-        todayPresence: safeExtractCell(mValues[m][mColPresence - 1]) || "Not Logged"
-      });
+      existingMembers.push({ row: m + 2, member: mVal });
 
       existingMemberMap[key] = true;
     }
   }
 
-  // -------------------------------------------------------------
-  // 3. Update existing rows in tbl_members with latest tenure lookups
-  // -------------------------------------------------------------
-  for (var u = 0; u < existingMembers.length; u++) {
-    var em = existingMembers[u];
-    membersSheet.getRange(em.row, mColRole).setValue(em.currentRole);
-    membersSheet.getRange(em.row, mColDept).setValue(em.currentDepartment);
-    membersSheet.getRange(em.row, mColStatus).setValue(em.tenureStatus);
-  }
+  // 3. Role, Department and Status are formulas reading Contracts (ADR 0047),
+  //    written by applyMemberFormulas below.
 
   // -------------------------------------------------------------
   // 4. Add new members from tbl_tenures to tbl_members
@@ -307,7 +248,6 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
       var targetRow = nextMemberRow;
       nextMemberRow++; // Always advance for next member
 
-      var prof = evaluateTenureProfile(uKey);
       var autoEmail = rawName.indexOf("@") !== -1 ? rawName : "";
       var srcTenureRow = tenuresByMember[uKey][0].row;
 
@@ -326,21 +266,12 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
       // Write remaining columns
       membersSheet.getRange(targetRow, mColAccentureEmail).setValue(autoEmail);
       membersSheet.getRange(targetRow, mColPhone).setValue("");
-      membersSheet.getRange(targetRow, mColRole).setValue(prof.role);
-      membersSheet.getRange(targetRow, mColDept).setValue(prof.department);
-      membersSheet.getRange(targetRow, mColStatus).setValue(prof.status);
       membersSheet.getRange(targetRow, mColPresence).setValue("Not Logged");
 
       applyTypography(membersSheet.getRange(targetRow, 1, 1, mLastCol));
 
       existingMemberMap[uKey] = true;
-      existingMembers.push({
-        row: targetRow,
-        member: rawName,
-        currentRole: prof.role,
-        currentDepartment: prof.department,
-        tenureStatus: prof.status
-      });
+      existingMembers.push({ row: targetRow, member: rawName });
 
       newlyAddedMembers.push({
         member: rawName,
@@ -349,6 +280,13 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
 
       addedToDirectory++;
     }
+  }
+
+  // Role, Department and Status formulas, also for rows just added (ADR 0047)
+  var applyFormulasFn = (typeof applyMemberFormulas === "function") ? applyMemberFormulas
+    : (typeof require !== "undefined" ? require("./Contracts").applyMemberFormulas : null);
+  if (applyFormulasFn) {
+    try { applyFormulasFn(ss); } catch (eF) { Logger.log("Member formulas note: " + eF); }
   }
 
   // -------------------------------------------------------------

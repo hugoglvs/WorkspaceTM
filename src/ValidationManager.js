@@ -265,7 +265,9 @@ function highlightInvalidCells(sheetName, targetSpreadsheet) {
  * Applies prominent warning conditional formatting to highlight empty required cells
  * in real-time whenever a row is populated.
  *
- * Formula: =AND(COUNTA($A2:$G2)>0, LEN(TRIM(A2))=0)
+ * Formula: =AND(COUNTIF($A2:$G2,"?*")+COUNT($A2:$G2)>0, LEN(TRIM(A2))=0)
+ * (COUNTIF "?*" ignores formulas returning "", e.g. the Members formulas of ADR 0047,
+ * which COUNTA would count as content and so flag every empty row)
  * Evaluates dynamically and universally in the browser:
  * - Empty rows: zero highlights.
  * - Active rows: any empty required cell turns prominent alert red (#F8D7DA).
@@ -279,7 +281,8 @@ function isRequiredCellRule(rule) {
   var cond = (rule && typeof rule.getBooleanCondition === "function") ? rule.getBooleanCondition() : null;
   if (!cond || String(cond.getCriteriaType()) !== "CUSTOM_FORMULA") return false;
   var vals = (typeof cond.getCriteriaValues === "function") ? cond.getCriteriaValues() : [];
-  return String(vals && vals[0] || "").replace(/\s/g, "").indexOf("=AND(COUNTA($A") === 0;
+  var f = String(vals && vals[0] || "").replace(/\s/g, "");
+  return f.indexOf("=AND(COUNTA($A") === 0 || f.indexOf("=AND(COUNTIF($A") === 0;
 }
 
 function applyRequiredValidationFormatting(sheet, config) {
@@ -307,7 +310,8 @@ function applyRequiredValidationFormatting(sheet, config) {
       var range = sheet.getRange(2, colIdx, maxRows - 1, 1);
 
       // Universal real-time formula: row has content anywhere, but this cell is blank
-      var formula = '=AND(COUNTA($A2:$' + endColLetter + '2)>0, LEN(TRIM(' + colLetter + '2))=0)';
+      var rowRange = '$A2:$' + endColLetter + '2';
+      var formula = '=AND(COUNTIF(' + rowRange + ',"?*")+COUNT(' + rowRange + ')>0, LEN(TRIM(' + colLetter + '2))=0)';
 
       var rule = SpreadsheetApp.newConditionalFormatRule()
         .whenFormulaSatisfied(formula)

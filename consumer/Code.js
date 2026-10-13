@@ -277,6 +277,10 @@ function showContractsTab() {
   return safeInvokeLibrary("showContractsTab");
 }
 
+function restoreMemberFormulas() {
+  return safeInvokeLibrary("restoreMemberFormulas");
+}
+
 function showBackupSidebar() {
   return safeInvokeLibrary("showBackupSidebar");
 }
@@ -404,6 +408,7 @@ if (typeof module !== 'undefined' && module.exports) {
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
     showLocationsTab: showLocationsTab,
     showContractsTab: showContractsTab,
+    restoreMemberFormulas: restoreMemberFormulas,
     showHolidaysTab: showHolidaysTab,
     showBackupSidebar: showBackupSidebar,
     getBackupSidebarData: getBackupSidebarData,

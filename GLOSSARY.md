@@ -17,7 +17,7 @@ The active contract period, role, department, and FTE parameters of a Member's a
 _Avoid_: Contract, Duration, Employment Period, Tenure ID
 
 **Tenure Status**:
-The contractual employment state of a Member (`Active`, `Upcoming`, `Departed`), evaluated from their Tenure dates.
+The contractual employment state of a Member (`Active`, `Upcoming`, `Departed`, `No Contract`), evaluated from their Tenure dates by a formula in the Members Status column (ADR 0047).
 _Avoid_: Employment Status, Employee State
 
 **Today Presence**:

@@ -261,7 +261,7 @@ test('applyRequiredValidationFormatting: should configure prominent alert color 
     assert.strictEqual(rules[i].bg, '#F8D7DA');
     assert.strictEqual(rules[i].color, '#721C24');
     assert.strictEqual(rules[i].bold, true);
-    assert.ok(rules[i].formula.includes('COUNTA($A2:$G2)>0'));
+    assert.ok(rules[i].formula.includes('COUNTIF($A2:$G2,"?*")+COUNT($A2:$G2)>0'), 'formulas returning "" do not count as content');
     assert.ok(rules[i].formula.includes('LEN(TRIM('));
   }
 });
@@ -421,7 +421,7 @@ test('required-cell rules are replaced on upgrade, not stacked, and never cover 
   vm.applyRequiredValidationFormatting(sheet, spec);
   assert.strictEqual(sheet.getConditionalFormatRules().length, first, 'no duplicates');
   assert.strictEqual(first, spec.requiredColumns.length);
-  assert.ok(sheet.getConditionalFormatRules().every(r => !/H2/.test(r.formula.split(',')[1])), 'Birthday (H) is not required');
+  assert.ok(sheet.getConditionalFormatRules().every(r => !/TRIM\(H2\)/.test(r.formula)), 'Birthday (H) is not required');
 });
 
 test('applyProtections keeps protections that are already right instead of rebuilding them', () => {

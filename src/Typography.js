@@ -184,6 +184,7 @@ function listSheetTables(spreadsheetId) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     applyTypography: applyTypography,
-    createGoogleSheetsTable: createGoogleSheetsTable
+    createGoogleSheetsTable: createGoogleSheetsTable,
+    listSheetTables: listSheetTables
   };
 }

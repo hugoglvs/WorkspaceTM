@@ -38,6 +38,7 @@
     var report = <?!= reportJson ?>;
     var ACTIONS = {
       members: { label: 'Open Contracts', fn: 'showContractsTab' },
+      formulas: { label: 'Restore formulas', fn: 'restoreMemberFormulas' },
       backups: { label: 'Add interim backups', fn: 'showBackupSidebar' },
       presence: { label: 'Declare Presence', fn: 'showBaselineSidebar' },
       dedupe: { label: 'Remove duplicates', fn: 'removePresenceDuplicates' },
@@ -80,7 +81,7 @@
       $('msg').textContent = 'Working…';
       google.script.run
         .withSuccessHandler(function(res) {
-          if (key === 'dedupe') recheck((res && res.message) || 'Done.');
+          if (key === 'dedupe' || key === 'formulas') recheck((res && res.message) || 'Done.');
           else google.script.host.close();
         })
         .withFailureHandler(function(err) { button.disabled = false; $('msg').textContent = err.message || String(err); })[a.fn]();

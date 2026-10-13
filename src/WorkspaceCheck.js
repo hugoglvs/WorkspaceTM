@@ -185,6 +185,17 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
     items: members.filter(function(m) { return m.status.toLowerCase() === "no contract"; }).map(function(m) { return m.name; })
   });
 
+  var typedOver = [];
+  try {
+    var findTyped = (typeof findTypedOverMemberCells === "function") ? findTypedOverMemberCells
+      : (typeof require !== "undefined" ? require("./Contracts").findTypedOverMemberCells : null);
+    if (findTyped) typedOver = findTyped(ss);
+  } catch (eTyped) { Logger.log("Check Workspace formulas note: " + eTyped); }
+  sections.push({
+    key: "memberFormulas", title: "Members cells typed over", ok: "Role, Department and Status all follow Contracts.",
+    action: typedOver.length ? "formulas" : undefined, items: typedOver
+  });
+
   var projects = wcRows(getTable(ss, "projects"), 7, 500).filter(function(r) {
     return String(r.vals[1] || "").trim() && String(r.vals[2] || "").trim().toLowerCase() !== "completed";
   });

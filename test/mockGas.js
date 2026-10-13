@@ -2,6 +2,58 @@
  * Mock Google Apps Script environment for local unit testing
  */
 
+/**
+ * The mock does not run Sheets formulas, except the Members formulas of
+ * ADR 0047: those are evaluated with the reference rule contractProfile.
+ */
+function mockCellText(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object" && !(v instanceof Date)) {
+    if (typeof v.getName === "function") return String(v.getName()).trim();
+    return String(v.name || v.email || "").trim();
+  }
+  return String(v).trim();
+}
+
+function mockDate(v) {
+  if (v instanceof Date) return v;
+  var str = String(v === undefined || v === null ? "" : v).trim();
+  if (!str) return null;
+  var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+  var d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function evaluateMockFormula(sheet, row, col, formula) {
+  var m = /^=IF\(\$A(\d+)="",""/.exec(formula);
+  var sn = /'((?:[^']|'')+)'!/.exec(formula);
+  if (!m || !sn) return "";
+  var ss = sheet.getParent ? sheet.getParent() : null;
+  var contracts = ss && ss.getSheetByName ? ss.getSheetByName(sn[1].replace(/''/g, "'")) : null;
+  var name = mockCellText(sheet.grid[+m[1]] && sheet.grid[+m[1]][1]).toLowerCase();
+  if (!name || !contracts) return "";
+  var records = [];
+  Object.keys(contracts.grid).forEach(function(k) {
+    var r = +k, g = contracts.grid[k];
+    if (r < 2 || !g || mockCellText(g[1]).toLowerCase() !== name) return;
+    records.push({ role: mockCellText(g[2]), department: mockCellText(g[3]), start: mockDate(g[4]), end: mockDate(g[5]) });
+  });
+  var prof = require("../src/Contracts").contractProfile(records, new Date());
+  if (formula.indexOf('"No Contract"') !== -1) return prof.status;
+  if (formula.indexOf('"Team Member"') !== -1) return prof.role;
+  if (formula.indexOf('"Delivery"') !== -1) return prof.department;
+  return "";
+}
+
+function mockClearFormulas(sheet, startRow, startCol, numRows, numCols) {
+  if (!sheet.formulas) return;
+  for (var r = 0; r < numRows; r++) {
+    var fr = sheet.formulas[startRow + r];
+    if (fr) for (var c = 0; c < numCols; c++) delete fr[startCol + c];
+  }
+}
+
 function createMockRange(sheet, startRow, startCol, numRows, numCols) {
   return {
     sheet: sheet,
@@ -25,13 +77,41 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
     getLastRow: function() { return this.startRow + this.numRows - 1; },
     getLastColumn: function() { return this.startCol + this.numCols - 1; },
 
+    setFormula: function(f) { return this.setFormulas([[f]]); },
+    setFormulas: function(arr) {
+      if (!this.sheet.formulas) this.sheet.formulas = {};
+      for (var r = 0; r < arr.length; r++) {
+        for (var c = 0; c < arr[r].length; c++) {
+          var rowIdx = startRow + r, colIdx = startCol + c;
+          if (!this.sheet.formulas[rowIdx]) this.sheet.formulas[rowIdx] = {};
+          this.sheet.formulas[rowIdx][colIdx] = arr[r][c];
+          if (this.sheet.grid[rowIdx]) delete this.sheet.grid[rowIdx][colIdx];
+        }
+      }
+      return this;
+    },
+    getFormula: function() { return this.getFormulas()[0][0]; },
+    getFormulas: function() {
+      var out = [];
+      for (var r = 0; r < numRows; r++) {
+        var row = [];
+        for (var c = 0; c < numCols; c++) {
+          var fr = this.sheet.formulas && this.sheet.formulas[startRow + r];
+          row.push((fr && fr[startCol + c]) || "");
+        }
+        out.push(row);
+      }
+      return out;
+    },
     setValue: function(val) {
+      mockClearFormulas(this.sheet, startRow, startCol, 1, 1);
       if (!this.sheet.grid[startRow]) this.sheet.grid[startRow] = {};
       this.sheet.grid[startRow][startCol] = val;
       this.values = [[val]];
       return this;
     },
     clearContent: function() {
+      mockClearFormulas(this.sheet, startRow, startCol, numRows, numCols);
       for (var r = 0; r < numRows; r++) {
         var rowIdx = startRow + r;
         if (this.sheet.grid[rowIdx]) {
@@ -44,6 +124,7 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
       return this;
     },
     setValues: function(valArray) {
+      mockClearFormulas(this.sheet, startRow, startCol, valArray.length, valArray.length ? valArray[0].length : 0);
       this.values = valArray;
       for (var r = 0; r < valArray.length; r++) {
         var rowIdx = startRow + r;
@@ -70,7 +151,9 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
         var rowIdx = startRow + r;
         for (var c = 0; c < numCols; c++) {
           var colIdx = startCol + c;
-          var val = (this.sheet.grid[rowIdx] && this.sheet.grid[rowIdx][colIdx] !== undefined)
+          var formula = this.sheet.formulas && this.sheet.formulas[rowIdx] && this.sheet.formulas[rowIdx][colIdx];
+          var val = formula ? evaluateMockFormula(this.sheet, rowIdx, colIdx, formula)
+            : (this.sheet.grid[rowIdx] && this.sheet.grid[rowIdx][colIdx] !== undefined)
             ? this.sheet.grid[rowIdx][colIdx]
             : "";
           row.push(val);

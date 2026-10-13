@@ -19,3 +19,5 @@ _2026-10-12 — Live test: the sidebar does **not** open by itself when a new na
 _2026-10-12 — Verified live: typing a new name in Members opens the Members & Contracts sidebar pre-filled (the installable edit trigger can show UI; ADR 0041/0044). No protected-column dialog first._
 
 _2026-10-12 — Superseded (ADR 0046): the sidebar is removed. People chips written by script did not work in the enterprise domain; contracts are now typed in the Contracts tab, opened by the menu *Declare Contract* or by typing a new name in Members._
+
+_2026-10-13 — Reworked (ADR 0048): member first (name typed in Members), then a Contracts sidebar that lists, adds and edits contracts; no email/chip writing._

@@ -26,7 +26,7 @@ function onOpen(e) {
     .addItem("Initialize / Upgrade Spreadsheet", "setupOrUpgrade")
     .addSeparator()
     .addItem("Declare Presence & Leaves", "showBaselineSidebar")
-    .addItem("Declare Contract", "showContractsTab")
+    .addItem("Declare Contract", "showContractsSidebar")
     .addItem("Interim Backups", "showBackupSidebar")
     .addItem("Assign Tasks", "showAssignSidebar")
     .addItem("Calendar", "showTaskCalendar")
@@ -273,8 +273,16 @@ function showHolidaysTab() {
   return safeInvokeLibrary("showHolidaysTab");
 }
 
-function showContractsTab() {
-  return safeInvokeLibrary("showContractsTab");
+function showContractsSidebar() {
+  return safeInvokeLibrary("showContractsSidebar");
+}
+
+function getContractsSidebarData() {
+  return safeInvokeLibrary("getContractsSidebarData");
+}
+
+function saveContract(payload) {
+  return safeInvokeLibrary("saveContract", [payload]);
 }
 
 function restoreMemberFormulas() {
@@ -407,7 +415,9 @@ if (typeof module !== 'undefined' && module.exports) {
     installedTaskEditHandler: installedTaskEditHandler,
     installedConsumerTriggerHandler: installedConsumerTriggerHandler,
     showLocationsTab: showLocationsTab,
-    showContractsTab: showContractsTab,
+    showContractsSidebar: showContractsSidebar,
+    getContractsSidebarData: getContractsSidebarData,
+    saveContract: saveContract,
     restoreMemberFormulas: restoreMemberFormulas,
     showHolidaysTab: showHolidaysTab,
     showBackupSidebar: showBackupSidebar,

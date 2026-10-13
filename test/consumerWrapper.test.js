@@ -227,13 +227,19 @@ test('setupOrUpgrade: runs freshInit, installs triggers, and runs initial mainte
 });
 
 
-test('ConsumerWrapper: Declare Contract reaches the library', () => {
+test('ConsumerWrapper: Contracts sidebar calls reach the library with their payload', () => {
   var calls = [];
-  global.WorkspacePM = { showContractsTab: function() { calls.push('showContractsTab'); return { success: true }; } };
+  global.WorkspacePM = {
+    showContractsSidebar: function() { calls.push(['showContractsSidebar']); },
+    getContractsSidebarData: function() { calls.push(['getContractsSidebarData']); return { members: [] }; },
+    saveContract: function(p) { calls.push(['saveContract', p]); return { success: true }; }
+  };
 
-  consumerWrapper.showContractsTab();
+  consumerWrapper.showContractsSidebar();
+  consumerWrapper.getContractsSidebarData();
+  consumerWrapper.saveContract({ member: 'A' });
 
-  assert.deepStrictEqual(calls, ['showContractsTab']);
+  assert.deepStrictEqual(calls, [['showContractsSidebar'], ['getContractsSidebarData'], ['saveContract', { member: 'A' }]]);
   assert.strictEqual(consumerWrapper.showMembersSidebar, undefined);
   delete global.WorkspacePM;
 });

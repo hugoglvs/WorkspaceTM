@@ -1,7 +1,7 @@
 # ADR 0046: Contracts Are Declared in the Contracts Tab (Members & Contracts Sidebar Removed)
 
 ## Status
-Accepted (2026-10-12). Supersedes ADR 0037.
+Superseded by ADR 0048 (2026-10-13). Was: Accepted (2026-10-12), superseding ADR 0037.
 
 ## Context
 The Members & Contracts sidebar (ADR 0037) asked for a name or a Google email when adding someone. Writing the email as a People chip from the script (Sheets API `chipRuns`) worked on a personal account but not in the Accenture Google Workspace, so new members ended up as plain text instead of chips. Typing an email in a People column of the sheet itself does make a chip, in every environment.

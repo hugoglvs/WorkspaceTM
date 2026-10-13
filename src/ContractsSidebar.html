@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+    body { margin: 0; padding: 16px; font-size: 13px; color: #202124; background: #fff; }
+    h2 { font-size: 18px; margin: 0 0 4px; font-weight: 500; color: #1a73e8; }
+    .sub { margin: 0 0 16px; font-size: 12px; color: #5f6368; }
+    h3 { font-size: 13px; font-weight: 500; margin: 18px 0 8px; display: flex; align-items: center; justify-content: space-between; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #5f6368; margin-bottom: 6px; }
+    .form-group { margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; }
+    .row .form-group { flex: 1; min-width: 0; }
+    select, input { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
+    select:focus, input:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .btn-primary { width: 100%; background: #1a73e8; color: #fff; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; }
+    .btn-primary:disabled { background: #dadce0; cursor: not-allowed; }
+    .btn-link { background: none; border: none; color: #1a73e8; font-size: 12px; cursor: pointer; padding: 0; }
+    .card { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: flex-start; }
+    .card .body { flex: 1; min-width: 0; }
+    .card .title { font-weight: 500; }
+    .card .meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+    .card.editing { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+    .badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; margin-left: 6px; font-weight: 400; }
+    .badge.current { background: #e6f4ea; color: #137333; }
+    .badge.future { background: #e8f0fe; color: #1a73e8; }
+    .badge.past { background: #f1f3f4; color: #5f6368; }
+    .panel { border-top: 1px solid #e8eaed; margin-top: 8px; padding-top: 4px; }
+    .hint { font-size: 12px; color: #5f6368; margin: -4px 0 12px; }
+    .empty { font-size: 12px; color: #5f6368; padding: 4px 0 8px; }
+    .status-msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none; margin-bottom: 12px; }
+    .status-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; display: block; }
+    .status-msg.error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; display: block; }
+    .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
+    .hidden { display: none !important; }
+    .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  </style>
+</head>
+<body data-prefill="<?= prefillMember ?>">
+  <h2>Contracts</h2>
+  <p class="sub">Add people in Members first, then declare their contracts here.</p>
+  <div id="status" class="status-msg info">Loading…</div>
+
+  <div class="form-group">
+    <label for="memberSelect">Member</label>
+    <select id="memberSelect" onchange="onMemberChange()"></select>
+  </div>
+
+  <div id="memberPart" class="hidden">
+    <h3><span>Contracts</span><button class="btn-link" onclick="startNew()">＋ New contract</button></h3>
+    <div id="list"></div>
+
+    <div id="form" class="panel hidden">
+      <h3 id="formTitle">New contract</h3>
+      <div id="currentBox" class="hidden">
+        <div class="form-group"><label for="previousEnd" id="previousLabel">Current contract ends on</label><input id="previousEnd" type="date" oninput="previousTouched = true; checkGap()"></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label for="role">Role</label><input id="role" list="roles"></div>
+        <div class="form-group"><label for="department">Department</label><input id="department" list="departments"></div>
+      </div>
+      <datalist id="roles"></datalist>
+      <datalist id="departments"></datalist>
+      <div class="row">
+        <div class="form-group"><label for="contractType">Contract</label><select id="contractType"></select></div>
+        <div class="form-group"><label for="fte">FTE %</label><input id="fte" type="number" min="1" max="100" value="100"></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label for="startDate">Start</label><input id="startDate" type="date" oninput="onStartChange()"></div>
+        <div class="form-group"><label for="endDate">End <span class="optional">(optional)</span></label><input id="endDate" type="date" oninput="checkGap()"></div>
+      </div>
+      <p id="gapHint" class="hint hidden"></p>
+      <button id="saveBtn" class="btn-primary" onclick="save()">Save contract</button>
+    </div>
+  </div>
+
+  <script>
+    var data = { members: [], roles: [], departments: [], contractTypes: [], today: '' };
+    var prefill = document.body.getAttribute('data-prefill') || '';
+    var editing = null;          // contract being edited, or null for a new one
+    var previousTouched = false;
+
+    function $(id) { return document.getElementById(id); }
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+    function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
+    function clearStatus() { $('status').className = 'status-msg'; }
+    function iso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function shift(s, days) { var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + days); return iso(d); }
+    function member() { var v = $('memberSelect').value; return data.members.filter(function(m) { return m.name === v; })[0]; }
+    function openAt(m, start) {
+      // contracts still running on `start` (they get ended the day before)
+      return m.contracts.filter(function(c) { return c.startDate < start && (!c.endDate || c.endDate >= start); });
+    }
+    function phase(c) {
+      if (c.startDate > data.today) return ['future', 'upcoming'];
+      if (c.endDate && c.endDate < data.today) return ['past', 'ended'];
+      return ['current', 'current'];
+    }
+
+    function load(selectName, msg) {
+      google.script.run.withSuccessHandler(function(res) {
+        data = res;
+        var sel = $('memberSelect');
+        sel.innerHTML = '';
+        if (!data.members.length) {
+          show('Nobody in Members yet. Type a name (or an email, for a People chip) in the Member column first.', 'info');
+          return;
+        }
+        data.members.forEach(function(m) {
+          var o = el('option', '', m.name + (m.status ? ' · ' + m.status : '')); o.value = m.name; sel.appendChild(o);
+        });
+        $('roles').innerHTML = ''; data.roles.forEach(function(r) { var o = el('option'); o.value = r; $('roles').appendChild(o); });
+        $('departments').innerHTML = ''; data.departments.forEach(function(d) { var o = el('option'); o.value = d; $('departments').appendChild(o); });
+        $('contractType').innerHTML = ''; data.contractTypes.forEach(function(v) { var o = el('option', '', v); o.value = v; $('contractType').appendChild(o); });
+        var target = selectName || prefill;
+        if (target && data.members.some(function(m) { return m.name === target; })) sel.value = target;
+        onMemberChange();
+        if (msg) show(msg, 'success');
+        else if (!member().contracts.length) show(member().name + ' has no contract yet: fill in the first one below.', 'info');
+      }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getContractsSidebarData();
+    }
+
+    function onMemberChange() {
+      clearStatus();
+      var m = member();
+      $('memberPart').classList.toggle('hidden', !m);
+      if (!m) return;
+      renderList(m);
+      startNew();
+      $('form').classList.toggle('hidden', m.contracts.length > 0);
+    }
+
+    function renderList(m) {
+      var box = $('list'); box.innerHTML = '';
+      if (!m.contracts.length) { box.appendChild(el('div', 'empty', 'No contract yet.')); return; }
+      m.contracts.slice().reverse().forEach(function(c) {
+        var card = el('div', 'card' + (editing && editing.row === c.row ? ' editing' : ''));
+        var body = el('div', 'body');
+        var title = el('div', 'title', c.role + ' · ' + c.department);
+        var ph = phase(c); title.appendChild(el('span', 'badge ' + ph[0], ph[1]));
+        body.appendChild(title);
+        body.appendChild(el('div', 'meta', c.contractType + ' · ' + c.ftePercent + ' % · ' + c.startDate + ' → ' + (c.endDate || 'ongoing')));
+        card.appendChild(body);
+        var b = el('button', 'btn-link', 'Edit');
+        b.onclick = function() { startEdit(c); };
+        card.appendChild(b);
+        box.appendChild(card);
+      });
+    }
+
+    function fill(c) {
+      $('role').value = c ? c.role : '';
+      $('department').value = c ? c.department : '';
+      $('contractType').value = c && c.contractType ? c.contractType : 'Permanent';
+      $('fte').value = c && c.ftePercent ? c.ftePercent : 100;
+    }
+
+    function startNew() {
+      var m = member(); if (!m) return;
+      editing = null;
+      previousTouched = false;
+      var last = m.contracts[m.contracts.length - 1];
+      fill(last);                      // a new contract starts from the latest one
+      $('startDate').value = data.today;
+      $('endDate').value = '';
+      $('formTitle').textContent = m.contracts.length ? 'New contract' : 'First contract';
+      $('saveBtn').textContent = 'Save contract';
+      $('form').classList.remove('hidden');
+      renderList(m);
+      onStartChange();
+    }
+
+    function startEdit(c) {
+      editing = c;
+      fill(c);
+      $('startDate').value = c.startDate;
+      $('endDate').value = c.endDate || '';
+      $('formTitle').textContent = 'Edit contract from ' + c.startDate;
+      $('saveBtn').textContent = 'Save changes';
+      $('currentBox').classList.add('hidden');
+      $('form').classList.remove('hidden');
+      renderList(member());
+      checkGap();
+    }
+
+    function onStartChange() {
+      var m = member(); if (!m || editing) { checkGap(); return; }
+      var start = $('startDate').value || data.today;
+      var open = openAt(m, start);
+      $('currentBox').classList.toggle('hidden', !open.length);
+      if (open.length) {
+        $('previousLabel').textContent = 'Current contract (' + open[0].role + ', since ' + open[0].startDate + ') ends on';
+        if (!previousTouched) $('previousEnd').value = shift(start, -1);
+      }
+      checkGap();
+    }
+
+    function checkGap() {
+      var m = member(); var hint = $('gapHint'); hint.classList.add('hidden');
+      var start = $('startDate').value;
+      if (!m || !start || editing) return;
+      var before = m.contracts.filter(function(c) { return c.startDate < start; });
+      if (!before.length) return;
+      var last = before[before.length - 1];
+      var end = openAt(m, start).length ? $('previousEnd').value : last.endDate;
+      if (end && end < shift(start, -1)) {
+        hint.textContent = 'No contract between ' + shift(end, 1) + ' and ' + shift(start, -1) + ': ' + m.name + ' will show as Departed then.';
+        hint.classList.remove('hidden');
+      }
+    }
+
+    function save() {
+      var m = member(); if (!m) return;
+      var payload = {
+        member: m.name, row: editing ? editing.row : '',
+        role: $('role').value, department: $('department').value,
+        contractType: $('contractType').value, ftePercent: $('fte').value,
+        startDate: $('startDate').value, endDate: $('endDate').value
+      };
+      if (!editing && !$('currentBox').classList.contains('hidden')) payload.previousEndDate = $('previousEnd').value;
+      $('saveBtn').disabled = true; show('Saving…', 'info');
+      google.script.run.withSuccessHandler(function(res) {
+        $('saveBtn').disabled = false;
+        if (!res || !res.success) { show((res && res.message) || 'Could not save.', 'error'); return; }
+        prefill = '';
+        load(m.name, res.message);
+      }).withFailureHandler(function(err) { $('saveBtn').disabled = false; show(err.message || String(err), 'error'); }).saveContract(payload);
+    }
+
+    load();
+  </script>
+</body>
+</html>

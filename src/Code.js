@@ -929,7 +929,7 @@ function handleSheetEdit(e) {
     try { normalizeBirthdayEdit(e); } catch (errBd) { Logger.log("onEdit birthday note: " + errBd); }
   }
 
-  // A new name in Members without a contract: open the Contracts tab (ADR 0046)
+  // A new name in Members without a contract: open the Contracts sidebar (ADR 0048)
   if (tableKey === "members" && typeof promptContractForNewMember === "function") {
     try {
       promptContractForNewMember(e);

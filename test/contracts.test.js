@@ -51,45 +51,120 @@ function tenures() {
 
 const HUGO = ['Hugo Gonçalves', 'Data Analyst', 'FAL ME', '2025-09-02', '', 'Permanent', 100];
 
-test('Declare Contract: unhides and opens the Contracts tab on its first empty row', () => {
-  seed([HUGO]);
-  var sheet = mockSpreadsheet.getSheetByName('Contracts');
-  sheet.hideSheet();
+function addMember(name) {
+  mockSpreadsheet.getSheetByName('Members').getRange(findNextAvailableRow(mockSpreadsheet.getSheetByName('Members')), 1).setValue(name);
+}
 
-  var res = contracts.showContractsTab();
+const NEW = { member: 'Ines Martin', role: 'Consultant', department: 'FAL ME', startDate: '2026-11-02', endDate: '', contractType: 'Contractor', ftePercent: 80 };
 
-  assert.strictEqual(res.success, true);
-  assert.strictEqual(sheet.isSheetHidden(), false);
-  assert.strictEqual(sheet.activated, true);
-  assert.strictEqual(res.row, 3);
-  assert.ok(mockSpreadsheet.lastToast.msg.includes('one row per contract'));
+test('Contracts sidebar data: every Member with their contracts, oldest first', () => {
+  seed([HUGO, ['Hugo Gonçalves', 'Analyst', 'FAL ME', '2024-01-01', '2025-09-01', 'Intern', 100]]);
+  addMember('Ines Martin');
+
+  var data = contracts.getContractsSidebarData(mockSpreadsheet);
+
+  assert.deepStrictEqual(data.members.map(m => m.name), ['Hugo Gonçalves', 'Ines Martin']);
+  assert.deepStrictEqual(data.members[0].contracts.map(c => c.startDate), ['2024-01-01', '2025-09-02']);
+  assert.strictEqual(data.members[0].contracts[1].row, 2, 'the row is kept for editing');
+  assert.deepStrictEqual(data.members[1].contracts, []);
+  assert.deepStrictEqual(data.roles, ['Analyst', 'Data Analyst']);
+  assert.ok(data.contractTypes.includes('Contractor'));
 });
 
-test('onEdit: typing a new name in Members opens the Contracts tab for that person', () => {
+test('saveContract: the first contract of a new Member fills Role, Department and Status', () => {
   seed([HUGO]);
-  var contractsSheet = mockSpreadsheet.getSheetByName('Contracts');
-  contractsSheet.hideSheet();
+  addMember('Ines Martin');
+
+  var res = contracts.saveContract(NEW, mockSpreadsheet);
+
+  assert.strictEqual(res.success, true, res.message);
+  assert.deepStrictEqual(tenures()[1], ['Ines Martin', 'Consultant', 'FAL ME', '2026-11-02', '', 'Contractor', 80]);
+  var row = mockSpreadsheet.getSheetByName('Members').getRange(3, 4, 1, 3).getValues()[0];
+  assert.deepStrictEqual(row, ['Consultant', 'FAL ME', new Date() < new Date(2026, 10, 2) ? 'Upcoming' : 'Active']);
+});
+
+test('saveContract: someone not in Members is refused', () => {
+  seed([HUGO]);
+  var res = contracts.saveContract(NEW, mockSpreadsheet);
+  assert.strictEqual(res.success, false);
+  assert.match(res.message, /Members first/);
+});
+
+test('saveContract: a new contract ends the current one the day before, or on the given date', () => {
+  seed([HUGO]);
+  var res = contracts.saveContract(Object.assign({}, NEW, { member: 'Hugo Gonçalves', role: 'Manager' }), mockSpreadsheet);
+  assert.strictEqual(res.success, true, res.message);
+  assert.strictEqual(tenures()[0][4], '2026-11-01');
+  assert.match(res.message, /previous contract now ends 2026-11-01/);
+
+  var gap = contracts.saveContract(Object.assign({}, NEW, { member: 'Hugo Gonçalves', startDate: '2027-03-01', previousEndDate: '2027-01-31' }), mockSpreadsheet);
+  assert.strictEqual(gap.success, true, gap.message);
+  assert.strictEqual(tenures()[1][4], '2027-01-31');
+  assert.match(gap.message, /no contract between 2027-02-01 and 2027-02-28/);
+});
+
+test('saveContract: refuses missing fields, bad FTE, a start before an existing contract, and a bad current end date', () => {
+  seed([HUGO]);
+  var h = Object.assign({}, NEW, { member: 'Hugo Gonçalves' });
+  assert.match(contracts.saveContract(Object.assign({}, h, { role: '' }), mockSpreadsheet).message, /required/);
+  assert.match(contracts.saveContract(Object.assign({}, h, { ftePercent: 150 }), mockSpreadsheet).message, /FTE/);
+  assert.match(contracts.saveContract(Object.assign({}, h, { startDate: '2025-01-01' }), mockSpreadsheet).message, /already has a contract starting 2025-09-02/);
+  assert.match(contracts.saveContract(Object.assign({}, h, { previousEndDate: '2026-11-05' }), mockSpreadsheet).message, /must end before/);
+  assert.match(contracts.saveContract(Object.assign({}, h, { previousEndDate: '2025-01-01' }), mockSpreadsheet).message, /cannot end before it started/);
+  assert.strictEqual(tenures().length, 1, 'nothing written');
+});
+
+test('saveContract: edits an old contract in place, refusing overlaps', () => {
+  seed([HUGO, ['Hugo Gonçalves', 'Analyst', 'FAL ME', '2024-01-01', '2025-08-31', 'Intern', 100]]);
+  var old = { member: 'Hugo Gonçalves', row: 3, role: 'Junior Analyst', department: 'FAL ME', startDate: '2024-01-01', endDate: '2025-08-31', contractType: 'Apprentice', ftePercent: 100 };
+
+  var ok = contracts.saveContract(old, mockSpreadsheet);
+  assert.strictEqual(ok.success, true, ok.message);
+  assert.deepStrictEqual(tenures()[1], ['Hugo Gonçalves', 'Junior Analyst', 'FAL ME', '2024-01-01', '2025-08-31', 'Apprentice', 100]);
+  assert.strictEqual(tenures().length, 2, 'no row added');
+
+  var clash = contracts.saveContract(Object.assign({}, old, { endDate: '2025-12-31' }), mockSpreadsheet);
+  assert.strictEqual(clash.success, false);
+  assert.match(clash.message, /overlaps the contract Data Analyst from 2025-09-02/);
+});
+
+test('Declare Contract opens the Contracts sidebar', () => {
+  seed([HUGO]);
+  contracts.showContractsSidebar();
+  assert.strictEqual(SpreadsheetApp.getUi().shownSidebar.filename, 'ContractsSidebar');
+});
+
+test('onEdit: typing a new name in Members opens the Contracts sidebar on that person', () => {
+  seed([HUGO]);
   var cell = mockSpreadsheet.getSheetByName('Members').getRange(3, 1);
   cell.setValue('Ines Martin');
 
   code.onEdit({ range: cell, value: 'Ines Martin', source: mockSpreadsheet });
 
-  assert.strictEqual(contractsSheet.isSheetHidden(), false);
-  assert.ok(mockSpreadsheet.lastToast.msg.startsWith('Ines Martin has no contract yet.'));
-  assert.strictEqual(SpreadsheetApp.getUi().shownSidebar, null, 'no sidebar any more');
+  var shown = SpreadsheetApp.getUi().shownSidebar;
+  assert.strictEqual(shown.filename, 'ContractsSidebar');
+  assert.strictEqual(shown.template.prefillMember, 'Ines Martin');
+});
+
+test('onEdit: when the sidebar cannot open, a toast points to the menu', () => {
+  seed([HUGO]);
+  SpreadsheetApp.getUi().showSidebar = function() { throw new Error('You do not have permission to call Ui.showSidebar'); };
+  var cell = mockSpreadsheet.getSheetByName('Members').getRange(3, 1);
+  cell.setValue('Ines Martin');
+
+  code.onEdit({ range: cell, value: 'Ines Martin', source: mockSpreadsheet });
+
+  assert.ok(mockSpreadsheet.lastToast.msg.includes('Declare Contract'));
 });
 
 test('onEdit: editing an existing Member with a contract does not open anything', () => {
   seed([HUGO]);
-  var contractsSheet = mockSpreadsheet.getSheetByName('Contracts');
-  contractsSheet.hideSheet();
   var cell = mockSpreadsheet.getSheetByName('Members').getRange(2, 3);
   cell.setValue('0102');
 
   code.onEdit({ range: cell, value: '0102', source: mockSpreadsheet });
 
-  assert.strictEqual(contractsSheet.isSheetHidden(), true);
-  assert.strictEqual(contracts.promptContractForNewMember({ range: mockSpreadsheet.getSheetByName('Members').getRange(2, 1), source: mockSpreadsheet }), null);
+  assert.strictEqual(SpreadsheetApp.getUi().shownSidebar, null);
 });
 
 function d(iso) { var p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }

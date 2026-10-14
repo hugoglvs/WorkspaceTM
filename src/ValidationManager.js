@@ -282,7 +282,7 @@ function isRequiredCellRule(rule) {
   if (!cond || String(cond.getCriteriaType()) !== "CUSTOM_FORMULA") return false;
   var vals = (typeof cond.getCriteriaValues === "function") ? cond.getCriteriaValues() : [];
   var f = String(vals && vals[0] || "").replace(/\s/g, "");
-  return f.indexOf("=AND(COUNTA($A") === 0 || f.indexOf("=AND(COUNTIF($A") === 0;
+  return f.indexOf("=AND(COUNTA($A") === 0 || f.indexOf("=AND(COUNTIF($A") === 0 || /^=AND\(LEN\(TRIM\([A-Z]+2\)\)>0,COUNTIF\(/.test(f);
 }
 
 function applyRequiredValidationFormatting(sheet, config) {
@@ -323,6 +323,20 @@ function applyRequiredValidationFormatting(sheet, config) {
 
       rules.push(rule);
     }
+
+    // Unique columns (the project name, ADR 0053): a repeated value turns red
+    (config.uniqueColumns || []).forEach(function(key) {
+      var idx = cols.indexOf(key) + 1;
+      if (idx < 1) return;
+      var letter = String.fromCharCode(64 + idx);
+      rules.push(SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied('=AND(LEN(TRIM(' + letter + '2))>0, COUNTIF($' + letter + '$2:$' + letter + ', ' + letter + '2)>1)')
+        .setBackground(PROMINENT_WARNING_BG)
+        .setFontColor(PROMINENT_WARNING_FONT)
+        .setBold(true)
+        .setRanges([sheet.getRange(2, idx, maxRows - 1, 1)])
+        .build());
+    });
 
     if (sheet.setConditionalFormatRules) {
       sheet.setConditionalFormatRules(rules);

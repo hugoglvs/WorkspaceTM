@@ -1,7 +1,7 @@
 # ADR 0038: Per-Day Project Coverage and the Active Responsible Column
 
 ## Status
-Accepted (2026-10-12), resolves issue 23. Supersedes the conflict rules of ADR 0023 and the dashboard of ADR 0018.
+Accepted (2026-10-12), resolves issue 23. Supersedes the conflict rules of ADR 0023 and the dashboard of ADR 0018. Project IDs dropped by ADR 0053 (the name is the reference).
 
 ## Context
 1. The user wants Projects to show who is in charge today (`active_responsible`) instead of a separate `view_active_responsibles` tab. A backup should exist for every new project, and leave declarations must always be checked so that every day stays covered. Leave *requests* must warn too.

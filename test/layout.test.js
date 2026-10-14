@@ -190,12 +190,12 @@ test('freshInit: widens an existing table when the schema gains a column', () =>
   freshInit(mockSpreadsheet);
   var projects = mockSpreadsheet.getSheetByName('Projects');
   var table = Sheets.Spreadsheets.tables.find(t => t.name === 'Projects');
-  table.range = Object.assign({}, table.range, { endColumnIndex: 7 }); // as created before active_responsible existed
+  table.range = Object.assign({}, table.range, { endColumnIndex: 6 }); // as created before active_responsible existed
 
   freshInit(mockSpreadsheet);
 
-  assert.strictEqual(Sheets.Spreadsheets.tables.find(t => t.name === 'Projects').range.endColumnIndex, 8);
-  assert.strictEqual(projects.getRange(1, 8).getValue(), 'In charge today');
+  assert.strictEqual(Sheets.Spreadsheets.tables.find(t => t.name === 'Projects').range.endColumnIndex, 7);
+  assert.strictEqual(projects.getRange(1, 7).getValue(), 'In charge today');
 });
 
 test('setupOrUpgrade: removes the retired Active Responsibles view', () => {

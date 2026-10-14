@@ -107,7 +107,7 @@
         if (keepType) $('type').value = keepType;
         $('project').innerHTML = '';
         var none = el('option', '', 'No project'); none.value = ''; $('project').appendChild(none);
-        data.projects.forEach(function(p) { var o = el('option', '', p.name); o.value = p.id; $('project').appendChild(o); });
+        data.projects.forEach(function(name) { var o = el('option', '', name); o.value = name; $('project').appendChild(o); });
         fillChecks('roles', data.roles.map(function(r) { return { value: 'Role: ' + r, label: r }; }));
         fillChecks('members', data.members.map(function(m) { return { value: m.name, label: m.name, meta: m.role }; }));
         $('freq').innerHTML = '';
@@ -182,7 +182,7 @@
 
     function save() {
       var applies = checked('roles').concat(checked('members')).join('; ');
-      var payload = { type: $('type').value, projectId: $('project').value, mode: mode, appliesTo: applies,
+      var payload = { type: $('type').value, project: $('project').value, mode: mode, appliesTo: applies,
         repeat: when === 'repeat', date: $('date').value, start: $('start').value, end: $('end').value };
       if (when === 'repeat') { payload.frequency = $('freq').value; payload.due = $('due').value.trim(); payload.remind = $('remind').value.trim(); }
       $('saveBtn').disabled = true; show('Saving…', 'info');

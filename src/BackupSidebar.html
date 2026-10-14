@@ -82,7 +82,7 @@
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
     function show(msg, kind) { var s = $('status'); s.className = 'status-msg ' + kind; s.textContent = msg; }
     function clearStatus() { $('status').className = 'status-msg'; }
-    function current() { var id = $('projectSelect').value; return data.projects.filter(function(p) { return p.id === id; })[0]; }
+    function current() { var id = $('projectSelect').value; return data.projects.filter(function(p) { return p.name === id; })[0]; }
     function period(g) { return g.start === g.end ? g.start : g.start + ' → ' + g.end; }
 
     function load(keepProject, msg) {
@@ -92,12 +92,12 @@
         var previous = keepProject || sel.value;
         sel.innerHTML = '';
         data.projects.forEach(function(p) {
-          var o = document.createElement('option'); o.value = p.id;
+          var o = document.createElement('option'); o.value = p.name;
           o.textContent = p.name + (p.gaps.length ? ' · ⚠ ' + p.gaps.length + ' gap(s)' : '');
           sel.appendChild(o);
         });
         if (!data.projects.length) { show('No open project yet. Add one in the Projects tab.', 'info'); return; }
-        if (previous && data.projects.some(function(p) { return p.id === previous; })) sel.value = previous;
+        if (previous && data.projects.some(function(p) { return p.name === previous; })) sel.value = previous;
         msg ? show(msg, 'success') : clearStatus();
         onProjectChange(true);
       }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getBackupSidebarData();
@@ -157,7 +157,7 @@
 
     function save() {
       var p = current();
-      var payload = { projectId: p.id, backupMember: $('backupMember').value, startDate: $('startDate').value, endDate: $('endDate').value, notes: $('notes').value };
+      var payload = { project: p.name, backupMember: $('backupMember').value, startDate: $('startDate').value, endDate: $('endDate').value, notes: $('notes').value };
       if (!payload.startDate || !payload.endDate) { show('Fill in both dates.', 'error'); return; }
       if (payload.endDate < payload.startDate) { show('The end date is before the start date.', 'error'); return; }
       $('saveBtn').disabled = true;
@@ -165,7 +165,7 @@
       google.script.run.withSuccessHandler(function(res) {
         $('saveBtn').disabled = false;
         if (!res || !res.success) { show((res && res.message) || 'Could not save.', 'error'); return; }
-        load(p.id, res.message);
+        load(p.name, res.message);
       }).withFailureHandler(function(err) { $('saveBtn').disabled = false; show(err.message || String(err), 'error'); }).saveInterimBackup(payload);
     }
 
@@ -173,7 +173,7 @@
       button.disabled = true;
       google.script.run.withSuccessHandler(function(res) {
         if (!res || !res.success) { button.disabled = false; show((res && res.message) || 'Could not cancel.', 'error'); return; }
-        load(current().id, res.message);
+        load(current().name, res.message);
       }).withFailureHandler(function(err) { button.disabled = false; show(err.message || String(err), 'error'); }).cancelInterimBackup(b.id);
     }
 

@@ -34,13 +34,9 @@ function calSaveState(state) {
   if (p) p.setProperty(CALENDAR_STATE_PROP, JSON.stringify(state));
 }
 
-/** Projects as {id, name} (named projects with an ID). */
+/** Project names (ADR 0053: the name is the reference). */
 function calProjects(ss) {
-  var sheet = getTable(ss, "projects");
-  if (!sheet || sheet.getMaxRows() < 2) return [];
-  return sheet.getRange(2, 1, readRowLimit(sheet, 500) - 1, 2).getValues()
-    .filter(function(r) { return String(r[0] || "").trim() && String(r[1] || "").trim(); })
-    .map(function(r) { return { id: String(r[0]).trim(), name: String(r[1]).trim() }; });
+  return projectNames(ss);
 }
 
 function calPeriods(type, today) {
@@ -80,7 +76,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   var state = calState();
   var type = findTaskType(ss, state.type, ctx.types) || activeTypes[0] || ctx.types[0];
   var projects = calProjects(ss);
-  var project = projects.filter(function(p) { return p.id === state.projectId; })[0] || null;
+  var project = projects.filter(function(n) { return n.toLowerCase() === String(state.project || "").toLowerCase(); })[0] || null;
   var periods = calPeriods(type, today);
   var freq = calFrequency(type);
   var people = ctx.members.filter(function(m) { return m.status !== "departed"; });
@@ -88,7 +84,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   var tasks = readTaskRows(ss).filter(function(t) {
     if (!t.due || String(t.status).toLowerCase() === "cancelled") return false;
     if (t.type.toLowerCase() !== type.name.toLowerCase()) return false;
-    return !project || t.projectId === project.id;
+    return !project || t.project.toLowerCase() === project.toLowerCase();
   });
   var cellTask = {};
   tasks.forEach(function(t) {
@@ -134,12 +130,12 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
 
   sheet.clear();
   try { sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 3), Math.max(sheet.getMaxColumns(), width)).clearDataValidations(); } catch (eV) {}
-  sheet.getRange(1, 1, 1, 5).setValues([["Type", type.name, "Project", project ? project.name : CALENDAR_ALL_PROJECTS,
+  sheet.getRange(1, 1, 1, 5).setValues([["Type", type.name, "Project", project || CALENDAR_ALL_PROJECTS,
     "Tick = done · Insert → Checkbox in an empty cell = assign · delete the checkbox = remove"]]);
   sheet.getRange(1, 2).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireValueInList(activeTypes.map(function(t) { return t.name; }), true).setAllowInvalid(false).build());
   sheet.getRange(1, 4).setDataValidation(SpreadsheetApp.newDataValidation()
-    .requireValueInList([CALENDAR_ALL_PROJECTS].concat(projects.map(function(p) { return p.name; })), true).setAllowInvalid(false).build());
+    .requireValueInList([CALENDAR_ALL_PROJECTS].concat(projects), true).setAllowInvalid(false).build());
   try {
     sheet.getRange(1, 1).setFontWeight("bold");
     sheet.getRange(1, 3).setFontWeight("bold");
@@ -184,11 +180,11 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   } catch (eFz) {}
 
   calSaveState({
-    type: type.name, projectId: project ? project.id : "",
+    type: type.name, project: project || "",
     periodKeys: periods.map(function(p) { return p.key; }),
     memberKeys: people.map(function(m) { return m.key; })
   });
-  return { success: true, type: type.name, project: project ? project.name : CALENDAR_ALL_PROJECTS, members: people.length, periods: periods.length };
+  return { success: true, type: type.name, project: project || CALENDAR_ALL_PROJECTS, members: people.length, periods: periods.length };
 }
 
 
@@ -226,8 +222,7 @@ function handleTaskCalendarEdit(e, asOf) {
     if (c === 2) st.type = String(sheet.getRange(1, 2).getValue() || "");
     if (c === 4) {
       var name = String(sheet.getRange(1, 4).getValue() || "");
-      var proj = calProjects(ss).filter(function(p) { return p.name === name; })[0];
-      st.projectId = proj ? proj.id : "";
+      st.project = name === CALENDAR_ALL_PROJECTS ? "" : name;
     }
     calSaveState(st);
     renderTaskCalendar(ss, today);
@@ -261,7 +256,7 @@ function handleTaskCalendarEdit(e, asOf) {
 
   var existing = readTaskRows(ss).filter(function(t) {
     return t.due && String(t.status).toLowerCase() !== "cancelled" && t.memberKey === memberKey &&
-      t.type.toLowerCase() === type.name.toLowerCase() && (!state.projectId || t.projectId === state.projectId) &&
+      t.type.toLowerCase() === type.name.toLowerCase() && (!state.project || t.project.toLowerCase() === String(state.project).toLowerCase()) &&
       periodOf(freq, t.due).key === periodKey;
   });
   var due = dueDateFor(type, period, ctx.holidays);
@@ -276,7 +271,7 @@ function handleTaskCalendarEdit(e, asOf) {
   } else if (newVal === "done") {
     if (existing.length) existing.forEach(function(t) { setTaskStatus(ss, t.row, "Done", today); });
     else {
-      var made = createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name,
+      var made = createTaskRow(ss, { project: state.project || "", member: member, title: type.name, due: due, type: type.name,
         description: type.instructions });
       setTaskStatus(ss, made.row, "Done", today);
     }
@@ -295,7 +290,7 @@ function handleTaskCalendarEdit(e, asOf) {
       if (leave === "requested") {
         try { ss.toast(member.name + " has requested leave on " + isoDate(due) + ".", "Leave requested", 6); } catch (eT3) {}
       }
-      createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name,
+      createTaskRow(ss, { project: state.project || "", member: member, title: type.name, due: due, type: type.name,
         description: type.instructions });
       outcome = "assigned";
     }

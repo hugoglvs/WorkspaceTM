@@ -189,14 +189,14 @@ function taskGoogleDay(row, colMap) {
  * Google Task notes: description, then the deadline (the API has no deadline
  * field), then the sheet references.
  */
-function taskGoogleNotes(description, deadline, taskId, projectId, assignedMember) {
+function taskGoogleNotes(description, deadline, taskId, project, assignedMember) {
   var notesParts = [];
   if (description) notesParts.push(description);
   var deadlineIso = isoDate(deadline);
   if (deadlineIso) notesParts.push("Deadline: " + deadlineIso);
   var metaParts = [];
   if (taskId) metaParts.push("Task ID: " + taskId);
-  if (projectId) metaParts.push("Project: " + projectId);
+  if (project) metaParts.push("Project: " + project);
   if (assignedMember) metaParts.push("Assigned: " + assignedMember);
   if (metaParts.length > 0) notesParts.push(metaParts.join(" | "));
   return notesParts.join("\n\n");
@@ -213,7 +213,7 @@ function taskGoogleNotes(description, deadline, taskId, projectId, assignedMembe
 function getTaskColumnMap(tasksSheet) {
   var map = {
     taskId: 1,
-    projectId: 2,
+    project: 2,
     assignedMember: 3,
     title: 4,
     description: 5,
@@ -235,7 +235,7 @@ function getTaskColumnMap(tasksSheet) {
     if (norm === "taskid" || norm === "id") {
       map.taskId = c + 1;
     } else if (norm === "projectid" || norm === "project") {
-      map.projectId = c + 1;
+      map.project = c + 1;
     } else if (norm === "assignedmember" || norm === "member" || norm === "assignee" || norm === "assigned" || norm === "assignedto") {
       map.assignedMember = c + 1;
     } else if (norm === "title" || norm === "tasktitle" || norm === "name" || norm === "taskname") {
@@ -258,7 +258,7 @@ function getTaskColumnMap(tasksSheet) {
 
   if (!hasDesc) {
     // If no description column was found anywhere and sheet has 7 columns or fewer
-    var matchedMax = Math.max(map.taskId, map.projectId, map.assignedMember, map.title, map.dueDate, map.status, map.googleTaskId);
+    var matchedMax = Math.max(map.taskId, map.project, map.assignedMember, map.title, map.dueDate, map.status, map.googleTaskId);
     if (lastCol <= 7 || matchedMax <= 7) {
       map.description = 0;
       if (map.dueDate === 6) map.dueDate = 5;
@@ -377,7 +377,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     var richRow = richValues[r] || [];
 
     var taskId = String(row[colMap.taskId - 1] || "").trim();
-    var projectId = String(row[colMap.projectId - 1] || "").trim();
+    var project = String(row[colMap.project - 1] || "").trim();
 
     var rawMember = row[colMap.assignedMember - 1];
     var richMember = (richRow && richRow[colMap.assignedMember - 1]) ? richRow[colMap.assignedMember - 1] : null;
@@ -393,7 +393,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
     var googleTaskId = String(row[colMap.googleTaskId - 1] || "").trim();
 
     // Skip completely empty rows
-    if (!taskId && !title && !projectId) continue;
+    if (!taskId && !title && !project) continue;
 
     // Use default title if missing
     if (!title) {
@@ -440,7 +440,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
       try {
         var taskResource = {
           title: title,
-          notes: taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember),
+          notes: taskGoogleNotes(description, dueDate, taskId, project, assignedMember),
           status: mapSheetStatusToGoogleTaskStatus(status)
         };
 
@@ -505,7 +505,7 @@ function syncGoogleTasks(targetSpreadsheet, options) {
         }
 
         // 4. Description & Notes Reconciliation
-        var expectedNotes = taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember);
+        var expectedNotes = taskGoogleNotes(description, dueDate, taskId, project, assignedMember);
 
         if ((matchedGTask.notes || "").trim() !== expectedNotes.trim()) {
           patchResource.notes = expectedNotes;
@@ -754,7 +754,7 @@ function createGoogleTaskForTaskRow(tasksSheet, rowIndex) {
     rowVals[colMap.status - 1] = status;
   }
 
-  var projectId = String(rowVals[colMap.projectId - 1] || "").trim();
+  var project = String(rowVals[colMap.project - 1] || "").trim();
   var rawMember = rowVals[colMap.assignedMember - 1];
   var richMember = (richRow && richRow[colMap.assignedMember - 1]) ? richRow[colMap.assignedMember - 1] : null;
   var assignedMember = (typeof extractCellValue === "function")
@@ -833,7 +833,7 @@ function createGoogleTaskForTaskRow(tasksSheet, rowIndex) {
 
   var taskResource = {
     title: effectiveTitle,
-    notes: taskGoogleNotes(description, dueDate, taskId, projectId, assignedMember),
+    notes: taskGoogleNotes(description, dueDate, taskId, project, assignedMember),
     status: mapSheetStatusToGoogleTaskStatus(status)
   };
 
@@ -943,7 +943,7 @@ function handleDoneStatusChange(sheet, editedRow, taskId, rowVals, richMember, c
   var newRowIndex = lastRow + 1;
   var numCols = Math.max(sheet.getLastColumn(), 8);
 
-  var projectId = String(rowVals[colMap.projectId - 1] || "").trim();
+  var project = String(rowVals[colMap.project - 1] || "").trim();
   var rawMember = rowVals[colMap.assignedMember - 1];
   var title = String(rowVals[colMap.title - 1] || "").trim();
   var description = (colMap.description > 0) ? String(rowVals[colMap.description - 1] || "").trim() : "";
@@ -955,7 +955,7 @@ function handleDoneStatusChange(sheet, editedRow, taskId, rowVals, richMember, c
     newRowData.push("");
   }
   newRowData[colMap.taskId - 1] = newTaskId;
-  if (colMap.projectId > 0) newRowData[colMap.projectId - 1] = projectId;
+  if (colMap.project > 0) newRowData[colMap.project - 1] = project;
   if (colMap.assignedMember > 0) newRowData[colMap.assignedMember - 1] = rawMember;
   if (colMap.title > 0) newRowData[colMap.title - 1] = title;
   if (colMap.description > 0) newRowData[colMap.description - 1] = description;
@@ -1102,7 +1102,7 @@ function handleTaskEdit(e) {
   }
 
   // Case 2: Synced task (has google_task_id) and user edited title, description, due date, status, etc.
-  if (googleTaskId && (editedCol === colMap.title || (colMap.description > 0 && editedCol === colMap.description) || editedCol === colMap.dueDate || editedCol === colMap.status || editedCol === colMap.projectId || editedCol === colMap.assignedMember)) {
+  if (googleTaskId && (editedCol === colMap.title || (colMap.description > 0 && editedCol === colMap.description) || editedCol === colMap.dueDate || editedCol === colMap.status || editedCol === colMap.project || editedCol === colMap.assignedMember)) {
     if (typeof Tasks !== "undefined" && Tasks.Tasks) {
       try {
         var tasklistId = getTasksListId(ss);
@@ -1120,10 +1120,10 @@ function handleTaskEdit(e) {
           var rfc = formatTaskDueRfc3339(dueDate);
           patchResource.due = rfc;
         }
-        if (editedCol === colMap.description || editedCol === colMap.title || editedCol === colMap.projectId || editedCol === colMap.assignedMember) {
+        if (editedCol === colMap.description || editedCol === colMap.title || editedCol === colMap.project || editedCol === colMap.assignedMember) {
           var desc = (colMap.description > 0) ? String(rowVals[colMap.description - 1] || "").trim() : "";
           var tId = taskId;
-          var pId = String(rowVals[colMap.projectId - 1] || "").trim();
+          var pId = String(rowVals[colMap.project - 1] || "").trim();
           var rawM = rowVals[colMap.assignedMember - 1];
           var aM = (typeof extractCellValue === "function") ? extractCellValue(rawM, null) : String(rawM || "").trim();
           var nParts = [];

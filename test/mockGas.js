@@ -516,7 +516,7 @@ function createMockSpreadsheet() {
  * Description, Deadline, Status, Google Task ID, ...) read and write rows in
  * that order; these map them onto the current columns (ADR 0051).
  */
-var LEGACY_TASK_KEYS = ["task_id", "project_id", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "origin", "planned_date"];
+var LEGACY_TASK_KEYS = ["task_id", "project", "assigned_member", "title", "description", "due_date", "status", "google_task_id", "task_type", "done_on", "done_by", "origin", "planned_date"];
 
 function legacyTaskCol(n) {
   var cols = require("../src/Schema").SCHEMA_SPEC.tasks.columns;
@@ -548,6 +548,8 @@ function getLegacyTasks(sheet, startRow, numRows, width) {
 function setupGasGlobals(mockSpreadsheet) {
   // The shared helpers are globals in Apps Script (ADR 0049)
   Object.assign(global, require("../src/Utils"));
+  // Project names are the reference (ADR 0053)
+  Object.assign(global, require("../src/Projects"));
   var docProps = {};
   var batchUpdateCalls = [];
   var mockTables = [];

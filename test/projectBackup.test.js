@@ -308,8 +308,8 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
   ]);
 
   // Setup active project with Alice as Lead and Bob as Backup
-  projectsSheet.getRange(2, 1, 1, 7).setValues([
-    ['PRJ-001', 'Phoenix Initiative', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
+  projectsSheet.getRange(2, 1, 1, 6).setValues([
+    ['Phoenix Initiative', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
   ]);
 
   // Alice is on approved leave from June 10 to June 20
@@ -339,12 +339,12 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
 
   assert.strictEqual(auditRes.success, true);
   assert.strictEqual(auditRes.conflictsFound, 1);
-  assert.strictEqual(auditRes.conflicts[0].projectId, 'PRJ-001');
+  assert.strictEqual(auditRes.conflicts[0].projectName, 'Phoenix Initiative');
   assert.strictEqual(auditRes.conflicts[0].conflictStart, '2026-06-15');
   assert.strictEqual(auditRes.conflicts[0].conflictEnd, '2026-06-19'); // Saturday 20 is not a working day
 
   // 1. Verify project row formatting is alert red (#F8D7DA, #721C24, bold)
-  var projectRowRange = projectsSheet.getRange(2, 1, 1, 8);
+  var projectRowRange = projectsSheet.getRange(2, 1, 1, 7);
   assert.strictEqual(projectRowRange.getBackground(), '#F8D7DA');
   assert.strictEqual(projectRowRange.getFontColor(), '#721C24');
   assert.strictEqual(projectRowRange.getFontWeight(), 'bold');
@@ -358,7 +358,7 @@ test('Project lead and backup simultaneous absence conflict detection: red alert
 
   // 3. Verify interim backup task created in tbl_tasks assigned to Alice (Lead, not yet absent)
   var taskRows = getLegacyTasks(tasksSheet, 2, 1, 8);
-  assert.strictEqual(taskRows[0][1], 'PRJ-001');
+  assert.strictEqual(taskRows[0][1], 'Phoenix Initiative');
   assert.strictEqual(taskRows[0][2], 'Alice');
   assert.strictEqual(taskRows[0][3], 'Organize interim backup for project Phoenix Initiative');
   assert.strictEqual(taskRows[0][5], '2026-06-15');
@@ -378,8 +378,8 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
     ['Dave', 'dave.manager@accenture.com', '', 'Manager', 'Eng', 'Active', 'Not Logged']
   ]);
 
-  projectsSheet.getRange(2, 1, 1, 7).setValues([
-    ['PRJ-002', 'Titan Project', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
+  projectsSheet.getRange(2, 1, 1, 6).setValues([
+    ['Titan Project', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
   ]);
 
   // Alice and Bob overlapping leaves June 15 to June 20
@@ -402,11 +402,11 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
   // Initial check (as of June 1) triggers conflict
   var res1 = checkProjectBackupConflicts(mockSpreadsheet, { asOfDateParam: new Date(2026, 5, 1) });
   assert.strictEqual(res1.conflictsFound, 1);
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getBackground(), '#F8D7DA');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getBackground(), '#F8D7DA');
 
   // Assign Charlie as backup in tbl_backups covering the conflict period
   var bkpRes = assignProjectBackup({
-    projectId: 'PRJ-002',
+    project: 'Titan Project',
     primaryMember: 'Alice',
     backupMember: 'Charlie',
     startDate: '2026-06-15',
@@ -422,15 +422,15 @@ test('Project conflict mitigation via tbl_backups: clears alert formatting', () 
   assert.strictEqual(permanentRow[3], 'Bob');
   assert.strictEqual(permanentRow[5], '', 'permanent backup has no end date');
   var bkpRow = backupsSheet.getRange(3, 1, 1, 8).getValues()[0];
-  assert.strictEqual(bkpRow[1], 'PRJ-002');
+  assert.strictEqual(bkpRow[1], 'Titan Project');
   assert.strictEqual(bkpRow[2], 'Alice');
   assert.strictEqual(bkpRow[3], 'Charlie');
   assert.strictEqual(bkpRow[6], 'Active');
 
   // Verify project row formatting is restored to normal white (#FFFFFF)
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getBackground(), '#FFFFFF');
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getFontColor(), '#000000');
-  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 8).getFontWeight(), 'normal');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getBackground(), '#FFFFFF');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getFontColor(), '#000000');
+  assert.strictEqual(projectsSheet.getRange(2, 1, 1, 7).getFontWeight(), 'normal');
 });
 
 test('Project conflict task assignment: assigns backup member when lead is already absent', () => {
@@ -445,8 +445,8 @@ test('Project conflict task assignment: assigns backup member when lead is alrea
     ['Dave', 'dave@accenture.com', '', 'Manager', 'Eng', 'Active', 'Main Office']
   ]);
 
-  projectsSheet.getRange(2, 1, 1, 7).setValues([
-    ['PRJ-003', 'Delta System', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
+  projectsSheet.getRange(2, 1, 1, 6).setValues([
+    ['Delta System', 'Active', '2026-06-01', '2026-12-31', 'Alice', 'Bob']
   ]);
 
   // Alice is on leave June 1 to June 10
@@ -475,7 +475,7 @@ test('Project conflict task assignment: assigns backup member when lead is alrea
   assert.strictEqual(auditRes.conflictsFound, 1);
 
   var taskRows = getLegacyTasks(tasksSheet, 2, 1, 8);
-  assert.strictEqual(taskRows[0][1], 'PRJ-003');
+  assert.strictEqual(taskRows[0][1], 'Delta System');
   // Since Alice is already absent, Bob is assigned
   assert.strictEqual(taskRows[0][2], 'Bob');
 });

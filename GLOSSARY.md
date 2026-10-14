@@ -55,7 +55,7 @@ _Avoid_: Time-off, PTO, Absence
 ### Work & Scheduling
 
 **Project**:
-A high-level initiative or work stream containing Tasks.
+A high-level initiative or work stream containing Tasks. Identified by its name, unique in the Projects tab: Tasks, Backups and Recurring Tasks pick it from a dropdown, and a renamed project is renamed everywhere (ADR 0053).
 _Avoid_: Epic, Program, Initiative
 
 **Project Lead**:

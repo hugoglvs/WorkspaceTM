@@ -99,6 +99,9 @@ function editLocations(e, ctx) {
   edCall("warnRetiredLocation", "./Locations", [e]);
 }
 
+/** A project renamed: Tasks, Backups and Recurring Tasks follow; the dropdowns list the names (ADR 0053). */
+function editProjectName(e, ctx) { edCall("handleProjectNameEdit", "./Projects", [e, ctx]); }
+
 /** A project without a backup: ask for one (ADR 0038). */
 function editProjectBackupPrompt(e) { edCall("promptProjectBackup", "./ProjectBackupEngine", [e]); }
 
@@ -116,7 +119,7 @@ var EDIT_HANDLERS = {
   tenures:        { after: [editSyncMembers] },
   settings:       { after: [editSettings] },
   locations:      { after: [editLocations] },
-  projects:       { after: [editProjectBackupPrompt, editCoverage] },
+  projects:       { after: [editProjectName, editProjectBackupPrompt, editCoverage] },
   leaves:         { after: [editCoverage] },
   backups:        { after: [editCoverage] }
 };

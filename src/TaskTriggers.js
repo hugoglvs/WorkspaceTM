@@ -67,7 +67,7 @@ function triggerAssignees(assignTo, ctx, members) {
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  * @param {string} eventKey a TASK_TRIGGERS key
- * @param {{subject: string, date: Date, person: (Object|undefined), projectId: (string|undefined)}} ctx
+ * @param {{subject: string, date: Date, person: (Object|undefined), project: (string|undefined)}} ctx
  *   subject identifies the occurrence (e.g. the person's name), date anchors "Days after"
  * @return {{created: number, skipped: number}}
  */
@@ -89,7 +89,7 @@ function fireTaskTrigger(ss, eventKey, ctx) {
     people.forEach(function(person) {
       createTask(ss, {
         type: type.name, title: type.name, description: type.instructions || "",
-        member: person, projectId: ctx.projectId || "",
+        member: person, project: ctx.project || "",
         due: addDays(anchor, type.daysAfter || 0), origin: origin
       });
       res.created++;

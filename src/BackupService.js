@@ -25,7 +25,8 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
   try {
     var rep = checkProjectBackupConflicts(ss, { sendNotifications: false, createTasks: false, asOfDateParam: today });
     (rep.conflicts || []).concat(rep.warnings || []).forEach(function(c) {
-      gapsByProject[c.projectId] = (gapsByProject[c.projectId] || []).concat(c.periods || []);
+      var gk = String(c.projectName || "").toLowerCase();
+      gapsByProject[gk] = (gapsByProject[gk] || []).concat(c.periods || []);
     });
   } catch (eCov) { Logger.log("Backup sidebar coverage note: " + eCov); }
 
@@ -36,12 +37,12 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
     var bVals = bRange.getValues();
     var bRich = (typeof bRange.getRichTextValues === "function") ? bRange.getRichTextValues() : [];
     bVals.forEach(function(v, i) {
-      var projId = String(v[1] || "").trim();
+      var projKey = String(v[1] || "").trim().toLowerCase();
       var status = String(v[6] || "").trim();
       var end = toDate(v[5]);
-      if (!projId || !end || bsIso(end) < todayIso) return;
+      if (!projKey || !end || bsIso(end) < todayIso) return;
       if (["active", "planned"].indexOf(status.toLowerCase()) === -1) return;
-      (interims[projId] = interims[projId] || []).push({
+      (interims[projKey] = interims[projKey] || []).push({
         id: String(v[0] || ""), primary: cellName(v[2], bRich[i] ? bRich[i][2] : null),
         backup: cellName(v[3], bRich[i] ? bRich[i][3] : null),
         start: bsIso(toDate(v[4])), end: bsIso(end), status: status, notes: String(v[7] || "")
@@ -49,24 +50,10 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
     });
   }
 
-  var projects = [];
-  var pSheet = getTable(ss, "projects");
-  if (pSheet && pSheet.getMaxRows() > 1) {
-    var pRange = pSheet.getRange(2, 1, readRowLimit(pSheet, 500) - 1, 7);
-    var pVals = pRange.getValues();
-    var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
-    pVals.forEach(function(v, i) {
-      var id = String(v[0] || "").trim();
-      var name = String(v[1] || "").trim();
-      if (!id || !name || String(v[2] || "").trim().toLowerCase() === "completed") return;
-      projects.push({
-        id: id, name: name, status: String(v[2] || ""),
-        lead: cellName(v[5], pRich[i] ? pRich[i][5] : null),
-        backup: cellName(v[6], pRich[i] ? pRich[i][6] : null),
-        gaps: gapsByProject[id] || [], interims: interims[id] || []
-      });
-    });
-  }
+  var projects = readProjects(ss).filter(function(p) { return p.status.toLowerCase() !== "completed"; }).map(function(p) {
+    return { name: p.name, status: p.status, lead: p.lead, backup: p.backup,
+      gaps: gapsByProject[p.key] || [], interims: interims[p.key] || [] };
+  });
   projects.sort(function(a, b) { return (b.gaps.length ? 1 : 0) - (a.gaps.length ? 1 : 0) || a.name.localeCompare(b.name); });
 
   var members = [];
@@ -95,7 +82,7 @@ function getBackupSidebarData(targetSpreadsheet, asOf) {
 /**
  * Adds an interim backup (a Backups row with an end date).
  *
- * @param {{projectId: string, backupMember: string, startDate: string, endDate: string, notes: (string|undefined)}} payload
+ * @param {{project: string, backupMember: string, startDate: string, endDate: string, notes: (string|undefined)}} payload
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @param {Date|string} [asOf]
  */
@@ -104,11 +91,11 @@ function saveInterimBackup(payload, targetSpreadsheet, asOf) {
   var p = payload || {};
   var start = toDate(p.startDate);
   var end = toDate(p.endDate);
-  if (!p.projectId || !p.backupMember) return { success: false, message: "Choose a project and a backup." };
+  if (!p.project || !p.backupMember) return { success: false, message: "Choose a project and a backup." };
   if (!start || !end) return { success: false, message: "An interim backup needs a start and an end date." };
   if (end < start) return { success: false, message: "The end date is before the start date." };
 
-  var project = getBackupSidebarProject(ss, p.projectId);
+  var project = findProject(ss, p.project);
   if (!project) return { success: false, message: "Project not found." };
   if (String(p.backupMember).toLowerCase() === String(project.lead).toLowerCase()) {
     return { success: false, message: p.backupMember + " is the project lead. Pick someone else." };
@@ -119,7 +106,7 @@ function saveInterimBackup(payload, targetSpreadsheet, asOf) {
   try {
     var today = toDate(asOf || new Date());
     var res = assignProjectBackup({
-      projectId: p.projectId, primaryMember: project.lead || project.backup, backupMember: p.backupMember,
+      project: project.name, primaryMember: project.lead || project.backup, backupMember: p.backupMember,
       startDate: bsIso(start), endDate: bsIso(end), status: start > today ? "Planned" : "Active", notes: p.notes || ""
     }, ss);
     if (res.success) res.message = p.backupMember + " covers " + project.name + " from " + bsIso(start) + " to " + bsIso(end) + ".";
@@ -127,22 +114,6 @@ function saveInterimBackup(payload, targetSpreadsheet, asOf) {
   } finally {
     if (lock) lock.releaseLock();
   }
-}
-
-function getBackupSidebarProject(ss, projectId) {
-  var sheet = getTable(ss, "projects");
-  if (!sheet || sheet.getMaxRows() < 2) return null;
-  var range = sheet.getRange(2, 1, readRowLimit(sheet, 500) - 1, 7);
-  var vals = range.getValues();
-  var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
-  for (var i = 0; i < vals.length; i++) {
-    if (String(vals[i][0] || "").trim() === String(projectId)) {
-      return { id: projectId, name: String(vals[i][1] || "").trim(),
-        lead: cellName(vals[i][5], rich[i] ? rich[i][5] : null),
-        backup: cellName(vals[i][6], rich[i] ? rich[i][6] : null) };
-    }
-  }
-  return null;
 }
 
 /** Cancels an interim backup (status Cancelled; the row stays as history). */

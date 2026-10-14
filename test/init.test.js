@@ -133,7 +133,11 @@ test('Tasks: technical columns hidden; a table whose columns moved is archived a
   var fresh = mockSpreadsheet.getSheetByName('Tasks');
   assert.notStrictEqual(fresh, archived);
   assert.deepStrictEqual(fresh.getRange(1, 1, 1, cols.length).getValues()[0], schema.schemaHeaderRow(schema.SCHEMA_SPEC.tasks));
-  assert.strictEqual(fresh.getRange(2, 2).getValue(), '', 'new table starts empty');
+  var col = k => cols.indexOf(k) + 1;
+  assert.strictEqual(fresh.getRange(2, col('title')).getValue(), 'Old task', 'rows copied into the new table (ADR 0053)');
+  assert.strictEqual(fresh.getRange(2, col('task_id')).getValue(), 'TSK-1');
+  assert.strictEqual(fresh.getRange(2, col('project')).getValue(), 'P');
+  assert.strictEqual(fresh.getRange(2, col('due_date')).getValue(), '2026-01-01');
 
   // Upgrading again does not archive anything more
   var count = mockSpreadsheet.getSheets().length;
@@ -141,6 +145,29 @@ test('Tasks: technical columns hidden; a table whose columns moved is archived a
   freshInit(mockSpreadsheet);
   assert.strictEqual(mockSpreadsheet.getSheets().length, count);
   assert.strictEqual(mockSpreadsheet.getSheetByName('Tasks').getRange(2, 2).getValue(), 'Kept');
+});
+
+test('Projects with the former ID column: archived, rows copied without the ID (ADR 0053)', () => {
+  var own = createMockSpreadsheet();
+  setupGasGlobals(own);
+  freshInit(own);
+  var projects = own.getSheetByName('Projects');
+  var old = ['ID', 'Project', 'Status', 'Start', 'Target date', 'Lead', 'Backup', 'In charge today'];
+  projects.getRange(1, 1, 1, old.length).setValues([old]);
+  own.getSheetByName('Tasks').getRange(2, 1, 1, 4).setValues([['', 'Old task', '', 'PRJ-2']]);
+  projects.getRange(2, 1, 2, old.length).setValues([
+    ['PRJ-1', 'Apollo', 'Active', '2026-01-01', '', 'Alice', 'Bob', 'Alice'],
+    ['PRJ-2', 'Borealis', 'Planning', '2026-02-01', '', 'Carol', '', '']
+  ]);
+  freshInit(own);
+  var fresh = own.getSheetByName('Projects');
+  assert.deepStrictEqual(fresh.getRange(1, 1, 1, 7).getValues()[0], schema.schemaHeaderRow(schema.SCHEMA_SPEC.projects));
+  assert.deepStrictEqual(fresh.getRange(2, 1, 2, 6).getValues(), [
+    ['Apollo', 'Active', '2026-01-01', '', 'Alice', 'Bob'],
+    ['Borealis', 'Planning', '2026-02-01', '', 'Carol', '']
+  ]);
+  assert.ok(own.getSheets().some(s => /^Archive – Projects /.test(s.getName())));
+  assert.strictEqual(own.getSheetByName('Tasks').getRange(2, 4).getValue(), 'Borealis', 'former ID replaced by the name');
 });
 
 test('Tasks without data in the former 13-column layout: headers rewritten in place, the extra column cleared', () => {

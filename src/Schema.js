@@ -160,8 +160,9 @@ var SCHEMA_SPEC = {
   projects: {
     sheetName: "Projects",
     legacyName: "tbl_projects",
+    // The project name is the reference used by Tasks, Backups and Recurring Tasks
+    // (ADR 0053): no ID; a renamed project is renamed everywhere.
     headers: {
-      project_id: "ID",
       name: "Project",
       status: "Status",
       start_date: "Start",
@@ -170,14 +171,15 @@ var SCHEMA_SPEC = {
       backup_member: "Backup",
       active_responsible: "In charge today"
     },
-    columns: ["project_id", "name", "status", "start_date", "target_date", "lead_member", "backup_member", "active_responsible"],
-    requiredColumns: ["project_id", "name", "status", "start_date", "lead_member"],
+    columns: ["name", "status", "start_date", "target_date", "lead_member", "backup_member", "active_responsible"],
+    removedHeaders: ["project_id", "ID"],
+    uniqueColumns: ["name"],
+    requiredColumns: ["name", "status", "start_date", "lead_member"],
     nullableColumns: ["target_date", "backup_member", "active_responsible"],
-    strictlyProtectedColumns: ["project_id", "active_responsible"],
+    strictlyProtectedColumns: ["active_responsible"],
     warningProtectedColumns: ["lead_member", "start_date"],
-    protectedColumns: ["project_id", "lead_member", "start_date", "active_responsible"],
+    protectedColumns: ["lead_member", "start_date", "active_responsible"],
     columnTypes: {
-      project_id: "TEXT",
       name: "TEXT",
       status: "DROPDOWN",
       start_date: "DATE",
@@ -197,7 +199,7 @@ var SCHEMA_SPEC = {
       task_type: "Type",
       title: "Title",
       assigned_member: "Assigned to",
-      project_id: "Project ID",
+      project: "Project",
       planned_date: "Planned date",
       due_date: "Deadline",
       status: "Status",
@@ -211,22 +213,24 @@ var SCHEMA_SPEC = {
     // Deadline (key due_date) drives reminders, overdue and the Calendar; Planned date is the
     // day shown in Google Tasks, the deadline when empty (ADR 0050). Origin: "<rule>|<period>"
     // (recurring, "|manual" once changed by hand), "manual", or "trigger:<event>" (ADR 0051).
-    columns: ["task_type", "title", "assigned_member", "project_id", "planned_date", "due_date", "status", "description", "done_on", "task_id", "google_task_id", "origin"],
+    columns: ["task_type", "title", "assigned_member", "project", "planned_date", "due_date", "status", "description", "done_on", "task_id", "google_task_id", "origin"],
     hiddenColumns: ["task_id", "google_task_id", "origin"],
     // Labels of earlier layouts, so Initialize / Upgrade recognises a moved table (ADR 0051)
-    formerHeaders: { due_date: ["Due date"], origin: ["Recurring", "recurrence"] },
+    formerHeaders: { due_date: ["Due date"], origin: ["Recurring", "recurrence"], project: ["Project ID", "project_id"] },
     removedHeaders: ["Done by", "done_by"],
     requiredColumns: ["task_id", "title", "status"],
-    nullableColumns: ["task_type", "project_id", "assigned_member", "planned_date", "due_date", "description", "done_on", "google_task_id", "origin"],
+    nullableColumns: ["task_type", "project", "assigned_member", "planned_date", "due_date", "description", "done_on", "google_task_id", "origin"],
     strictlyProtectedColumns: ["task_id", "google_task_id", "origin"],
     warningProtectedColumns: [],
     protectedColumns: ["task_id", "google_task_id", "origin"],
     taskTypeColumns: { task_type: true },
+    // Dropdown of the Projects tab's names (ADR 0053)
+    projectColumns: { project: true },
     columnTypes: {
       task_type: "DROPDOWN",
       title: "TEXT",
       assigned_member: "PEOPLE_CHIP",
-      project_id: "TEXT",
+      project: "DROPDOWN",
       planned_date: "DATE",
       due_date: "DATE",
       status: "DROPDOWN",
@@ -272,15 +276,17 @@ var SCHEMA_SPEC = {
   backups: {
     sheetName: "Backups",
     legacyName: "tbl_backups",
-    columns: ["backup_id", "project_id", "primary_member", "backup_member", "start_date", "end_date", "status", "notes"],
-    requiredColumns: ["backup_id", "project_id", "primary_member", "backup_member", "start_date", "status"],
+    columns: ["backup_id", "project", "primary_member", "backup_member", "start_date", "end_date", "status", "notes"],
+    formerHeaders: { project: ["Project ID", "project_id"] },
+    requiredColumns: ["backup_id", "project", "primary_member", "backup_member", "start_date", "status"],
     nullableColumns: ["end_date", "notes"],
     strictlyProtectedColumns: ["backup_id"],
-    warningProtectedColumns: ["project_id", "primary_member"],
-    protectedColumns: ["backup_id", "project_id", "primary_member"],
+    warningProtectedColumns: ["project", "primary_member"],
+    protectedColumns: ["backup_id", "project", "primary_member"],
+    projectColumns: { project: true },
     columnTypes: {
       backup_id: "TEXT",
-      project_id: "TEXT",
+      project: "DROPDOWN",
       primary_member: "PEOPLE_CHIP",
       backup_member: "PEOPLE_CHIP",
       start_date: "DATE",
@@ -326,14 +332,16 @@ var SCHEMA_SPEC = {
   recurringTasks: {
     sheetName: "Recurring Tasks",
     legacyName: "tbl_recurring_tasks",
-    headers: { rule_id: "ID", task_type: "Type", project_id: "Project ID", mode: "Who", applies_to: "Applies to", start_date: "Start", end_date: "End", active: "Active" },
-    columns: ["rule_id", "task_type", "project_id", "mode", "applies_to", "start_date", "end_date", "active"],
+    headers: { rule_id: "ID", task_type: "Type", project: "Project", mode: "Who", applies_to: "Applies to", start_date: "Start", end_date: "End", active: "Active" },
+    columns: ["rule_id", "task_type", "project", "mode", "applies_to", "start_date", "end_date", "active"],
+    formerHeaders: { project: ["Project ID", "project_id"] },
+    projectColumns: { project: true },
     requiredColumns: ["rule_id", "task_type", "mode"],
-    nullableColumns: ["project_id", "applies_to", "start_date", "end_date", "active"],
+    nullableColumns: ["project", "applies_to", "start_date", "end_date", "active"],
     strictlyProtectedColumns: [],
     warningProtectedColumns: [],
     protectedColumns: [],
-    columnTypes: { rule_id: "TEXT", task_type: "DROPDOWN", project_id: "TEXT", mode: "DROPDOWN", applies_to: "TEXT", start_date: "DATE", end_date: "DATE", active: "BOOLEAN" },
+    columnTypes: { rule_id: "TEXT", task_type: "DROPDOWN", project: "DROPDOWN", mode: "DROPDOWN", applies_to: "TEXT", start_date: "DATE", end_date: "DATE", active: "BOOLEAN" },
     taskTypeColumns: { task_type: true },
     validations: { mode: ["Rotation", "Each person"] }
   },

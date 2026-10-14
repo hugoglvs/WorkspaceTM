@@ -45,9 +45,9 @@ function seed() {
     ['Bob', 'bob@accenture.com', '', 'Dev', 'Eng', 'Active', 'Not Logged'],
     ['Carl', '', '', 'Dev', 'Eng', 'No Contract', '']
   ]);
-  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 2, 7).setValues([
-    ['P1', 'Apollo', 'Active', '2026-01-01', '', 'Alice', ''],
-    ['P2', 'Borealis', 'Active', '2026-01-01', '', 'Alice', 'Bob']
+  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 2, 6).setValues([
+    ['Apollo', 'Active', '2026-01-01', '', 'Alice', ''],
+    ['Borealis', 'Active', '2026-01-01', '', 'Alice', 'Bob']
   ]);
   getTable(mockSpreadsheet, 'leaves').getRange(2, 1, 1, 8).setValues([
     ['lv1', 'Alice', '2026-10-14', 'AM', '2026-10-16', 'PM', 'Vacation', 'Approved']
@@ -114,31 +114,31 @@ test('Monday reminder: nobody to remind when everyone is declared', () => {
 test('Interim Backups sidebar: shows gaps, adds a backup that closes them, cancel reopens them', () => {
   seed();
   var data = getBackupSidebarData(mockSpreadsheet, TODAY);
-  var apollo = data.projects.filter(p => p.id === 'P1')[0];
-  assert.strictEqual(data.projects[0].id, 'P1', 'projects with gaps come first');
+  var apollo = data.projects.filter(p => p.name === 'Apollo')[0];
+  assert.strictEqual(data.projects[0].name, 'Apollo', 'projects with gaps come first');
   assert.deepStrictEqual(apollo.gaps.map(g => [g.start, g.end]), [['2026-10-14', '2026-10-16']]);
   assert.deepStrictEqual(data.leaves.alice, [{ start: '2026-10-14', end: '2026-10-16', status: 'approved' }]);
   assert.ok(data.members.includes('Bob'));
 
-  var res = saveInterimBackup({ projectId: 'P1', backupMember: 'Bob', startDate: '2026-10-14', endDate: '2026-10-16' }, mockSpreadsheet, TODAY);
+  var res = saveInterimBackup({ project: 'Apollo', backupMember: 'Bob', startDate: '2026-10-14', endDate: '2026-10-16' }, mockSpreadsheet, TODAY);
   assert.ok(res.success, res.message);
   assert.strictEqual(res.status, 'Planned');
   assert.strictEqual(MailApp.getSentEmails().length, 0, 'saving sends no email');
 
   data = getBackupSidebarData(mockSpreadsheet, TODAY);
-  apollo = data.projects.filter(p => p.id === 'P1')[0];
+  apollo = data.projects.filter(p => p.name === 'Apollo')[0];
   assert.strictEqual(apollo.gaps.length, 0);
   assert.strictEqual(apollo.interims.length, 1);
 
   cancelInterimBackup(apollo.interims[0].id, mockSpreadsheet);
-  apollo = getBackupSidebarData(mockSpreadsheet, TODAY).projects.filter(p => p.id === 'P1')[0];
+  apollo = getBackupSidebarData(mockSpreadsheet, TODAY).projects.filter(p => p.name === 'Apollo')[0];
   assert.strictEqual(apollo.interims.length, 0);
   assert.strictEqual(apollo.gaps.length, 1);
 });
 
 test('Interim Backups sidebar: refuses the lead, a missing end date, or an end before the start', () => {
   seed();
-  assert.strictEqual(saveInterimBackup({ projectId: 'P1', backupMember: 'Alice', startDate: '2026-10-14', endDate: '2026-10-16' }, mockSpreadsheet, TODAY).success, false);
-  assert.strictEqual(saveInterimBackup({ projectId: 'P1', backupMember: 'Bob', startDate: '2026-10-14', endDate: '' }, mockSpreadsheet, TODAY).success, false);
-  assert.strictEqual(saveInterimBackup({ projectId: 'P1', backupMember: 'Bob', startDate: '2026-10-16', endDate: '2026-10-14' }, mockSpreadsheet, TODAY).success, false);
+  assert.strictEqual(saveInterimBackup({ project: 'Apollo', backupMember: 'Alice', startDate: '2026-10-14', endDate: '2026-10-16' }, mockSpreadsheet, TODAY).success, false);
+  assert.strictEqual(saveInterimBackup({ project: 'Apollo', backupMember: 'Bob', startDate: '2026-10-14', endDate: '' }, mockSpreadsheet, TODAY).success, false);
+  assert.strictEqual(saveInterimBackup({ project: 'Apollo', backupMember: 'Bob', startDate: '2026-10-16', endDate: '2026-10-14' }, mockSpreadsheet, TODAY).success, false);
 });

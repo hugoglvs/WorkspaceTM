@@ -49,6 +49,35 @@ function archiveMovedTable(ss, tableKey, config, sheet) {
 }
 
 /**
+ * Copies the rows of an archived table into its rebuilt tab, column by column
+ * matched on header (key, label or former label), so moving columns does not
+ * mean typing the data again (ADR 0053). Copying the cells keeps people chips.
+ *
+ * @return {number} rows copied
+ */
+function carryArchivedRows(archive, sheet, config) {
+  if (!archive || archive.getLastRow() < 2) return 0;
+  var n = archive.getLastRow() - 1;
+  var header = archive.getRange(1, 1, 1, archive.getLastColumn()).getValues()[0].map(initNorm);
+  if (sheet.getMaxRows() < n + 1 && typeof sheet.insertRowsAfter === "function") {
+    sheet.insertRowsAfter(sheet.getMaxRows(), n + 1 - sheet.getMaxRows());
+  }
+  config.columns.forEach(function(key, i) {
+    var names = [key, config.headers && config.headers[key]].concat((config.formerHeaders || {})[key] || []).map(initNorm);
+    var src = -1;
+    for (var c = 0; c < header.length && src < 0; c++) if (header[c] && names.indexOf(header[c]) !== -1) src = c;
+    if (src < 0) return;
+    try { archive.getRange(2, src + 1, n, 1).copyTo(sheet.getRange(2, i + 1, n, 1)); }
+    catch (eCp) {
+      Logger.log("Copy of " + key + " from the archive note: " + eCp);
+      sheet.getRange(2, i + 1, n, 1).setValues(archive.getRange(2, src + 1, n, 1).getValues());
+    }
+  });
+  Logger.log("Copied " + n + " row(s) of '" + config.sheetName + "' from its archive.");
+  return n;
+}
+
+/**
  * Initializes a Google Spreadsheet from scratch with the 8 core operational tables.
  * Applies 12px "Google Sans", frozen header rows, table row banding,
  * dropdown validations, and sets SCHEMA_VERSION = "1".
@@ -71,11 +100,14 @@ function freshInit(targetSpreadsheet) {
     var config = SCHEMA_SPEC[tableKey];
     var sheet = getTable(ss, tableKey);
     var isNew = false;
+    var archived = null;
 
     // Columns reordered or removed by a release: keep the old tab as an archive
-    // and build the table again (ADR 0051), rather than shifting data under new headers
+    // and build the table again (ADR 0051), rather than shifting data under new
+    // headers; its rows are then copied into the new table (ADR 0053)
     if (sheet && columnsMoved(sheet, config)) {
       archiveMovedTable(ss, tableKey, config, sheet);
+      archived = sheet;
       sheet = null;
     }
 
@@ -141,6 +173,14 @@ function freshInit(targetSpreadsheet) {
         try { sheet.getRange(1, colCount + 1 + i, Math.max(sheet.getLastRow(), 1), 1).clearContent(); }
         catch (eClr) { Logger.log("Former column " + h + " of " + config.sheetName + " not cleared: " + eClr); }
       });
+    }
+
+    if (archived) {
+      try { carryArchivedRows(archived, sheet, config); } catch (eCarry) { Logger.log("Archive copy note: " + eCarry); }
+      // Former project IDs in Tasks, Backups and Recurring Tasks become names (ADR 0053)
+      if (tableKey === "projects" && typeof replaceProjectIdsFromArchive === "function") {
+        try { replaceProjectIdsFromArchive(ss, archived); } catch (eIds) { Logger.log("Project IDs note: " + eIds); }
+      }
     }
 
     // 5. Technical columns stay in the table, hidden (ADR 0051)
@@ -240,6 +280,7 @@ function freshInit(targetSpreadsheet) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    carryArchivedRows: carryArchivedRows,
     freshInit: freshInit
   };
 }

@@ -51,7 +51,7 @@ function seed(opts) {
     ['Bob', 'Dev', 'Eng', '2025-01-01', '', 'Permanent', 100],
     ['Dan', 'Dev', 'Eng', '2025-01-01', '2026-06-30', 'Permanent', 100]
   ]);
-  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 1, 7).setValues([['P1', 'Apollo', 'Active', '2026-01-01', '', 'Alice', '']]);
+  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 1, 6).setValues([['Apollo', 'Active', '2026-01-01', '', 'Alice', '']]);
 }
 
 test('French public holidays: 11 a year, Easter-based ones computed', () => {
@@ -114,8 +114,8 @@ test('coverage: a leave on a public holiday is not a gap', () => {
 test('Check Workspace: hand-overs for people leaving, open tasks of people who left', () => {
   seed({ aliceEnd: '2026-10-30' });
   setLegacyTasks(getTable(mockSpreadsheet, 'tasks'), 2, [
-    ['T1', 'P1', 'Dan', 'Write the runbook', '', '', 'In Progress'],
-    ['T2', 'P1', 'Dan', 'Old task', '', '', 'Done']
+    ['T1', 'Apollo', 'Dan', 'Write the runbook', '', '', 'In Progress'],
+    ['T2', 'Apollo', 'Dan', 'Old task', '', '', 'Done']
   ]);
   var items = runWorkspaceCheck(mockSpreadsheet, '2026-10-12').sections.filter(s => s.key === 'leavers')[0].items;
   assert.deepStrictEqual(items, ['Apollo: lead Alice leaves on 2026-10-30', 'Task "Write the runbook": Dan left on 2026-06-30']);

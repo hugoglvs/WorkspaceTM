@@ -19,9 +19,7 @@ function getAssignSidebarData(targetSpreadsheet) {
   var roles = {};
   members.forEach(function(m) { if (m.role) roles[m.role] = true; });
   var types = readTaskTypes(ss).filter(function(t) { return t.active; });
-  var projects = calProjects(ss);
-  var projectName = {};
-  projects.forEach(function(p) { projectName[p.id] = p.name; });
+  var projects = projectNames(ss);
   return {
     types: types.map(function(t) {
       return { name: t.name, frequency: t.frequency, due: t.due, remind: t.remindText, mandatory: t.mandatory,
@@ -33,7 +31,7 @@ function getAssignSidebarData(targetSpreadsheet) {
     members: members.map(function(m) { return { name: m.name, role: m.role }; }),
     rules: readRecurringRules(ss).map(function(r) {
       var rt = types.filter(function(t) { return t.name.toLowerCase() === r.type.toLowerCase(); })[0];
-      return { id: r.id, type: r.type, project: projectName[r.projectId] || r.projectId || "", mode: r.mode,
+      return { id: r.id, type: r.type, project: r.project || "", mode: r.mode,
         schedule: rt ? scheduleText(rt) : "",
         appliesTo: r.appliesTo || "Everyone", start: r.start ? isoDate(r.start) : "", end: r.end ? isoDate(r.end) : "", active: r.active };
     }),
@@ -42,7 +40,7 @@ function getAssignSidebarData(targetSpreadsheet) {
 }
 
 /**
- * payload: {type, projectId, mode ("Each person" | "Rotation"), appliesTo,
+ * payload: {type, project (name), mode ("Each person" | "Rotation"), appliesTo,
  *           repeat (boolean), date (one-off: a day in the target period),
  *           start, end, frequency, due, remind (repeat; the schedule is saved on the template)}
  */
@@ -71,7 +69,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
       if (end && end < start) return { success: false, message: "The end date is before the start date." };
       var changed = setTaskTypeSchedule(ss, type.name, p.frequency, p.due, p.remind);
       if (changed) type = findTaskType(ss, type.name);
-      addRecurringRule(ss, { type: type.name, projectId: p.projectId || "", mode: mode, appliesTo: p.appliesTo || "", start: start, end: end });
+      addRecurringRule(ss, { type: type.name, project: p.project || "", mode: mode, appliesTo: p.appliesTo || "", start: start, end: end });
       var gen = generateRecurringTasks(ss, today);
       message = "Recurring " + type.name + " saved (" + scheduleText(type) + "; " + (mode === "Rotation" ? "rotation among " : "each of ") +
         people.length + " people). " + gen.created + " task(s) planned ahead." +
@@ -82,7 +80,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
       var due = dueDateFor(type, period, ctx.holidays);
       var existing = readTaskRows(ss).filter(function(t) {
         return t.due && String(t.status).toLowerCase() !== "cancelled" && t.type.toLowerCase() === type.name.toLowerCase() &&
-          (t.projectId || "") === (p.projectId || "") && periodOf(freq, t.due).key === period.key;
+          (t.project || "").toLowerCase() === (p.project || "").toLowerCase() && periodOf(freq, t.due).key === period.key;
       });
       var created = 0;
       var onLeave = [];
@@ -90,7 +88,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
         if (!rtWorksOn(ctx, m, due)) return;
         if (existing.some(function(t) { return t.memberKey === m.key; })) return;
         if (leaveStatusOn(ctx.leaves, m.key, due) === "approved") onLeave.push(m.name);
-        createTaskRow(ss, { projectId: p.projectId || "", member: m, title: type.name, due: due, type: type.name,
+        createTaskRow(ss, { project: p.project || "", member: m, title: type.name, due: due, type: type.name,
           description: type.instructions });
         created++;
       });

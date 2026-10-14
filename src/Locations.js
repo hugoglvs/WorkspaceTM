@@ -196,6 +196,14 @@ function schemaValidationsFor(ss, config) {
     if (!tt.hasOwnProperty(tcol)) continue;
     validations[tcol] = (typeof taskTypeNames === "function") ? taskTypeNames(ss) : [];
   }
+  // Project dropdowns list the Projects tab's names (ADR 0053)
+  var pc = config.projectColumns || {};
+  for (var pcol in pc) {
+    if (!pc.hasOwnProperty(pcol)) continue;
+    var pnFn = (typeof projectNames === "function") ? projectNames
+      : (typeof require !== "undefined" ? require("./Projects").projectNames : null);
+    validations[pcol] = pnFn ? pnFn(ss) : [];
+  }
   // "Created when" lists the task triggers (ADR 0051)
   var trig = config.triggerColumns || {};
   for (var gcol in trig) {
@@ -207,11 +215,11 @@ function schemaValidationsFor(ss, config) {
   return validations;
 }
 
-/** Re-applies the location dropdowns of the data tables after the Locations tab changed. */
+/** Re-applies the dropdowns that follow other tabs (locations, task types, projects) to the data tables. */
 function refreshLocationDropdowns(ss) {
   var updated = [];
   for (var key in SCHEMA_SPEC) {
-    if (!SCHEMA_SPEC.hasOwnProperty(key) || !(SCHEMA_SPEC[key].locationColumns || SCHEMA_SPEC[key].taskTypeColumns)) continue;
+    if (!SCHEMA_SPEC.hasOwnProperty(key) || !(SCHEMA_SPEC[key].locationColumns || SCHEMA_SPEC[key].taskTypeColumns || SCHEMA_SPEC[key].projectColumns)) continue;
     var config = SCHEMA_SPEC[key];
     var sheet = getTable(ss, key);
     if (!sheet) continue;

@@ -31,7 +31,8 @@ function formatBackupDateIso(d) {
 }
 
 
-var PROJECT_COLS = { id: 1, name: 2, status: 3, start: 4, target: 5, lead: 6, backup: 7, active: 8 };
+// Projects columns (ADR 0053: no ID, the name is the reference)
+var PROJECT_COLS = { name: 1, status: 2, start: 3, target: 4, lead: 5, backup: 6, active: 7 };
 var CONFLICT_STYLE = { bg: "#F8D7DA", color: "#721C24" };
 var WARNING_STYLE = { bg: "#FCE8B2", color: "#7A4F01" };
 var COVERAGE_HORIZON_DAYS = 366;
@@ -105,7 +106,7 @@ function withinContract(contracts, key, date) {
 }
 
 /**
- * tbl_backups rows by project_id (Active / Planned only).
+ * Backups rows by project name, lower case (Active / Planned only).
  * @return {Object<string, Array<{row: number, primary: string, backup: string, startDate: (Date|null), endDate: (Date|null)}>>}
  */
 function readBackupAssignments(ss) {
@@ -116,11 +117,11 @@ function readBackupAssignments(ss) {
   var vals = range.getValues();
   var rich = (typeof range.getRichTextValues === "function") ? range.getRichTextValues() : [];
   for (var r = 0; r < vals.length; r++) {
-    var projId = String(vals[r][1] || "").trim();
-    if (!projId) continue;
+    var projKey = String(vals[r][1] || "").trim().toLowerCase();
+    if (!projKey) continue;
     var status = String(vals[r][6] || "").trim().toLowerCase();
     if (status !== "active" && status !== "planned") continue;
-    (byProject[projId] = byProject[projId] || []).push({
+    (byProject[projKey] = byProject[projKey] || []).push({
       row: r + 2,
       primary: cellName(vals[r][2], rich[r] ? rich[r][2] : null),
       backup: cellName(vals[r][3], rich[r] ? rich[r][3] : null),
@@ -133,21 +134,20 @@ function readBackupAssignments(ss) {
 
 /**
  * Keeps tbl_backups in step with tbl_projects (ADR 0038):
- * - a project with a name but no project_id gets one;
  * - backup_member is the permanent backup: one tbl_backups row with no end_date.
  *   A changed backup ends the old row yesterday and adds a new one from today.
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  * @param {Date} todayDate
- * @return {{idsCreated: number, rowsAdded: number, rowsEnded: number}}
+ * @return {{rowsAdded: number, rowsEnded: number}}
  */
 function syncProjectBackups(ss, todayDate) {
-  var res = { idsCreated: 0, rowsAdded: 0, rowsEnded: 0 };
+  var res = { rowsAdded: 0, rowsEnded: 0 };
   var projectsSheet = getTable(ss, "projects");
   var backupsSheet = getTable(ss, "backups");
   if (!projectsSheet || !backupsSheet || projectsSheet.getMaxRows() < 2) return res;
 
-  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, 7);
+  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, 6);
   var pVals = pRange.getValues();
   var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
   var assignments = readBackupAssignments(ss);
@@ -155,19 +155,13 @@ function syncProjectBackups(ss, todayDate) {
   var yesterdayIso = formatBackupDateIso(addDays(todayDate, -1));
 
   for (var p = 0; p < pVals.length; p++) {
-    var name = String(pVals[p][1] || "").trim();
-    var projId = String(pVals[p][0] || "").trim();
-    if (!name && !projId) continue;
-    if (!projId) {
-      projId = "PRJ-" + Math.random().toString(36).substring(2, 7).toUpperCase();
-      projectsSheet.getRange(p + 2, PROJECT_COLS.id).setValue(projId);
-      res.idsCreated++;
-    }
-    var lead = cellName(pVals[p][5], pRich[p] ? pRich[p][5] : null);
-    var backup = cellName(pVals[p][6], pRich[p] ? pRich[p][6] : null);
+    var name = String(pVals[p][PROJECT_COLS.name - 1] || "").trim();
+    if (!name) continue;
+    var lead = cellName(pVals[p][PROJECT_COLS.lead - 1], pRich[p] ? pRich[p][PROJECT_COLS.lead - 1] : null);
+    var backup = cellName(pVals[p][PROJECT_COLS.backup - 1], pRich[p] ? pRich[p][PROJECT_COLS.backup - 1] : null);
     if (!backup) continue;
 
-    var permanent = (assignments[projId] || []).filter(function(a) { return !a.endDate; });
+    var permanent = (assignments[name.toLowerCase()] || []).filter(function(a) { return !a.endDate; });
     var current = permanent.filter(function(a) { return a.backup.toLowerCase() === backup.toLowerCase(); })[0];
     if (current) continue;
 
@@ -175,10 +169,10 @@ function syncProjectBackups(ss, todayDate) {
       backupsSheet.getRange(permanent[k].row, 6).setValue(yesterdayIso);
       res.rowsEnded++;
     }
-    var startIso = permanent.length ? todayIso : (formatBackupDateIso(toDate(pVals[p][3])) || todayIso);
+    var startIso = permanent.length ? todayIso : (formatBackupDateIso(toDate(pVals[p][PROJECT_COLS.start - 1])) || todayIso);
     var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(backupsSheet) : backupsSheet.getLastRow() + 1;
     backupsSheet.getRange(row, 1, 1, 8).setValues([[
-      "bkp_" + Math.random().toString(36).substring(2, 9), projId, lead, backup, startIso, "", "Active", "Permanent backup"
+      "bkp_" + Math.random().toString(36).substring(2, 9), name, lead, backup, startIso, "", "Active", "Permanent backup"
     ]]);
     if (typeof copyCellChip === "function") {
       try { copyCellChip(projectsSheet, p + 2, PROJECT_COLS.backup, backupsSheet, row, 4, backup, ss.getId ? ss.getId() : ""); } catch (eChip) {}
@@ -268,7 +262,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     var a = absence(project.lead, date);
     if (!a) return { name: project.lead, as: "lead" };
     if (a === "requested") pending = true;
-    var rows = assignments[project.id] || [];
+    var rows = assignments[project.key] || [];
     var interim = rows.filter(function(r) { return r.endDate && (!r.startDate || r.startDate <= date) && r.endDate >= date; });
     var permanent = rows.filter(function(r) { return !r.endDate && (!r.startDate || r.startDate <= date); });
     var candidates = interim.map(function(r) { return { name: r.backup, as: "interim" }; })
@@ -284,7 +278,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
 
   // Last day worth checking for a project: the latest leave end among the people involved
   function horizonFor(project) {
-    var people = [project.lead, project.backup].concat((assignments[project.id] || []).map(function(r) { return r.backup; }));
+    var people = [project.lead, project.backup].concat((assignments[project.key] || []).map(function(r) { return r.backup; }));
     var last = todayDate;
     people.forEach(function(n) {
       (leaves[String(n || "").toLowerCase()] || []).forEach(function(l) { if (l.endDate > last) last = l.endDate; });
@@ -305,14 +299,14 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     SCHEMA_SPEC.tasks.columns.forEach(function(k, i) { tc[k] = i; });
     var tVals = tasksSheet.getRange(2, 1, readRowLimit(tasksSheet, 1000) - 1, SCHEMA_SPEC.tasks.columns.length).getValues();
     for (var t = 0; t < tVals.length; t++) {
-      var tProj = String(tVals[t][tc.project_id] || "").trim();
+      var tProj = String(tVals[t][tc.project] || "").trim().toLowerCase();
       if (tProj && String(tVals[t][tc.title] || "").toLowerCase().indexOf("organize interim backup") !== -1 && String(tVals[t][tc.status] || "").toLowerCase() !== "done") {
         openBackupTasks[tProj] = true;
       }
     }
   }
 
-  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, 8);
+  var pRange = projectsSheet.getRange(2, 1, readRowLimit(projectsSheet, 500) - 1, PROJECT_COLS.active);
   var pVals = pRange.getValues();
   var pRich = (typeof pRange.getRichTextValues === "function") ? pRange.getRichTextValues() : [];
   var conflicts = [], warnings = [], resolvedCount = 0, audited = 0;
@@ -320,15 +314,16 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
 
   for (var p = 0; p < pVals.length; p++) {
     var rowNum = p + 2;
+    var pc = PROJECT_COLS;
     var project = {
-      id: String(pVals[p][0] || "").trim(),
-      name: String(pVals[p][1] || pVals[p][0] || "").trim(),
-      status: String(pVals[p][2] || "").trim().toLowerCase(),
-      lead: cellName(pVals[p][5], pRich[p] ? pRich[p][5] : null),
-      backup: cellName(pVals[p][6], pRich[p] ? pRich[p][6] : null)
+      name: String(pVals[p][pc.name - 1] || "").trim(),
+      status: String(pVals[p][pc.status - 1] || "").trim().toLowerCase(),
+      lead: cellName(pVals[p][pc.lead - 1], pRich[p] ? pRich[p][pc.lead - 1] : null),
+      backup: cellName(pVals[p][pc.backup - 1], pRich[p] ? pRich[p][pc.backup - 1] : null)
     };
-    var rowRange = projectsSheet.getRange(rowNum, 1, 1, 8);
-    if (!project.id && !project.name) { activeColumn.push([pVals[p][7] || ""]); continue; }
+    project.key = project.name.toLowerCase();
+    var rowRange = projectsSheet.getRange(rowNum, 1, 1, pc.active);
+    if (!project.name) { activeColumn.push([pVals[p][pc.active - 1] || ""]); continue; }
     if (project.status === "completed" || !project.lead) {
       rowRange.setBackground("#FFFFFF").setFontColor("#000000").setFontWeight("normal");
       activeColumn.push([""]);
@@ -390,7 +385,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
           to: recipients.join(","),
           subject: (isConflict ? "[ACTION REQUIRED] No backup available on project: " : "[WARNING] Leave request leaves project without backup: ") + project.name,
           body: (isConflict ? "Nobody can cover this project on some working days.\n\n" : "If the pending leave request(s) are approved, nobody can cover this project on some working days.\n\n") +
-            "Project: " + project.name + " (ID: " + project.id + ")\n" +
+            "Project: " + project.name + "\n" +
             "Project Lead: " + project.lead + "\n" +
             "Permanent backup: " + (project.backup || "none") + "\n" +
             "Uncovered: " + startStr + " to " + endStr + "\n\n" +
@@ -401,24 +396,24 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
     }
 
     var taskCreated = false;
-    if (isConflict && createTasks && tasksSheet && !openBackupTasks[project.id]) {
+    if (isConflict && createTasks && tasksSheet && !openBackupTasks[project.key]) {
       try {
         var assignee = absence(project.lead, todayDate) ? (project.backup || project.lead) : project.lead;
         var assigneeRoster = membersRoster[String(assignee).toLowerCase()];
         var newTask = (typeof createTaskRow === "function" ? createTaskRow : require("./RecurringTasks").createTaskRow)(ss, {
-          projectId: project.id,
+          project: project.name,
           member: assigneeRoster ? { name: assigneeRoster.name, row: assigneeRoster.row } : (assignee ? { name: assignee } : null),
           title: "Organize interim backup for project " + project.name,
           description: "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates with Project Management → Interim Backups.",
           due: startStr, status: "Todo", origin: "trigger:coverageGap"
         });
-        openBackupTasks[project.id] = true;
+        openBackupTasks[project.key] = true;
         taskCreated = true;
       } catch (eTask) { Logger.log("Backup task note: " + eTask); }
     }
 
     var entry = {
-      projectId: project.id, projectName: project.name, row: rowNum,
+      projectName: project.name, row: rowNum,
       leadMember: project.lead, backupMember: project.backup,
       conflictStart: startStr, conflictEnd: endStr, reason: reason,
       pending: !isConflict, emailSent: emailSent, recipients: recipients, taskCreated: taskCreated,
@@ -452,9 +447,9 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
 function promptProjectBackup(e) {
   if (!e || !e.range || e.range.getRow() < 2) return false;
   var sheet = e.range.getSheet();
-  var vals = sheet.getRange(e.range.getRow(), 1, 1, 7).getValues()[0];
-  var name = String(vals[1] || "").trim();
-  if (!name || String(vals[6] || "").trim()) return false;
+  var vals = sheet.getRange(e.range.getRow(), 1, 1, PROJECT_COLS.active).getValues()[0];
+  var name = String(vals[PROJECT_COLS.name - 1] || "").trim();
+  if (!name || String(vals[PROJECT_COLS.backup - 1] || "").trim()) return false;
   var ss = e.source || (sheet.getParent ? sheet.getParent() : SpreadsheetApp.getActiveSpreadsheet());
   try {
     ss.toast("Project \"" + name + "\" has no backup yet. Fill in backup_member so absences stay covered.", "Backup needed", 8);
@@ -466,7 +461,7 @@ function promptProjectBackup(e) {
  * Assigns an interim backup in tbl_backups and automatically re-evaluates project conflict formatting.
  *
  * @param {Object} payload
- * @param {string} payload.projectId
+ * @param {string} payload.project The project name
  * @param {string} payload.primaryMember
  * @param {string} payload.backupMember
  * @param {string} payload.startDate
@@ -477,8 +472,8 @@ function promptProjectBackup(e) {
  * @return {Object} Status report
  */
 function assignProjectBackup(payload, targetSpreadsheet) {
-  if (!payload || !payload.projectId || !payload.primaryMember || !payload.backupMember || !payload.startDate) {
-    return { success: false, message: "Missing required fields (projectId, primaryMember, backupMember, startDate)." };
+  if (!payload || !payload.project || !payload.primaryMember || !payload.backupMember || !payload.startDate) {
+    return { success: false, message: "Missing required fields (project, primaryMember, backupMember, startDate)." };
   }
 
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
@@ -503,7 +498,7 @@ function assignProjectBackup(payload, targetSpreadsheet) {
 
   var newRow = [
     backupId,
-    payload.projectId,
+    payload.project,
     payload.primaryMember,
     payload.backupMember,
     startDateStr,
@@ -551,7 +546,7 @@ function assignProjectBackup(payload, targetSpreadsheet) {
   return {
     success: true,
     backupId: backupId,
-    projectId: payload.projectId,
+    project: payload.project,
     primaryMember: payload.primaryMember,
     backupMember: payload.backupMember,
     startDate: startDateStr,

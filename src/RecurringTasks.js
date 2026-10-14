@@ -134,7 +134,7 @@ function readTaskRows(ss) {
     var member = cellName(v[c.assigned_member], r[c.assigned_member]);
     var rec = parseOrigin(v[c.origin]);
     out.push({
-      row: i + 2, id: String(v[c.task_id] || ""), projectId: String(v[c.project_id] || "").trim(), member: member, memberKey: member.toLowerCase(),
+      row: i + 2, id: String(v[c.task_id] || ""), project: String(v[c.project] || "").trim(), member: member, memberKey: member.toLowerCase(),
       title: String(v[c.title] || ""), due: toDate(v[c.due_date]), planned: toDate(v[c.planned_date]),
       status: String(v[c.status] || "").trim(), googleTaskId: String(v[c.google_task_id] || ""),
       type: String(v[c.task_type] || "").trim(), doneOn: v[c.done_on], origin: rec.origin,
@@ -155,7 +155,7 @@ function copyMemberChip(ss, member, targetSheet, row, col) {
 }
 
 /**
- * Adds a task row. t: {projectId, member (rtMembers entry), title, description,
+ * Adds a task row. t: {project, member (rtMembers entry), title, description,
  * due (Date, the deadline), planned (Date), type, origin, status}.
  * @return {{row: number, id: string}}
  */
@@ -164,7 +164,7 @@ function createTaskRow(ss, t) {
   var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(sheet) : sheet.getLastRow() + 1;
   var id = (typeof generateTaskId === "function") ? generateTaskId() : "TSK-" + Date.now();
   var byKey = {
-    task_id: id, project_id: t.projectId || "", assigned_member: t.member ? t.member.name : "",
+    task_id: id, project: t.project || "", assigned_member: t.member ? t.member.name : "",
     title: t.title || t.type || "Task", description: t.description || "",
     due_date: t.due ? isoDate(t.due) : "", planned_date: t.planned ? isoDate(t.planned) : "",
     status: t.status || "Todo", google_task_id: "", task_type: t.type || "", done_on: "", origin: t.origin || "manual"
@@ -216,7 +216,7 @@ function readRecurringRules(ss) {
     var activeCell = v[7];
     out.push({
       row: i + 2, id: String(v[0] || "").trim() || ("R" + (i + 2)), type: String(v[1] || "").trim(),
-      projectId: String(v[2] || "").trim(), mode: /rotat/i.test(String(v[3] || "")) ? "Rotation" : "Each person",
+      project: String(v[2] || "").trim(), mode: /rotat/i.test(String(v[3] || "")) ? "Rotation" : "Each person",
       appliesTo: String(v[4] || ""), start: toDate(v[5]), end: toDate(v[6]),
       active: (activeCell === "" || activeCell === null || activeCell === undefined) ? true : ttTruthy(activeCell)
     });
@@ -230,7 +230,7 @@ function addRecurringRule(ss, rule) {
   var id = "REC-" + Math.random().toString(36).substring(2, 8).toUpperCase();
   var row = (typeof findNextAvailableRow === "function") ? findNextAvailableRow(sheet) : sheet.getLastRow() + 1;
   sheet.getRange(row, 1, 1, 8).setValues([[
-    id, rule.type, rule.projectId || "", rule.mode === "Rotation" ? "Rotation" : "Each person", rule.appliesTo || "",
+    id, rule.type, rule.project || "", rule.mode === "Rotation" ? "Rotation" : "Each person", rule.appliesTo || "",
     rule.start ? isoDate(toDate(rule.start)) : "", rule.end ? isoDate(toDate(rule.end)) : "", true
   ]]);
   return id;
@@ -321,7 +321,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         people.forEach(function(m) {
           if (!rtWorksOn(ctx, m, due)) return;
           if (inPeriod.some(function(t) { return t.memberKey === m.key; })) return;
-          var made = createTaskRow(ss, { projectId: rule.projectId, member: m, title: type.name, due: due, type: type.name,
+          var made = createTaskRow(ss, { project: rule.project, member: m, title: type.name, due: due, type: type.name,
             description: type.instructions, origin: rule.id + "|" + p.key });
           var t = { row: made.row, memberKey: m.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due };
           ruleTasks.push(t);
@@ -331,7 +331,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         if (inPeriod.length) continue;
         var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key);
         if (!pick) { res.unassigned.push(type.name + " " + p.key); continue; }
-        var made2 = createTaskRow(ss, { projectId: rule.projectId, member: pick, title: type.name, due: due, type: type.name,
+        var made2 = createTaskRow(ss, { project: rule.project, member: pick, title: type.name, due: due, type: type.name,
           description: type.instructions, origin: rule.id + "|" + p.key });
         ruleTasks.push({ row: made2.row, memberKey: pick.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due });
         res.created++;

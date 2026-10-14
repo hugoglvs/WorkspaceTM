@@ -464,13 +464,13 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
       var tColMap = (typeof getTaskColumnMap === "function")
         ? getTaskColumnMap(tasksSheet)
         : (function() {
-            var m = { taskId: 1, projectId: 2, assignedMember: 3, title: 4, description: 0, dueDate: 5, status: 6, googleTaskId: 7 };
+            var m = { taskId: 1, project: 2, assignedMember: 3, title: 4, description: 0, dueDate: 5, status: 6, googleTaskId: 7 };
             if (tasksSheet) {
               var hdr = tasksSheet.getRange(1, 1, 1, Math.max(tasksSheet.getLastColumn(), 8)).getValues()[0];
               for (var ci = 0; ci < hdr.length; ci++) {
                 var cName = String(hdr[ci] || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
                 if (cName === "taskid" || cName === "id") m.taskId = ci + 1;
-                else if (cName === "projectid") m.projectId = ci + 1;
+                else if (cName === "projectid" || cName === "project") m.project = ci + 1;
                 else if (cName === "assignedmember" || cName === "assignedto") m.assignedMember = ci + 1;
                 else if (cName === "title") m.title = ci + 1;
                 else if (cName === "description") m.description = ci + 1;
@@ -490,7 +490,7 @@ function auditUserAndMembersIdentity(targetSpreadsheet) {
       for (var t = 0; t < tVals.length; t++) {
         var tRow = t + 2;
         var taskId = String(tVals[t][tColMap.taskId - 1] || "").trim();
-        var projId = String(tVals[t][tColMap.projectId - 1] || "").trim();
+        var projId = String(tVals[t][tColMap.project - 1] || "").trim();
         var rawAssigned = tVals[t][tColMap.assignedMember - 1];
         var richAssigned = (tRich && tRich[t]) ? tRich[t][tColMap.assignedMember - 1] : null;
         var taskTitle = String(tVals[t][tColMap.title - 1] || "").trim();

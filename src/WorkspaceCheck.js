@@ -174,12 +174,10 @@ function runWorkspaceCheck(targetSpreadsheet, asOf) {
     action: typedOver.length ? "formulas" : undefined, items: typedOver
   });
 
-  var projects = readTableRows(getTable(ss, "projects"), 7, 500).filter(function(r) {
-    return String(r.vals[1] || "").trim() && String(r.vals[2] || "").trim().toLowerCase() !== "completed";
-  });
+  var projects = readProjects(ss).filter(function(p) { return p.status.toLowerCase() !== "completed"; });
   sections.push({
     key: "backups", title: "Projects without a backup", ok: "Every open project has a backup.",
-    items: projects.filter(function(r) { return !cellName(r.vals[6], r.rich[6]); }).map(function(r) { return String(r.vals[1]).trim(); })
+    items: projects.filter(function(p) { return !p.backup; }).map(function(p) { return p.name; })
   });
 
   var coverage = [];
@@ -250,12 +248,11 @@ function findLeaverHandovers(ss, today, members) {
   if (!Object.keys(leaving).length) return [];
 
   var items = [];
-  readTableRows(getTable(ss, "projects"), 7, 500).forEach(function(r) {
-    var name = String(r.vals[1] || "").trim();
-    if (!name || String(r.vals[2] || "").trim().toLowerCase() === "completed") return;
-    [["lead", 5], ["backup", 6]].forEach(function(role) {
-      var who = cellName(r.vals[role[1]], r.rich[role[1]]);
-      if (who && leaving[who.toLowerCase()]) items.push(name + ": " + role[0] + " " + who + " " + leaving[who.toLowerCase()]);
+  readProjects(ss).forEach(function(p) {
+    if (p.status.toLowerCase() === "completed") return;
+    [["lead", p.lead], ["backup", p.backup]].forEach(function(role) {
+      var who = role[1];
+      if (who && leaving[who.toLowerCase()]) items.push(p.name + ": " + role[0] + " " + who + " " + leaving[who.toLowerCase()]);
     });
   });
   var tc = {};

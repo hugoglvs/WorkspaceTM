@@ -1,7 +1,7 @@
 # ADR 0051: Task Model, Tasks Columns and Task Triggers
 
 ## Status
-Accepted (2026-10-13). Amends ADR 0045 (Done by dropped, Recurring renamed Origin) and ADR 0049 (onboarding settings moved to Task Types).
+Accepted (2026-10-13); rows of a moved table are copied into the rebuilt one since ADR 0053. Amends ADR 0045 (Done by dropped, Recurring renamed Origin) and ADR 0049 (onboarding settings moved to Task Types).
 
 ## Context
 The Tasks tab had grown to 13 columns, several technical, one redundant ("Done by" duplicated "Assigned to" and was unreliable because edits run under the trigger owner's account). Tasks also come from several sources: typed by hand, recurring rules, and events (only onboarding, written in the code with its texts in Settings). The team wants an easy way to add new automatic tasks later. Completion is visible to everyone in the sheet, so no digest is sent; Google Tasks stays optional per person.

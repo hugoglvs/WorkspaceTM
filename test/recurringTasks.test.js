@@ -50,7 +50,7 @@ function seed() {
     ['Carol', 'carol@accenture.com', '', 'Manager', 'Eng', 'Active', ''],
     ['Dan', 'dan@accenture.com', '', 'Consultant', 'Eng', 'Departed', '']
   ]);
-  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 1, 7).setValues([['ACN', 'ACN team', 'Active', '2026-01-01', '', 'Carol', 'Alice']]);
+  getTable(mockSpreadsheet, 'projects').getRange(2, 1, 1, 6).setValues([['ACN', 'Active', '2026-01-01', '', 'Carol', 'Alice']]);
   MailApp.clearSentEmails();
 }
 function leave(member, from, to, status) {
@@ -98,7 +98,7 @@ test('rotation: one person per week in turn, skipping approved leave; the skippe
   seed();
   leave('Bob', '2026-10-23', '2026-10-23');
   leave('Alice', '2026-10-30', '2026-10-30', 'Requested'); // a request does not skip
-  addRecurringRule(mockSpreadsheet, { type: 'Quiz', projectId: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob; Carol', start: MON });
+  addRecurringRule(mockSpreadsheet, { type: 'Quiz', project: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob; Carol', start: MON });
   var res = generateRecurringTasks(mockSpreadsheet, MON);
   assert.strictEqual(res.created, 8);
   assert.deepStrictEqual(tasksOf('Quiz').slice(0, 4).map(t => [iso(t.due), t.member]),
@@ -108,7 +108,7 @@ test('rotation: one person per week in turn, skipping approved leave; the skippe
 
 test('rotation: a leave approved later moves the turn and emails both people', () => {
   seed();
-  addRecurringRule(mockSpreadsheet, { type: 'Quiz', projectId: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob; Carol', start: MON });
+  addRecurringRule(mockSpreadsheet, { type: 'Quiz', project: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob; Carol', start: MON });
   generateRecurringTasks(mockSpreadsheet, MON);
   leave('Alice', '2026-10-16', '2026-10-16');
   var res = generateRecurringTasks(mockSpreadsheet, MON);
@@ -120,7 +120,7 @@ test('rotation: a leave approved later moves the turn and emails both people', (
 
 test('each person: twice-a-month task for a role, six half months ahead, departed members left out', () => {
   seed();
-  addRecurringRule(mockSpreadsheet, { type: 'Time & expenses', projectId: 'ACN', mode: 'Each person', appliesTo: 'Role: Consultant', start: MON });
+  addRecurringRule(mockSpreadsheet, { type: 'Time & expenses', project: 'ACN', mode: 'Each person', appliesTo: 'Role: Consultant', start: MON });
   generateRecurringTasks(mockSpreadsheet, MON);
   var t = tasksOf('Time & expenses');
   assert.strictEqual(t.length, 12);
@@ -132,17 +132,17 @@ test('each person: twice-a-month task for a role, six half months ahead, departe
 
 test('a template schedule changed from the sidebar applies to everyone and moves the coming tasks', () => {
   seed();
-  var first = assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Alice', repeat: true, start: MON }, mockSpreadsheet, MON);
+  var first = assignTasks({ type: 'Forecast', project: 'ACN', mode: 'Each person', appliesTo: 'Alice', repeat: true, start: MON }, mockSpreadsheet, MON);
   assert.ok(first.success, first.message);
   assert.deepStrictEqual(tasksOf('Forecast').map(t => iso(t.due)), ['2026-10-30', '2026-11-30', '2026-12-31']);
   // Same frequency, other due day: deadlines move
-  var moved = assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Bob', repeat: true, start: MON,
+  var moved = assignTasks({ type: 'Forecast', project: 'ACN', mode: 'Each person', appliesTo: 'Bob', repeat: true, start: MON,
     frequency: 'Monthly', due: '20', remind: '2' }, mockSpreadsheet, MON);
   assert.ok(/changed for everyone/.test(moved.message), moved.message);
   assert.deepStrictEqual(tasksOf('Forecast').filter(t => t.member === 'Alice').map(t => iso(t.due)), ['2026-10-20', '2026-11-20', '2026-12-18']);
   assert.deepStrictEqual(findTaskType(mockSpreadsheet, 'Forecast').remind, [2]);
   // Other frequency: coming tasks are cancelled and the new periods planned
-  assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Carol', repeat: true, start: MON,
+  assignTasks({ type: 'Forecast', project: 'ACN', mode: 'Each person', appliesTo: 'Carol', repeat: true, start: MON,
     frequency: 'Twice a month', due: '15; Last day' }, mockSpreadsheet, MON);
   var alice = tasksOf('Forecast').filter(t => t.member === 'Alice');
   assert.strictEqual(alice.length, 6);
@@ -198,7 +198,7 @@ test('calendar: a closed month asks first; "No" keeps the old value', () => {
 
 test('tasks grid: setting Done stamps Done on, reopening clears it', () => {
   seed();
-  var made = createTaskRow(mockSpreadsheet, { projectId: 'ACN', member: rtMembers(mockSpreadsheet)[0], title: 'Forecast', due: toDate('2026-10-20'), type: 'Forecast' });
+  var made = createTaskRow(mockSpreadsheet, { project: 'ACN', member: rtMembers(mockSpreadsheet)[0], title: 'Forecast', due: toDate('2026-10-20'), type: 'Forecast' });
   var tasks = getTable(mockSpreadsheet, 'tasks');
   var cell = tasks.getRange(made.row, taskCol('status'));
   cell.setValue('Done');
@@ -245,11 +245,11 @@ test('assign sidebar: once for a role, recurring rotation, stop cancels the futu
   seed();
   var data = getAssignSidebarData(mockSpreadsheet);
   assert.deepStrictEqual(data.roles, ['Consultant', 'Manager']);
-  var once = assignTasks({ type: 'Peer review', projectId: 'ACN', mode: 'Each person', appliesTo: 'Role: Consultant', repeat: false, date: MON }, mockSpreadsheet, MON);
+  var once = assignTasks({ type: 'Peer review', project: 'ACN', mode: 'Each person', appliesTo: 'Role: Consultant', repeat: false, date: MON }, mockSpreadsheet, MON);
   assert.ok(once.success, once.message);
   assert.deepStrictEqual(tasksOf('Peer review').map(t => t.member).sort(), ['Alice', 'Bob']);
 
-  var rot = assignTasks({ type: 'Team presentation', projectId: 'ACN', mode: 'Rotation', appliesTo: '', start: MON }, mockSpreadsheet, MON);
+  var rot = assignTasks({ type: 'Team presentation', project: 'ACN', mode: 'Rotation', appliesTo: '', start: MON }, mockSpreadsheet, MON);
   assert.ok(rot.success, rot.message);
   assert.strictEqual(tasksOf('Team presentation').length, 8);
   var rule = readRecurringRules(mockSpreadsheet)[0];
@@ -319,4 +319,21 @@ test('Connect my Google Tasks: installs one hourly job per person and records th
   assert.strictEqual(jobs.length, 1);
   assert.strictEqual(jobs[0].everyHoursValue, 1);
   assert.deepStrictEqual(connectedTaskUsers(), ['carol@accenture.com']);
+});
+
+test('projects: the Project columns are a dropdown of names, and a renamed project follows everywhere (ADR 0053)', () => {
+  seed();
+  assert.deepStrictEqual(schemaValidationsFor(mockSpreadsheet, SCHEMA_SPEC.tasks).project, ['ACN']);
+  assert.deepStrictEqual(schemaValidationsFor(mockSpreadsheet, SCHEMA_SPEC.recurringTasks).project, ['ACN']);
+  assignTasks({ type: 'Quiz', project: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob', start: MON }, mockSpreadsheet, MON);
+  checkProjectBackupConflicts(mockSpreadsheet, { asOfDateParam: MON, sendNotifications: false, createTasks: false });
+  var projects = getTable(mockSpreadsheet, 'projects');
+  projects.getRange(2, 1).setValue('ACN Paris');
+  var out = handleProjectNameEdit({ range: projects.getRange(2, 1), oldValue: 'ACN', source: mockSpreadsheet },
+    { ss: mockSpreadsheet, sheet: projects, tableKey: 'projects', row: 2, col: 1, colName: 'name' });
+  assert.strictEqual(out, 'renamed');
+  assert.ok(tasksOf('Quiz').length && tasksOf('Quiz').every(t => t.project === 'ACN Paris'));
+  assert.strictEqual(readRecurringRules(mockSpreadsheet)[0].project, 'ACN Paris');
+  assert.strictEqual(getTable(mockSpreadsheet, 'backups').getRange(2, 2).getValue(), 'ACN Paris', 'permanent backup row');
+  assert.deepStrictEqual(projectNames(mockSpreadsheet), ['ACN Paris']);
 });

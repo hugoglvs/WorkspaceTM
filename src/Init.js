@@ -194,7 +194,7 @@ function freshInit(targetSpreadsheet) {
     try { seedDefaultLocations(ss); } catch (eSeed) { Logger.log("Locations seed note: " + eSeed); }
   }
 
-  // Default task types in a new Task Types tab (ADR 0045)
+  // Default task types in a new Task Templates tab (ADR 0045)
   if (typeof seedDefaultTaskTypes === "function") {
     try { seedDefaultTaskTypes(ss); } catch (eTT) { Logger.log("Task types seed note: " + eTT); }
   }

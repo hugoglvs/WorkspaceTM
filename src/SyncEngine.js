@@ -290,7 +290,7 @@ function syncMembersAndTenures(targetSpreadsheet, options) {
   }
 
   // -------------------------------------------------------------
-  // 5. Tasks created by the "New member" trigger (Task Types tab, ADR 0051)
+  // 5. Tasks created by the "New member" trigger (Task Templates tab, ADR 0051)
   // -------------------------------------------------------------
   var tasksCreated = 0;
   try {

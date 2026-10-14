@@ -13,7 +13,7 @@
     .form-group { margin-bottom: 12px; }
     .row { display: flex; gap: 8px; }
     .row .form-group { flex: 1; min-width: 0; }
-    select, input[type=date] { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
+    select, input[type=date], input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #fff; color: #202124; outline: none; }
     select:focus, input:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
     .seg { display: flex; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
     .seg button { flex: 1; background: #fff; border: none; border-right: 1px solid #dadce0; padding: 8px 4px; font-size: 12px; color: #3c4043; cursor: pointer; }
@@ -35,17 +35,21 @@
     .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
     .hidden { display: none !important; }
     .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .template { background: #f8f9fa; border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #3c4043; margin: -4px 0 12px; white-space: pre-wrap; }
+    .schedule { border: 1px solid #dadce0; border-radius: 8px; padding: 10px 10px 0; margin-bottom: 12px; }
   </style>
 </head>
 <body>
   <h2>Assign Tasks</h2>
-  <p class="sub">Give a task to several people at once, or make it recurring.</p>
+  <p class="sub">Pick a task template, adjust who and when, then assign it once or make it recurring.</p>
   <div id="status" class="status-msg info">Loading…</div>
 
   <div class="row">
-    <div class="form-group"><label for="type">Type</label><select id="type" onchange="refresh()"></select></div>
+    <div class="form-group"><label for="type">Task</label><select id="type" onchange="applyTemplate()"></select></div>
     <div class="form-group"><label for="project">Project</label><select id="project"></select></div>
   </div>
+
+  <div id="template" class="template hidden"></div>
 
   <label>Who</label>
   <div class="seg" id="modeSeg">
@@ -62,12 +66,22 @@
   <label>When</label>
   <div class="seg" id="whenSeg">
     <button data-when="once" class="on" onclick="setWhen('once')">Once</button>
-    <button data-when="repeat" onclick="setWhen('repeat')">Every period</button>
+    <button data-when="repeat" onclick="setWhen('repeat')">Recurring</button>
   </div>
   <div id="oncePanel" class="form-group"><label for="date" id="dateLabel">Week of</label><input id="date" type="date"></div>
-  <div id="repeatPanel" class="row hidden">
-    <div class="form-group"><label for="start">From</label><input id="start" type="date"></div>
-    <div class="form-group"><label for="end">Until <span class="optional">(optional)</span></label><input id="end" type="date"></div>
+  <div id="repeatPanel" class="hidden">
+    <div class="schedule">
+      <div class="row">
+        <div class="form-group"><label for="freq">Repeats</label><select id="freq" onchange="refresh()"></select></div>
+        <div class="form-group"><label for="due">Due</label><input id="due" type="text" oninput="refresh()"></div>
+      </div>
+      <div class="form-group"><label for="remind">Remind <span class="optional">(working days before)</span></label><input id="remind" type="text" placeholder="3" oninput="refresh()"></div>
+      <p id="schedHint" class="hint"></p>
+    </div>
+    <div class="row">
+      <div class="form-group"><label for="start">From</label><input id="start" type="date"></div>
+      <div class="form-group"><label for="end">Until <span class="optional">(optional)</span></label><input id="end" type="date"></div>
+    </div>
   </div>
   <button id="saveBtn" class="btn-primary" onclick="save()">Assign</button>
 
@@ -75,7 +89,8 @@
   <div id="rules"></div>
 
   <script>
-    var data = { types: [], projects: [], roles: [], members: [], rules: [] };
+    var data = { types: [], projects: [], roles: [], members: [], rules: [], frequencies: [] };
+    var DUE_HINT = { 'Weekly': 'a weekday, e.g. Friday', 'Twice a month': 'one per half month, e.g. 15; Last day', 'Monthly': 'a day number, Last working day or First working day' };
     var mode = 'Each person';
     var when = 'once';
     function $(id) { return document.getElementById(id); }
@@ -95,9 +110,11 @@
         data.projects.forEach(function(p) { var o = el('option', '', p.name); o.value = p.id; $('project').appendChild(o); });
         fillChecks('roles', data.roles.map(function(r) { return { value: 'Role: ' + r, label: r }; }));
         fillChecks('members', data.members.map(function(m) { return { value: m.name, label: m.name, meta: m.role }; }));
+        $('freq').innerHTML = '';
+        data.frequencies.forEach(function(f) { var o = el('option', '', f); o.value = f; $('freq').appendChild(o); });
         $('date').value = data.today; $('start').value = data.today;
         renderRules();
-        refresh();
+        applyTemplate();
         msg ? show(msg, 'success') : show('', '') ;
         if (!msg) $('status').className = 'status-msg';
       }).withFailureHandler(function(err) { show(err.message || String(err), 'error'); }).getAssignSidebarData();
@@ -112,6 +129,24 @@
         box.appendChild(l);
       });
     }
+    /** The template fills who, the schedule and shows its instructions. */
+    function applyTemplate() {
+      var t = currentType();
+      if (!t) { refresh(); return; }
+      var tokens = String(t.assignTo || '').split(/[,;\n]/).map(function(x) { return x.trim().toLowerCase(); }).filter(Boolean);
+      Array.prototype.forEach.call($('roles').querySelectorAll('input'), function(c) {
+        c.checked = tokens.some(function(tok) { return tok.replace(/\s*:\s*/, ': ') === c.value.toLowerCase(); });
+      });
+      Array.prototype.forEach.call($('members').querySelectorAll('input'), function(c) { c.checked = tokens.indexOf(c.value.toLowerCase()) !== -1; });
+      var oneOff = t.frequency === 'One-off';
+      $('freq').value = oneOff ? 'Weekly' : t.frequency;
+      $('due').value = t.due || '';
+      $('remind').value = t.remind || '';
+      $('template').textContent = (t.mandatory ? 'Mandatory · ' : '') + t.schedule + (t.instructions ? '\n' + t.instructions : '');
+      $('template').classList.remove('hidden');
+      if (mode !== 'Rotation') setWhen(oneOff ? 'once' : 'repeat'); else refresh();
+    }
+
     function checked(id) { return Array.prototype.filter.call($(id).querySelectorAll('input'), function(c) { return c.checked; }).map(function(c) { return c.value; }); }
 
     function setMode(m) {
@@ -128,13 +163,20 @@
       $('repeatPanel').classList.toggle('hidden', w !== 'repeat');
       refresh();
     }
+    function periodWord(f) { return f === 'Monthly' ? 'month' : (f === 'Twice a month' ? 'half month' : 'week'); }
     function refresh() {
       var t = currentType();
-      var monthly = t && t.frequency === 'Monthly';
-      $('dateLabel').textContent = monthly ? 'Month of' : 'Week of';
+      var f = when === 'repeat' ? $('freq').value : (t && t.frequency !== 'One-off' ? t.frequency : 'Weekly');
+      $('dateLabel').textContent = f === 'Monthly' ? 'Month of' : (f === 'Twice a month' ? 'Half month of' : 'Week of');
       $('modeHint').textContent = mode === 'Rotation'
-        ? 'One person per ' + (monthly ? 'month' : 'week') + ', in turn. People on approved leave are skipped and go first next time.'
-        : 'Everyone selected gets their own task' + (when === 'repeat' ? ' every ' + (monthly ? 'month' : 'week') : '') + '. Nobody selected = every member.';
+        ? 'One person per ' + periodWord(f) + ', in turn. People on approved leave are skipped and go first next time.'
+        : 'Everyone selected gets their own task' + (when === 'repeat' ? ' every ' + periodWord(f) : '') + '. Nobody selected = every member.';
+      $('due').placeholder = DUE_HINT[f] || '';
+      var changed = t && when === 'repeat' && ($('freq').value !== (t.frequency === 'One-off' ? 'Weekly' : t.frequency) ||
+        $('due').value.trim() !== (t.due || '') || $('remind').value.trim() !== (t.remind || ''));
+      $('schedHint').textContent = changed
+        ? 'This changes the ' + t.name + ' schedule for everyone, and moves its coming tasks.'
+        : 'From the ' + (t ? t.name : '') + ' template.';
       $('saveBtn').textContent = when === 'repeat' ? 'Save recurring task' : 'Assign';
     }
 
@@ -142,6 +184,7 @@
       var applies = checked('roles').concat(checked('members')).join('; ');
       var payload = { type: $('type').value, projectId: $('project').value, mode: mode, appliesTo: applies,
         repeat: when === 'repeat', date: $('date').value, start: $('start').value, end: $('end').value };
+      if (when === 'repeat') { payload.frequency = $('freq').value; payload.due = $('due').value.trim(); payload.remind = $('remind').value.trim(); }
       $('saveBtn').disabled = true; show('Saving…', 'info');
       google.script.run.withSuccessHandler(function(res) {
         $('saveBtn').disabled = false;
@@ -157,7 +200,7 @@
         var card = el('div', 'card' + (r.active ? '' : ' off'));
         var txt = el('div'); txt.style.flex = '1';
         txt.appendChild(el('div', '', r.type + (r.project ? ' · ' + r.project : '')));
-        txt.appendChild(el('div', 'meta', r.mode + ' · ' + r.appliesTo + ' · from ' + (r.start || '?') + (r.end ? ' to ' + r.end : '') + (r.active ? '' : ' · stopped')));
+        txt.appendChild(el('div', 'meta', (r.schedule ? r.schedule + ' · ' : '') + r.mode + ' · ' + r.appliesTo + ' · from ' + (r.start || '?') + (r.end ? ' to ' + r.end : '') + (r.active ? '' : ' · stopped')));
         card.appendChild(txt);
         if (r.active) {
           var b = el('button', 'btn-link', 'Stop');

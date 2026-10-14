@@ -40,7 +40,7 @@ function addPerson(name, role, start) {
 }
 
 function taskTypesRow(name) {
-  var sheet = ss.getSheetByName('Task Types');
+  var sheet = ss.getSheetByName('Task Templates');
   for (var r = 2; r < 30; r++) if (sheet.getRange(r, 1).getValue() === name) return r;
   return 0;
 }
@@ -70,7 +70,7 @@ test('New member: one onboarding task per new person, due 7 days after the contr
 });
 
 test('Assign to: roles and names besides the person concerned; Days after can be negative', () => {
-  var sheet = ss.getSheetByName('Task Types');
+  var sheet = ss.getSheetByName('Task Templates');
   var r = findNextAvailableRow(sheet);
   sheet.getRange(r, 1, 1, 9).setValues([['Prepare workstation', 'One-off', '', false, true, 'New member', -5, 'Role: Manager', 'Laptop and badge']]);
   addPerson('Boss', 'Manager', '2020-01-01');
@@ -86,13 +86,13 @@ test('Assign to: roles and names besides the person concerned; Days after can be
 });
 
 test('A type whose "Created when" is cleared, or inactive, creates nothing', () => {
-  ss.getSheetByName('Task Types').getRange(taskTypesRow('Onboarding'), 6).setValue('');
+  ss.getSheetByName('Task Templates').getRange(taskTypesRow('Onboarding'), 6).setValue('');
   addPerson('Ines', 'Consultant', '2026-11-02');
   assert.strictEqual(triggers.fireNewMemberTriggers(ss, '2026-10-13'), 0);
 });
 
 test('Upgrade fills the trigger columns of an existing Onboarding row once', () => {
-  var sheet = ss.getSheetByName('Task Types');
+  var sheet = ss.getSheetByName('Task Templates');
   var r = taskTypesRow('Onboarding');
   sheet.getRange(r, 6, 1, 4).setValues([['', '', '', '']]);
   PropertiesService.getDocumentProperties().deleteProperty('TASK_TRIGGERS_SEEDED');

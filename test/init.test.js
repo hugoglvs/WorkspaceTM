@@ -46,7 +46,7 @@ test('freshInit should create all operational tables and set SCHEMA_VERSION = 1'
     'Events',
     'Backups',
     'Holidays',
-    'Task Types',
+    'Task Templates',
     'Recurring Tasks',
     'Settings'
   ];

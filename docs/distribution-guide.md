@@ -71,14 +71,14 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 3. Approve Google's authorization prompt (Sheets, Drive, Calendar, Tasks, Gmail sending, triggers). It appears again whenever a release adds a scope (e.g. the Calendar API for birthdays).
 4. The run takes about 2 minutes and:
    - creates the tables with readable names, validations, typography and protections;
-   - fills **Locations** with OneRoof (Office), Remote, JLL, C04, C60 (Client site), **Task Types** with the default types and **Holidays** with the French public holidays of this year and next;
+   - fills **Locations** with OneRoof (Office), Remote, JLL, C04, C60 (Client site), **Task Templates** with the default templates and **Holidays** with the French public holidays of this year and next;
    - shows the working tabs and hides the data tabs;
    - installs the four triggers (§6);
    - runs a first full nightly sync.
 
 | Visible tabs (daily use) | Hidden tabs (data; menu items open some of them) |
 | :--- | :--- |
-| Members, Weekly Presence, Projects, Tasks, Calendar, Events | Locations, Holidays, Task Types, Recurring Tasks, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
+| Members, Weekly Presence, Projects, Tasks, Calendar, Events | Locations, Holidays, Task Templates, Recurring Tasks, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
 
 ---
 
@@ -90,13 +90,13 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Declare Presence & Leaves** | Sidebar: weekly routine (AM/PM per weekday) and leave requests. |
 | **Declare Contract** | Sidebar: pick a member (add people in Members first), see their contracts, add a new one (the current one ends the day before) or edit an old one. Opens by itself when a new name is typed in Members. Contact details and birthday are typed in Members. |
 | **Interim Backups** | Sidebar: cover a project for given dates. Shows coverage gaps (click one to fill the dates) and lets you cancel a planned backup. |
-| **Assign Tasks** | Sidebar: give a task type to several people (by role and/or name), once or every week/month (each person, or a rotation that skips people on leave). Lists and stops recurring tasks. |
-| **Calendar** | Opens the Calendar tab: pick a Type and a Project, then members × weeks (or months). *To do* assigns, *Done* marks done, clearing cancels. Refuses someone on approved leave. |
+| **Assign Tasks** | Sidebar: pick a task template (who, schedule and instructions are pre-filled), then give it to several people (by role and/or name), once or recurring (each person, or a rotation that skips people on leave). A schedule changed here is saved on the template, for everyone. Lists and stops recurring tasks. |
+| **Calendar** | Opens the Calendar tab: pick a Type and a Project, then members × weeks (half months, months), with the number done per period in row 3. Each task is a checkbox: tick = done; insert a checkbox (Insert → Checkbox) in an empty cell to assign; delete it to cancel. Refuses someone on approved leave. |
 | **Connect my Google Tasks** | Each member clicks it once: their own tasks then sync every hour with their Google Tasks (both ways for status). Google Tasks shows the task's **Planned date** (else its **Deadline**); the deadline is written in the task notes, since the Google Tasks API has no deadline field. |
 | **Check Workspace** | Lists what needs attention: members without a contract, projects without a backup, people leaving, coverage gaps, not logged today, undeclared days this week, overdue tasks, tasks falling on a leave, members not connected to Google Tasks, duplicate presence rows. |
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
-| **Edit Task Types** | Shows the hidden Task Types tab: Type, Frequency, Due rule, Mandatory, Active, and for tasks created by an event: Created when (e.g. *New member*), Days after, Assign to (*Person concerned*, *Role: X* or names), Instructions. Onboarding is such a type. |
+| **Edit Task Templates** | Shows the hidden Task Templates tab: Type, Frequency (Weekly, Twice a month, Monthly, One-off), Due rule, Mandatory (in the manager digest), Active, Assign to (*Person concerned*, *Role: X* or names), Instructions, Remind (working days before, e.g. "3; 1"), and for tasks created by an event: Created when (e.g. *New member*), Days after. Onboarding is such a template. The Assign Tasks sidebar starts from these templates. |
 | **Edit Settings** | Shows the hidden Settings tab: default role and department, public holidays (France or None). An empty value means the default. |
 
 ---

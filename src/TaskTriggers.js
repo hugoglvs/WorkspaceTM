@@ -1,12 +1,12 @@
 /**
  * Task triggers (ADR 0051): events the app already notices, which create tasks
- * according to the Task Types tab ("Created when", "Days after", "Assign to",
+ * according to the Task Templates tab ("Created when", "Days after", "Assign to",
  * "Instructions").
  *
  * Adding an event = one entry in TASK_TRIGGERS (a label shown in the Task Types
  * dropdown) and one call to fireTaskTrigger(ss, key, context) where the app
  * notices the event. Everything else (which tasks, for whom, when) is set in
- * the Task Types tab.
+ * the Task Templates tab.
  *
  * Each task is created once per event: its Origin is
  * "trigger:<event>:<subject>:<type>", checked before creating.

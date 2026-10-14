@@ -172,15 +172,22 @@ Where a task row comes from, in the hidden Tasks column *Origin*: a recurring ru
 _Avoid_: Recurring (former column name), Source
 
 **Task Trigger**:
-An event the app notices (first: *New member*) that creates the tasks configured for it in Task Types (*Created when*, *Days after*, *Assign to*, *Instructions*), once per occurrence (ADR 0051).
+An event the app notices (first: *New member*) that creates the tasks configured for it in Task Templates (*Created when*, *Days after*, *Assign to*, *Instructions*), once per occurrence (ADR 0051).
 _Avoid_: Automation, Hook
 
 **Planned Date**:
 The day someone plans to do a task (Tasks column *Planned date*), sent to Google Tasks as the task's date; the Deadline when empty (ADR 0050).
 _Avoid_: Scheduled date, Due date
 
-**Task Type**:
-A kind of task (Quiz, Onboarding, Time & expenses…) with a frequency (weekly, monthly, one-off), a due rule and a Mandatory flag for audited tasks. Listed in the hidden Task Types tab (ADR 0045).
+**Task Template** (formerly Task Type):
+A preconfigured kind of task (Quiz, Onboarding, Time & expenses…): its schedule (frequency: weekly, twice a month, monthly or one-off, and a due rule), a Mandatory flag for the tasks the manager checks, who gets it by default, its instructions, its reminder days and the event that creates it, if any. Listed in the hidden Task Templates tab; the Assign Tasks sidebar starts from it (ADR 0045, 0052).
+_Avoid_: Task Type (former name)
+
+**Manager Digest**:
+The email sent, the working day after a mandatory task is due, to every member with the Manager role (Settings), listing who has not done it (ADR 0052).
+
+**Remind days**:
+The working days before a task's due date when its person is emailed, set per Task Template ("3; 1"; blank = 3) (ADR 0052).
 _Avoid_: Category, Task kind
 
 **Recurring Task**:

@@ -10,14 +10,15 @@
  *   oldest, skipping anyone on approved leave on the due date (a skipped person
  *   therefore goes first next time).
  * "Applies to" lists members and roles ("Role: Consultant; Alice"); blank means
- * every member. Weekly rules are planned 8 weeks ahead, monthly ones 3 months.
+ * every member. Rules are planned 8 weeks, 6 half months or 3 months ahead.
+ * When a template's schedule changes (ADR 0052), the coming generated tasks
+ * follow: a new frequency cancels them and plans the new periods, a new due
+ * day moves their deadline.
  *
  * Generated rows carry "<rule id>|<period>" in Tasks.Origin; a row changed by
  * hand in the Calendar gets "|manual" and is never moved automatically.
  */
 
-var RECURRING_WEEKS_AHEAD = 8;
-var RECURRING_MONTHS_AHEAD = 3;
 var OPEN_TASK_STATUSES = ["todo", "in progress", "blocked", ""];
 
 function taskCol(name) {
@@ -271,12 +272,12 @@ function notifyReassignment(ss, from, to, typeName, due) {
  * Creates the coming tasks of every active rule and moves rotation turns
  * that fall on someone's approved leave. Runs nightly and after rule changes.
  *
- * @return {{created: number, reassigned: number, unassigned: string[]}}
+ * @return {{created: number, reassigned: number, rescheduled: number, unassigned: string[]}}
  */
 function generateRecurringTasks(targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var today = rtToday(asOf);
-  var res = { created: 0, reassigned: 0, unassigned: [] };
+  var res = { created: 0, reassigned: 0, rescheduled: 0, unassigned: [] };
   var rules = readRecurringRules(ss).filter(function(r) { return r.active; });
   if (!rules.length) return res;
   var ctx = rtContext(ss);
@@ -285,10 +286,28 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
   rules.forEach(function(rule) {
     var type = findTaskType(ss, rule.type, ctx.types);
     if (!type || !type.active) return;
-    var freq = type.frequency === "Monthly" ? "Monthly" : "Weekly";
-    var ahead = freq === "Monthly" ? RECURRING_MONTHS_AHEAD : RECURRING_WEEKS_AHEAD;
+    var freq = periodFrequency(type.frequency);
+    var ahead = periodsAhead(freq);
     var ruleTasks = tasks.filter(function(t) { return t.ruleId === rule.id; });
     var people = resolveAppliesTo(rule.appliesTo, ctx.members);
+
+    // The template's schedule changed: coming generated tasks follow (ADR 0052)
+    ruleTasks = ruleTasks.filter(function(t) {
+      if (!t.due || t.due < today || t.manual || !isOpenStatus(t.status) || !t.periodKey) return true;
+      if (periodKeyFrequency(t.periodKey) !== freq) {
+        setTaskStatus(ss, t.row, "Cancelled", today);
+        res.rescheduled++;
+        return false;
+      }
+      var p0 = periodFromKey(t.periodKey);
+      var want = p0 ? dueDateFor(type, p0, ctx.holidays) : null;
+      if (want && isoDate(want) !== isoDate(t.due) && want >= today) {
+        getTable(ss, "tasks").getRange(t.row, taskCol("due_date")).setValue(isoDate(want));
+        t.due = want;
+        res.rescheduled++;
+      }
+      return true;
+    });
 
     for (var i = 0; i < ahead; i++) {
       var p = periodShift(freq, today, i);
@@ -303,8 +322,8 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
           if (!rtWorksOn(ctx, m, due)) return;
           if (inPeriod.some(function(t) { return t.memberKey === m.key; })) return;
           var made = createTaskRow(ss, { projectId: rule.projectId, member: m, title: type.name, due: due, type: type.name,
-            origin: rule.id + "|" + p.key });
-          var t = { row: made.row, memberKey: m.key, periodKey: p.key, ruleId: rule.id, status: "Todo" };
+            description: type.instructions, origin: rule.id + "|" + p.key });
+          var t = { row: made.row, memberKey: m.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due };
           ruleTasks.push(t);
           res.created++;
         });
@@ -313,8 +332,8 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key);
         if (!pick) { res.unassigned.push(type.name + " " + p.key); continue; }
         var made2 = createTaskRow(ss, { projectId: rule.projectId, member: pick, title: type.name, due: due, type: type.name,
-          origin: rule.id + "|" + p.key });
-        ruleTasks.push({ row: made2.row, memberKey: pick.key, periodKey: p.key, ruleId: rule.id, status: "Todo" });
+          description: type.instructions, origin: rule.id + "|" + p.key });
+        ruleTasks.push({ row: made2.row, memberKey: pick.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due });
         res.created++;
       }
     }
@@ -359,28 +378,39 @@ function previousWorkingDay(d, holidays) {
 }
 
 /**
- * Emails people whose typed tasks are due in 3 working days, or were due on
- * the previous working day and are still open. Once a day, on working days.
+ * Emails people whose typed tasks are due in one of their template's Remind
+ * days (working days before; 0 = that day; blank = 3), or were due on the
+ * previous working day and are still open. Then the manager digest. Once a
+ * day, on working days (ADR 0045, 0052).
  *
- * @return {{sent: string[], skipped: (string|undefined)}}
+ * @return {{sent: string[], digest: string[], skipped: (string|undefined)}}
  */
 function sendTaskReminders(targetSpreadsheet, asOf) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var today = rtToday(asOf);
-  var res = { sent: [] };
+  var res = { sent: [], digest: [] };
   var holidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
   if (!ttIsWorking(today, holidays)) { res.skipped = "non_working_day"; return res; }
   var props = (typeof PropertiesService !== "undefined") ? PropertiesService.getDocumentProperties() : null;
   if (props && props.getProperty("TASK_REMINDERS_SENT_ON") === isoDate(today)) { res.skipped = "already_sent_today"; return res; }
 
-  var soon = isoDate(workingDaysAfter(today, 3, holidays));
+  var types = {};
+  readTaskTypes(ss).forEach(function(t) { types[t.name.toLowerCase()] = t; });
+  var inDays = {};
   var lastDue = isoDate(previousWorkingDay(today, holidays));
   var members = rtMembers(ss);
   var byMember = {};
-  readTaskRows(ss).forEach(function(t) {
+  var tasks = readTaskRows(ss);
+  tasks.forEach(function(t) {
     if (!t.type || !t.due || !isOpenStatus(t.status) || !t.memberKey) return;
     var d = isoDate(t.due);
-    var kind = d === soon ? "soon" : (d === lastDue ? "late" : null);
+    var type = types[t.type.toLowerCase()];
+    var kind = null;
+    if (d === lastDue) kind = "late";
+    else (type ? type.remind : [3]).forEach(function(n) {
+      if (!inDays.hasOwnProperty(n)) inDays[n] = isoDate(n === 0 ? today : workingDaysAfter(today, n, holidays));
+      if (inDays[n] === d) kind = n === 0 ? "today" : "soon";
+    });
     if (!kind) return;
     (byMember[t.memberKey] = byMember[t.memberKey] || []).push({ title: t.title || t.type, due: d, kind: kind });
   });
@@ -389,18 +419,49 @@ function sendTaskReminders(targetSpreadsheet, asOf) {
     if (!m || !m.email || m.status === "departed") return;
     var items = byMember[key];
     var lines = items.map(function(it) {
-      return (it.kind === "late" ? "Overdue (was due " : "Due ") + it.due + (it.kind === "late" ? "): " : ": ") + it.title;
+      if (it.kind === "late") return "Overdue (was due " + it.due + "): " + it.title;
+      if (it.kind === "today") return "Due today (" + it.due + "): " + it.title;
+      return "Due " + it.due + ": " + it.title;
     });
+    var has = function(k) { return items.some(function(it) { return it.kind === k; }); };
     MailApp.sendEmail({
       to: m.email,
-      subject: items.some(function(it) { return it.kind === "late"; }) ? "Overdue task reminder" : "Tasks due in 3 working days",
+      subject: has("late") ? "Overdue task reminder" : (has("today") ? "Tasks due today" : "Tasks due soon"),
       body: "Hi " + m.name.split(/[\s@.]/)[0] + ",\n\n" + lines.join("\n") +
         "\n\nTick them done in Google Tasks or in the sheet (Calendar or Tasks tab):\n" + ss.getUrl() + "\n"
     });
     res.sent.push(m.name);
   });
+  res.digest = sendManagerDigest(ss, tasks, types, members, lastDue);
   if (props) props.setProperty("TASK_REMINDERS_SENT_ON", isoDate(today));
   return res;
+}
+
+/**
+ * Manager digest (ADR 0052): the working day after a mandatory task's due
+ * date, everyone with the Manager role (Settings) gets who has not done it.
+ *
+ * @return {string[]} managers emailed
+ */
+function sendManagerDigest(ss, tasks, types, members, lastDue) {
+  var role = String((typeof getSetting === "function") ? getSetting(ss, "manager_role") : "Manager").trim().toLowerCase();
+  if (!role) return [];
+  var missing = {};
+  tasks.forEach(function(t) {
+    var type = t.type ? types[t.type.toLowerCase()] : null;
+    if (!type || !type.mandatory || !t.due || isoDate(t.due) !== lastDue || !isOpenStatus(t.status)) return;
+    var k = type.name + " (due " + lastDue + ")";
+    (missing[k] = missing[k] || []).push(t.member || "unassigned");
+  });
+  var keys = Object.keys(missing);
+  if (!keys.length) return [];
+  var managers = members.filter(function(m) { return m.role.toLowerCase() === role && m.status !== "departed" && m.email; });
+  var body = "Not done yet:\n\n" + keys.map(function(k) { return k + ": " + missing[k].sort().join(", "); }).join("\n") +
+    "\n\nSee the Calendar tab:\n" + ss.getUrl() + "\n";
+  managers.forEach(function(m) {
+    MailApp.sendEmail({ to: m.email, subject: "Tasks not done: " + keys.map(function(k) { return k.split(" (")[0]; }).join(", "), body: body });
+  });
+  return managers.map(function(m) { return m.name; });
 }
 
 /** Open typed tasks past their due date, for Check Workspace. */
@@ -438,6 +499,7 @@ if (typeof module !== 'undefined' && module.exports) {
     addRecurringRule: addRecurringRule,
     pickRotationMember: pickRotationMember,
     generateRecurringTasks: generateRecurringTasks,
+    sendManagerDigest: sendManagerDigest,
     sendTaskReminders: sendTaskReminders,
     findOverdueTasks: findOverdueTasks,
     findTasksOnLeave: findTasksOnLeave

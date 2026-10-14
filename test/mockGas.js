@@ -261,6 +261,10 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
       this.dataValidation = rule;
       return this;
     },
+    setDataValidations: function(rules) {
+      this.dataValidations = rules;
+      return this;
+    },
     clearDataValidations: function() {
       this.dataValidation = null;
       this.validationCleared = true;
@@ -631,6 +635,10 @@ function setupGasGlobals(mockSpreadsheet) {
         requireValueInList: function(values, showDropdown) {
           this.allowedValues = values;
           this.showDropdown = showDropdown;
+          return this;
+        },
+        requireCheckbox: function() {
+          this.checkbox = true;
           return this;
         },
         setAllowInvalid: function(allow) {

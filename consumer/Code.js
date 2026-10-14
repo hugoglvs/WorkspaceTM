@@ -35,7 +35,7 @@ function onOpen(e) {
     .addItem("Check Workspace", "showWorkspaceCheck")
     .addItem("Edit Locations", "showLocationsTab")
     .addItem("Edit Holidays", "showHolidaysTab")
-    .addItem("Edit Task Types", "showTaskTypesTab")
+    .addItem("Edit Task Templates", "showTaskTypesTab")
     .addItem("Edit Settings", "showSettingsTab")
     .addToUi();
 

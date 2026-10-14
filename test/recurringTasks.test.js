@@ -73,6 +73,27 @@ test('task types: defaults, periods and due dates (weekends and holidays move ea
   assert.strictEqual(iso(dueDateFor({ frequency: 'Monthly', due: '1' }, periodOf('Monthly', '2026-11-01'), hol)), '2026-11-02', 'Sunday 1 Nov (also a holiday) → Monday 2');
 });
 
+test('twice a month: half-month periods, the 15th and the last day, weekends move earlier', () => {
+  seed();
+  var hol = readHolidays(mockSpreadsheet);
+  var te = { frequency: 'Twice a month', due: '15; Last day' };
+  assert.strictEqual(periodOf('Twice a month', MON).key, '2026-10-H1');
+  assert.strictEqual(periodOf('Twice a month', '2026-10-16').label, '16–31 Oct 2026');
+  assert.strictEqual(periodShift('Twice a month', MON, 4).key, '2026-12-H1');
+  assert.strictEqual(periodShift('Twice a month', MON, -1).key, '2026-09-H2');
+  assert.strictEqual(periodFromKey('2026-10-H2').start.getDate(), 16);
+  assert.strictEqual(iso(dueDateFor(te, periodOf(te.frequency, MON), hol)), '2026-10-15');
+  assert.strictEqual(iso(dueDateFor(te, periodOf(te.frequency, '2026-10-20'), hol)), '2026-10-30', 'Sat 31 → Fri 30');
+  assert.strictEqual(iso(dueDateFor(te, periodOf(te.frequency, '2026-11-02'), hol)), '2026-11-13', 'Sun 15 → Fri 13');
+  assert.strictEqual(iso(dueDateFor({ frequency: 'Twice a month', due: '' }, periodOf('Twice a month', '2026-11-20'), hol)), '2026-11-30');
+  assert.deepStrictEqual(parseRemindDays('3; 1; 0'), [3, 1, 0]);
+  assert.deepStrictEqual(parseRemindDays(''), [3]);
+  var t = findTaskType(mockSpreadsheet, 'Time & expenses');
+  assert.strictEqual(t.frequency, 'Twice a month');
+  assert.deepStrictEqual(t.remind, [3, 1]);
+  assert.strictEqual(findTaskType(mockSpreadsheet, 'Peer review').frequency, 'Weekly');
+});
+
 test('rotation: one person per week in turn, skipping approved leave; the skipped person goes first next', () => {
   seed();
   leave('Bob', '2026-10-23', '2026-10-23');
@@ -97,18 +118,38 @@ test('rotation: a leave approved later moves the turn and emails both people', (
   assert.strictEqual(MailApp.getSentEmails().length, 2);
 });
 
-test('each person: monthly task for a role, three months ahead, departed members left out', () => {
+test('each person: twice-a-month task for a role, six half months ahead, departed members left out', () => {
   seed();
   addRecurringRule(mockSpreadsheet, { type: 'Time & expenses', projectId: 'ACN', mode: 'Each person', appliesTo: 'Role: Consultant', start: MON });
   generateRecurringTasks(mockSpreadsheet, MON);
   var t = tasksOf('Time & expenses');
-  assert.strictEqual(t.length, 6);
+  assert.strictEqual(t.length, 12);
   assert.deepStrictEqual([...new Set(t.map(x => x.member))].sort(), ['Alice', 'Bob']);
-  assert.strictEqual(iso(t[0].due), '2026-10-30');
+  assert.deepStrictEqual([...new Set(t.map(x => iso(x.due)))].slice(0, 3), ['2026-10-15', '2026-10-30', '2026-11-13']);
+  assert.ok(t[0].origin.endsWith('|2026-10-H1'));
   assert.strictEqual(generateRecurringTasks(mockSpreadsheet, MON).created, 0);
 });
 
-test('calendar: members x weeks of the chosen type; assign, refuse on leave, done (stamped), cancel', () => {
+test('a template schedule changed from the sidebar applies to everyone and moves the coming tasks', () => {
+  seed();
+  var first = assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Alice', repeat: true, start: MON }, mockSpreadsheet, MON);
+  assert.ok(first.success, first.message);
+  assert.deepStrictEqual(tasksOf('Forecast').map(t => iso(t.due)), ['2026-10-30', '2026-11-30', '2026-12-31']);
+  // Same frequency, other due day: deadlines move
+  var moved = assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Bob', repeat: true, start: MON,
+    frequency: 'Monthly', due: '20', remind: '2' }, mockSpreadsheet, MON);
+  assert.ok(/changed for everyone/.test(moved.message), moved.message);
+  assert.deepStrictEqual(tasksOf('Forecast').filter(t => t.member === 'Alice').map(t => iso(t.due)), ['2026-10-20', '2026-11-20', '2026-12-18']);
+  assert.deepStrictEqual(findTaskType(mockSpreadsheet, 'Forecast').remind, [2]);
+  // Other frequency: coming tasks are cancelled and the new periods planned
+  assignTasks({ type: 'Forecast', projectId: 'ACN', mode: 'Each person', appliesTo: 'Carol', repeat: true, start: MON,
+    frequency: 'Twice a month', due: '15; Last day' }, mockSpreadsheet, MON);
+  var alice = tasksOf('Forecast').filter(t => t.member === 'Alice');
+  assert.strictEqual(alice.length, 6);
+  assert.ok(alice.every(t => /-H[12]$/.test(t.origin)));
+});
+
+test('calendar: checkboxes; inserting one assigns, ticking marks done, deleting cancels; done count per period', () => {
   seed();
   leave('Bob', '2026-10-23', '2026-10-23');
   renderTaskCalendar(mockSpreadsheet, MON);
@@ -116,24 +157,31 @@ test('calendar: members x weeks of the chosen type; assign, refuse on leave, don
   cal.getRange(1, 2).setValue('Quiz');
   handleTaskCalendarEdit({ range: cal.getRange(1, 2), source: mockSpreadsheet }, MON);
   assert.strictEqual(cal.getRange(1, 2).getValue(), 'Quiz');
-  assert.deepStrictEqual(cal.getRange(3, 1, 3, 1).getValues().map(r => r[0]), ['Alice', 'Bob', 'Carol'], 'departed hidden');
+  assert.deepStrictEqual(cal.getRange(4, 1, 3, 1).getValues().map(r => r[0]), ['Alice', 'Bob', 'Carol'], 'departed hidden');
   var col = 2 + 4; // current week (4 weeks of history first)
   var edit = (row, c, value, old) => { cal.getRange(row, c).setValue(value); return handleTaskCalendarEdit({ range: cal.getRange(row, c), oldValue: old, source: mockSpreadsheet }, MON); };
 
-  assert.strictEqual(edit(3, col, 'To do', undefined), 'assigned');
+  assert.strictEqual(edit(4, col, false, undefined), 'assigned', 'checkbox inserted');
   assert.strictEqual(iso(tasksOf('Quiz')[0].due), '2026-10-16');
-  assert.strictEqual(cal.getRange(3, col).getValue(), 'To do');
+  assert.strictEqual(cal.getRange(4, col).getValue(), false);
+  assert.strictEqual(cal.getRange(3, col).getValue(), '0/1');
 
-  assert.strictEqual(edit(4, col + 1, 'To do', undefined), 'refused_leave', 'Bob on leave Fri 23 Oct');
-  assert.strictEqual(cal.getRange(4, col + 1).getValue(), '');
+  assert.strictEqual(edit(5, col + 1, false, undefined), 'refused_leave', 'Bob on leave Fri 23 Oct');
+  assert.strictEqual(cal.getRange(5, col + 1).getValue(), '');
 
-  assert.strictEqual(edit(3, col, 'Done', 'To do'), 'done');
+  assert.strictEqual(edit(4, col, true, 'FALSE'), 'done');
   var t = tasksOf('Quiz')[0];
   assert.strictEqual(t.status, 'Done');
   assert.strictEqual(iso(toDate(t.doneOn)), MON);
+  assert.strictEqual(cal.getRange(4, col).getValue(), true);
+  assert.strictEqual(cal.getRange(3, col).getValue(), '1/1');
 
-  assert.strictEqual(edit(3, col, '', 'Done'), 'cancelled');
+  assert.strictEqual(edit(4, col, false, 'TRUE'), 'reopened');
+  assert.strictEqual(tasksOf('Quiz')[0].status, 'Todo');
+
+  assert.strictEqual(edit(4, col, '', 'FALSE'), 'cancelled', 'checkbox deleted');
   assert.strictEqual(tasksOf('Quiz').length, 0);
+  assert.strictEqual(cal.getRange(3, col).getValue(), '');
 });
 
 test('calendar: a closed month asks first; "No" keeps the old value', () => {
@@ -141,10 +189,10 @@ test('calendar: a closed month asks first; "No" keeps the old value', () => {
   renderTaskCalendar(mockSpreadsheet, MON);
   var cal = getTable(mockSpreadsheet, 'taskCalendar');
   SpreadsheetApp.getUi().alertResponse = 'NO';
-  cal.getRange(3, 2).setValue('Done'); // 4 weeks back = September
-  var out = handleTaskCalendarEdit({ range: cal.getRange(3, 2), oldValue: '', source: mockSpreadsheet }, MON);
+  cal.getRange(4, 2).setValue(true); // 4 weeks back = September
+  var out = handleTaskCalendarEdit({ range: cal.getRange(4, 2), oldValue: undefined, source: mockSpreadsheet }, MON);
   assert.strictEqual(out, 'kept');
-  assert.strictEqual(cal.getRange(3, 2).getValue(), '');
+  assert.strictEqual(cal.getRange(4, 2).getValue(), '');
   SpreadsheetApp.getUi().alertResponse = null;
 });
 
@@ -171,6 +219,26 @@ test('reminders: due in 3 working days and overdue since the last working day, o
   assert.deepStrictEqual(res.sent.sort(), ['Alice', 'Bob']);
   assert.ok(MailApp.getSentEmails().some(e => e.subject === 'Overdue task reminder' && e.to === 'bob@accenture.com'));
   assert.strictEqual(sendTaskReminders(mockSpreadsheet, MON).skipped, 'already_sent_today');
+});
+
+test('reminders follow the template Remind days; the Manager role gets who has not done a mandatory task', () => {
+  seed();
+  var m = rtMembers(mockSpreadsheet);
+  // Time & expenses: Remind "3; 1". Wed 14 Oct: due Thu 15 = 1 working day
+  createTaskRow(mockSpreadsheet, { member: m[0], title: 'Time & expenses', due: toDate('2026-10-15'), type: 'Time & expenses' });
+  createTaskRow(mockSpreadsheet, { member: m[1], title: 'Time & expenses', due: toDate('2026-10-15'), type: 'Time & expenses' });
+  var res = sendTaskReminders(mockSpreadsheet, '2026-10-14');
+  assert.deepStrictEqual(res.sent.sort(), ['Alice', 'Bob']);
+  assert.ok(MailApp.getSentEmails().every(e => e.subject === 'Tasks due soon'));
+  assert.deepStrictEqual(res.digest, []);
+  // Fri 16: Alice done, Bob not → overdue to Bob, digest to Carol (Manager)
+  setTaskStatus(mockSpreadsheet, readTaskRows(mockSpreadsheet).filter(t => t.member === 'Alice')[0].row, 'Done', '2026-10-15');
+  MailApp.clearSentEmails();
+  res = sendTaskReminders(mockSpreadsheet, '2026-10-16');
+  assert.deepStrictEqual(res.sent, ['Bob']);
+  assert.deepStrictEqual(res.digest, ['Carol']);
+  var digest = MailApp.getSentEmails().filter(e => e.to === 'carol@accenture.com')[0];
+  assert.ok(/Time & expenses \(due 2026-10-15\): Bob/.test(digest.body), digest.body);
 });
 
 test('assign sidebar: once for a role, recurring rotation, stop cancels the future', () => {

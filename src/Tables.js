@@ -19,7 +19,7 @@ var TABLE_REGISTRY = {
   weeklyMatrix: { sheetName: "Weekly Presence", legacyName: "view_weekly_matrix" },
   kpiData:      { sheetName: "KPI Data",        legacyName: "fact_presence" },
   holidays:     { sheetName: "Holidays",        legacyName: "tbl_holidays" },
-  taskTypes:    { sheetName: "Task Types",      legacyName: "tbl_task_types" },
+  taskTypes:    { sheetName: "Task Templates",  legacyName: "tbl_task_types", formerNames: ["Task Types"] },
   recurringTasks: { sheetName: "Recurring Tasks", legacyName: "tbl_recurring_tasks" },
   taskCalendar: { sheetName: "Calendar",        legacyName: "view_task_calendar" },
   settings:     { sheetName: "Settings",        legacyName: "tbl_settings" }
@@ -66,7 +66,8 @@ function tableSheetName(key) {
 function tableKeyOfName(name) {
   for (var key in TABLE_REGISTRY) {
     if (!TABLE_REGISTRY.hasOwnProperty(key)) continue;
-    if (TABLE_REGISTRY[key].sheetName === name || TABLE_REGISTRY[key].legacyName === name || key === name) return key;
+    var e = TABLE_REGISTRY[key];
+    if (e.sheetName === name || e.legacyName === name || key === name || (e.formerNames || []).indexOf(name) !== -1) return key;
   }
   return null;
 }
@@ -91,7 +92,9 @@ function getTable(ss, key) {
       if (String(sheets[i].getSheetId()) === String(storedId)) return sheets[i];
     }
   }
-  return ss.getSheetByName(entry.sheetName) || ss.getSheetByName(entry.legacyName);
+  var found = ss.getSheetByName(entry.sheetName) || ss.getSheetByName(entry.legacyName);
+  for (var f = 0; !found && f < (entry.formerNames || []).length; f++) found = ss.getSheetByName(entry.formerNames[f]);
+  return found;
 }
 
 /** Registry key of a sheet (stored ID, readable or former name), else null. */
@@ -145,11 +148,14 @@ function renameLegacySheets(ss) {
   for (var key in TABLE_REGISTRY) {
     if (!TABLE_REGISTRY.hasOwnProperty(key)) continue;
     var entry = TABLE_REGISTRY[key];
-    var legacy = ss.getSheetByName(entry.legacyName);
-    if (legacy && !ss.getSheetByName(entry.sheetName)) {
-      legacy.setName(entry.sheetName);
-      renamed.push({ from: entry.legacyName, to: entry.sheetName });
-    }
+    if (ss.getSheetByName(entry.sheetName)) continue;
+    [entry.legacyName].concat(entry.formerNames || []).forEach(function(old) {
+      var legacy = ss.getSheetByName(old);
+      if (legacy && !ss.getSheetByName(entry.sheetName)) {
+        legacy.setName(entry.sheetName);
+        renamed.push({ from: old, to: entry.sheetName });
+      }
+    });
   }
   var sheets = ss.getSheets();
   for (var s = 0; s < sheets.length; s++) {

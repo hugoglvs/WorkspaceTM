@@ -1,19 +1,21 @@
 /**
- * Calendar view (ADR 0045): the Tasks list as a planning grid, like Weekly
- * Presence. Pick a Type (B1) and a Project (D1); rows are members, columns are
- * weeks (or months for monthly types). A cell shows that member's task of
- * that type in that period:
- *   "To do"  assigned / in charge   (blue; red once overdue)
- *   "Done"   done                   (green)
- *   empty    nothing                (grey when on approved leave, orange when a leave is requested)
- * Editing a cell writes Tasks: "To do" assigns (refused on approved leave),
- * "Done" marks done (Done on stamped), clearing cancels the task.
+ * Calendar view (ADR 0045, 0052): the Tasks list as a planning grid, like
+ * Weekly Presence. Pick a Type (B1) and a Project (D1); rows are members,
+ * columns are the type's periods (weeks, half months or months). Row 3 counts
+ * the tasks done per period ("9/12"). A cell shows that member's task of that
+ * type in that period:
+ *   checkbox, unticked  assigned        (blue; red once overdue)
+ *   checkbox, ticked    done            (green)
+ *   empty               nothing         (grey when on approved leave, orange when a leave is requested)
+ * Editing a cell writes Tasks: inserting a checkbox assigns (refused on
+ * approved leave), ticking marks done (Done on stamped), unticking reopens,
+ * deleting the checkbox cancels the task. "To do" / "Done" typed by hand still work.
  * Changing a period before the current month asks for confirmation (audit).
  */
 
 var CALENDAR_STATE_PROP = "TASK_CALENDAR_STATE";
 var CALENDAR_ALL_PROJECTS = "All projects";
-var CALENDAR_FIRST_ROW = 3;
+var CALENDAR_FIRST_ROW = 4;
 var CALENDAR_STYLES = {
   todo: "#E8F0FE", late: "#FCE8E6", done: "#E6F4EA", leave: "#E8EAED", requested: "#FEF7E0", none: "#FFFFFF"
 };
@@ -42,16 +44,25 @@ function calProjects(ss) {
 }
 
 function calPeriods(type, today) {
-  var monthly = type && type.frequency === "Monthly";
+  var freq = calFrequency(type);
+  var span = { Monthly: [-3, 8], "Twice a month": [-4, 10], Weekly: [-4, 12] }[freq];
   var out = [];
-  var from = monthly ? -3 : -4;
-  var to = monthly ? 8 : 12;
-  for (var i = from; i <= to; i++) out.push(periodShift(monthly ? "Monthly" : "Weekly", today, i));
+  for (var i = span[0]; i <= span[1]; i++) out.push(periodShift(freq, today, i));
   return out;
 }
 
 function calFrequency(type) {
-  return type && type.frequency === "Monthly" ? "Monthly" : "Weekly";
+  return periodFrequency(type && type.frequency);
+}
+
+/** A Calendar cell value as "done", "todo" or "" (checkbox or text). */
+function calCellState(v) {
+  if (v === true) return "done";
+  if (v === false) return "todo";
+  var s = String(v === undefined || v === null ? "" : v).trim().toLowerCase();
+  if (!s) return "";
+  if (s === "true" || s === "done" || s === "x" || s === "✓") return "done";
+  return "todo";
 }
 
 /**
@@ -89,17 +100,24 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
   var values = [];
   var bgs = [];
   var notes = [];
+  var checks = [];
+  var counts = periods.map(function() { return { done: 0, total: 0 }; });
+  var checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build();
   people.forEach(function(m) {
     var row = [m.name];
     var bg = ["#FFFFFF"];
     var nt = [""];
-    periods.forEach(function(p) {
+    var ck = [];
+    periods.forEach(function(p, pi) {
       var t = cellTask[m.key + "|" + p.key];
       var due = dueDateFor(type, p, ctx.holidays);
       var leave = leaveStatusOn(ctx.leaves, m.key, due);
+      ck.push(t ? checkbox : null);
       if (t) {
         var done = String(t.status).toLowerCase() === "done";
-        row.push(done ? "Done" : "To do");
+        counts[pi].total++;
+        if (done) counts[pi].done++;
+        row.push(done);
         bg.push(done ? CALENDAR_STYLES.done : (t.due < today ? CALENDAR_STYLES.late : CALENDAR_STYLES.todo));
         nt.push(done ? "Done" + (t.doneOn ? " on " + isoDate(toDate(t.doneOn)) : "") + "" : "Due " + isoDate(t.due) + (leave === "approved" ? " · on leave!" : ""));
       } else {
@@ -111,12 +129,13 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
     values.push(row);
     bgs.push(bg);
     notes.push(nt);
+    checks.push(ck);
   });
 
   sheet.clear();
   try { sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 3), Math.max(sheet.getMaxColumns(), width)).clearDataValidations(); } catch (eV) {}
   sheet.getRange(1, 1, 1, 5).setValues([["Type", type.name, "Project", project ? project.name : CALENDAR_ALL_PROJECTS,
-    "To do = assigned / in charge · Done = done · clear = remove"]]);
+    "Tick = done · Insert → Checkbox in an empty cell = assign · delete the checkbox = remove"]]);
   sheet.getRange(1, 2).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireValueInList(activeTypes.map(function(t) { return t.name; }), true).setAllowInvalid(false).build());
   sheet.getRange(1, 4).setDataValidation(SpreadsheetApp.newDataValidation()
@@ -138,16 +157,29 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
     if (curIdx >= 0) sheet.getRange(2, curIdx + 2).setBackground("#D2E3FC");
   } catch (eH) {}
 
+  // Row 3: done per period, for the manager's check (ADR 0052)
+  try { sheet.getRange(3, 1, 1, width).setNumberFormat("@"); } catch (eNf3) {}
+  sheet.getRange(3, 1, 1, width).setValues([["Done"].concat(counts.map(function(c) { return c.total ? c.done + "/" + c.total : ""; }))]);
+  try {
+    sheet.getRange(3, 1, 1, width).setFontColor("#5F6368").setHorizontalAlignment("center");
+    sheet.getRange(3, 1).setHorizontalAlignment("left");
+    sheet.getRange(3, 2, 1, periods.length).setBackgrounds([counts.map(function(c, i) {
+      if (!c.total) return "#FFFFFF";
+      if (c.done === c.total) return CALENDAR_STYLES.done;
+      return periods[i].end < today ? CALENDAR_STYLES.late : "#FFFFFF";
+    })]);
+  } catch (eC) {}
+
   if (values.length) {
     var grid = sheet.getRange(CALENDAR_FIRST_ROW, 1, values.length, width);
     grid.setValues(values);
     grid.setBackgrounds(bgs);
     try { grid.setNotes(notes); } catch (eN) {}
-    sheet.getRange(CALENDAR_FIRST_ROW, 2, values.length, periods.length).setDataValidation(SpreadsheetApp.newDataValidation()
-      .requireValueInList(["To do", "Done"], true).setAllowInvalid(false).build());
+    sheet.getRange(CALENDAR_FIRST_ROW, 2, values.length, periods.length).setDataValidations(checks);
+    try { sheet.getRange(CALENDAR_FIRST_ROW, 2, values.length, periods.length).setHorizontalAlignment("center"); } catch (eA) {}
   }
   try {
-    sheet.setFrozenRows(2);
+    sheet.setFrozenRows(3);
     sheet.setFrozenColumns(1);
   } catch (eFz) {}
 
@@ -219,12 +251,11 @@ function handleTaskCalendarEdit(e, asOf) {
   if (!type || !member) { renderTaskCalendar(ss, today); return null; }
   var freq = calFrequency(type);
   var period = periodFromKey(periodKey);
-  var newVal = String(e.range.getValue() || "").trim();
-  var oldVal = e.oldValue === undefined ? "" : String(e.oldValue);
+  var newVal = calCellState(e.range.getValue());
   var label = type.name + " · " + member.name + " · " + period.label;
 
   if (isClosedPeriod(period, today) && !confirmClosedChange(label)) {
-    e.range.setValue(oldVal);
+    renderTaskCalendar(ss, today);
     return "kept";
   }
 
@@ -242,10 +273,11 @@ function handleTaskCalendarEdit(e, asOf) {
       if (t.ruleId && !t.manual) getTable(ss, "tasks").getRange(t.row, taskCol("origin")).setValue(t.ruleId + "|" + t.periodKey + "|manual");
     });
     outcome = existing.length ? "cancelled" : "nothing";
-  } else if (newVal === "Done") {
+  } else if (newVal === "done") {
     if (existing.length) existing.forEach(function(t) { setTaskStatus(ss, t.row, "Done", today); });
     else {
-      var made = createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name });
+      var made = createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name,
+        description: type.instructions });
       setTaskStatus(ss, made.row, "Done", today);
     }
     outcome = "done";
@@ -256,14 +288,15 @@ function handleTaskCalendarEdit(e, asOf) {
     } else {
       var leave = leaveStatusOn(ctx.leaves, memberKey, due);
       if (leave === "approved") {
-        e.range.setValue(oldVal);
+        renderTaskCalendar(ss, today);
         try { ss.toast(member.name + " is on leave on " + isoDate(due) + ". Pick someone else.", "On leave", 6); } catch (eT2) {}
         return "refused_leave";
       }
       if (leave === "requested") {
         try { ss.toast(member.name + " has requested leave on " + isoDate(due) + ".", "Leave requested", 6); } catch (eT3) {}
       }
-      createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name });
+      createTaskRow(ss, { projectId: state.projectId, member: member, title: type.name, due: due, type: type.name,
+        description: type.instructions });
       outcome = "assigned";
     }
   }

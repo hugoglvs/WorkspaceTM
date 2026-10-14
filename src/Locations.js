@@ -190,7 +190,7 @@ function schemaValidationsFor(ss, config) {
     if (dyn[col] === "withLeaves") values = values.concat(LEAVE_LOCATIONS);
     validations[col] = values;
   }
-  // Task type dropdowns follow the Task Types tab (ADR 0045)
+  // Task type dropdowns follow the Task Templates tab (ADR 0045)
   var tt = config.taskTypeColumns || {};
   for (var tcol in tt) {
     if (!tt.hasOwnProperty(tcol)) continue;

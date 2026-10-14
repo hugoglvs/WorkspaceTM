@@ -306,22 +306,22 @@ var SCHEMA_SPEC = {
     validations: {}
   },
   taskTypes: {
-    sheetName: "Task Types",
+    sheetName: "Task Templates",
     legacyName: "tbl_task_types",
     headers: { type: "Type", frequency: "Frequency", due: "Due", mandatory: "Mandatory", active: "Active",
-      created_when: "Created when", days_after: "Days after", assign_to: "Assign to", instructions: "Instructions" },
-    // Created when / Days after / Assign to / Instructions: tasks created by an event (ADR 0051)
-    columns: ["type", "frequency", "due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions"],
+      created_when: "Created when", days_after: "Days after", assign_to: "Assign to", instructions: "Instructions", remind: "Remind" },
+    // Created when / Days after: tasks created by an event (ADR 0051); Remind: working days before (ADR 0052)
+    columns: ["type", "frequency", "due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions", "remind"],
     requiredColumns: ["type", "frequency"],
-    nullableColumns: ["due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions"],
+    nullableColumns: ["due", "mandatory", "active", "created_when", "days_after", "assign_to", "instructions", "remind"],
     strictlyProtectedColumns: [],
     warningProtectedColumns: [],
     protectedColumns: [],
     columnTypes: { type: "TEXT", frequency: "DROPDOWN", due: "TEXT", mandatory: "BOOLEAN", active: "BOOLEAN",
-      created_when: "DROPDOWN", days_after: "DOUBLE", assign_to: "TEXT", instructions: "TEXT" },
+      created_when: "DROPDOWN", days_after: "DOUBLE", assign_to: "TEXT", instructions: "TEXT", remind: "TEXT" },
     // Filled at runtime from TASK_TRIGGERS (src/TaskTriggers.js)
     triggerColumns: { created_when: true },
-    validations: { frequency: ["Weekly", "Monthly", "One-off"] }
+    validations: { frequency: ["Weekly", "Twice a month", "Monthly", "One-off"] }
   },
   recurringTasks: {
     sheetName: "Recurring Tasks",

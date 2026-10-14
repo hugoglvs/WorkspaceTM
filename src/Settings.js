@@ -10,6 +10,8 @@ var SETTINGS_DEFAULTS = [
     description: "Role shown in Members when a contract has no role." },
   { key: "default_department", label: "Default department", value: "Delivery",
     description: "Department shown in Members when a contract has no department." },
+  { key: "manager_role", label: "Manager role", value: "Manager",
+    description: "Role whose members get, the working day after a mandatory task is due, the list of who has not done it." },
   { key: "public_holidays", label: "Public holidays", value: "France",
     description: "Country whose public holidays are added to the Holidays tab each year: France, or None to add them yourself." }
 ];

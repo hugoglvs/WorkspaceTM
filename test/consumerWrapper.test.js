@@ -51,7 +51,8 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Calendar'));
   assert.ok(captions.includes('Edit Task Templates'));
   var actionItems = ui.menu.items.filter(function(item) { return !item.separator; });
-  assert.strictEqual(actionItems.length, 12);
+  assert.strictEqual(actionItems.length, 13);
+  assert.ok(captions.includes('Edit Dropdowns'));
   assert.ok(captions.includes('Connect my Google Tasks'));
 });
 

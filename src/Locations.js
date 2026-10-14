@@ -227,6 +227,10 @@ function refreshLocationDropdowns(ss) {
       schemaValidationsFor(ss, config), Math.min(Math.max(sheet.getMaxRows(), 50), 25), schemaHeaderRow(config));
     updated.push(config.sheetName);
   }
+  // Model dropdowns (ADR 0054): new options, then the copies the table update replaced
+  try {
+    if (typeof ensureDropdownsTab === "function") { ensureDropdownsTab(ss); applyTableDropdowns(ss); }
+  } catch (eDd) { Logger.log("Dropdowns refresh note: " + eDd); }
   try { applyTodayPresenceColours(ss); } catch (eCol) { Logger.log("Today colours note: " + eCol); }
   return updated;
 }

@@ -448,11 +448,15 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
         viewSheet.getRange(3, 3, Math.min(firstEditable, numDataRows), numCols - 2).clearDataValidations();
       }
       if (firstEditable < numDataRows) {
-        var validationRule = SpreadsheetApp.newDataValidation()
-          .requireValueInList(locationChoices, true)
-          .setAllowInvalid(true)
-          .build();
-        viewSheet.getRange(3 + firstEditable, 3, numDataRows - firstEditable, numCols - 2).setDataValidation(validationRule);
+        var editable = viewSheet.getRange(3 + firstEditable, 3, numDataRows - firstEditable, numCols - 2);
+        // The Dropdowns tab's Presence model, with its chip style and colours (ADR 0054)
+        var modelled = (typeof applyDropdown === "function") && applyDropdown(ss, "presence", editable);
+        if (!modelled) {
+          editable.setDataValidation(SpreadsheetApp.newDataValidation()
+            .requireValueInList(locationChoices, true)
+            .setAllowInvalid(true)
+            .build());
+        }
       }
     } catch (eVal) {}
 

@@ -183,6 +183,9 @@ _Avoid_: Scheduled date, Due date
 A preconfigured kind of task (Quiz, Onboarding, Time & expenses…): its schedule (frequency: weekly, twice a month, monthly or one-off, and a due rule), a Mandatory flag for the tasks the manager checks, who gets it by default, its instructions, its reminder days and the event that creates it, if any. Listed in the hidden Task Templates tab; the Assign Tasks sidebar starts from it (ADR 0045, 0052).
 _Avoid_: Task Type (former name)
 
+**Dropdown Model**:
+A cell in the hidden Dropdowns tab whose dropdown (chip style, colour per option) is set by hand and copied by the app onto every cell using that list, today Weekly Presence. Table dropdowns are coloured in the table itself (ADR 0054).
+
 **Manager Digest**:
 The email sent, the working day after a mandatory task is due, to every member with the Manager role (Settings), listing who has not done it (ADR 0052).
 

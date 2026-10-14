@@ -56,7 +56,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | Group | Functions |
 | :--- | :--- |
 | Menu & lifecycle | `onOpen` (builds the menu), `onEdit` (forwards; steps aside when the installable trigger exists) |
-| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showContractsSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab`, `showSettingsTab` |
+| Menu actions | `setupOrUpgrade`, `showBaselineSidebar`, `showContractsSidebar`, `showBackupSidebar`, `showAssignSidebar`, `showTaskCalendar`, `connectMyGoogleTasks`, `showWorkspaceCheck`, `showLocationsTab`, `showHolidaysTab`, `showTaskTypesTab`, `showSettingsTab`, `showDropdownsTab` |
 | Trigger handlers | `installedTaskEditHandler` (edits), `nightlySyncJob` (2 am), `mondayPresenceReminder` (Mon 8 am), `dailyRemindersJob` (daily 9 am; `birthdayReminderJob` kept as an alias), `myTasksSyncJob` (hourly, one per connected person) |
 | Sidebar / dialog calls (`google.script.run`) | `getSidebarInitialData`, `getMemberBaselines`, `saveMemberBaselines`, `submitMemberLeave`, `getContractsSidebarData`, `saveContract`, `restoreMemberFormulas`, `getBackupSidebarData`, `saveInterimBackup`, `cancelInterimBackup`, `getAssignSidebarData`, `assignTasks`, `stopRecurringRule`, `runWorkspaceCheck`, `removePresenceDuplicates` |
 
@@ -78,7 +78,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 
 | Visible tabs (daily use) | Hidden tabs (data; menu items open some of them) |
 | :--- | :--- |
-| Members, Weekly Presence, Projects, Tasks, Calendar, Events | Locations, Holidays, Task Templates, Recurring Tasks, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
+| Members, Weekly Presence, Projects, Tasks, Calendar, Events | Locations, Holidays, Task Templates, Recurring Tasks, Dropdowns, Contracts, Routines, Leaves, Presence Log, Backups, KPI Data |
 
 ---
 
@@ -97,6 +97,7 @@ Verify by pulling into `.scratch/live/consumer` and diffing (ADR 0033).
 | **Edit Locations** | Shows the hidden Locations tab (Location \| Type \| Active). Untick *Active* to retire a location; history stays valid. |
 | **Edit Holidays** | Shows the hidden Holidays tab. Add bridges or office closures; delete a day the team works. |
 | **Edit Task Templates** | Shows the hidden Task Templates tab: Type, Frequency (Weekly, Twice a month, Monthly, One-off), Due rule, Mandatory (in the manager digest), Active, Assign to (*Person concerned*, *Role: X* or names), Instructions, Remind (working days before, e.g. "3; 1"), and for tasks created by an event: Created when (e.g. *New member*), Days after. Onboarding is such a template. The Assign Tasks sidebar starts from these templates. |
+| **Edit Dropdowns** | Shows the hidden Dropdowns tab: the Presence model cell. Set its Chip style and a colour per option (Data → Data validation); Weekly Presence takes it at its next rebuild (Initialize / Upgrade, nightly sync, a Locations change). Options come from the Locations tab. Table dropdowns (statuses…) are coloured in the table itself and keep their colours across upgrades unless their list changes. |
 | **Edit Settings** | Shows the hidden Settings tab: default role and department, public holidays (France or None). An empty value means the default. |
 
 ---

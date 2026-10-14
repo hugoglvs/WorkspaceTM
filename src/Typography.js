@@ -132,7 +132,11 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
       }
     }
     // Column names, types and dropdown lists follow the schema (e.g. the Locations list).
-    // Sent separately so a refusal here never blocks the rename above.
+    // Sent separately so a refusal here never blocks the rename above. Skipped when
+    // nothing changed, so chip colours set by hand in the table are kept (ADR 0054).
+    if (own.columnProperties && tableColumnsSignature(own.columnProperties) === tableColumnsSignature(columnProperties)) {
+      return true;
+    }
     try {
       Sheets.Spreadsheets.batchUpdate({ requests: [{
         updateTable: { table: { tableId: own.tableId, columnProperties: columnProperties }, fields: "columnProperties" }
@@ -158,22 +162,32 @@ function createGoogleSheetsTable(spreadsheetId, sheetId, tableName, columns, col
   }
 }
 
+/** Names, types and dropdown values of table columns, to tell whether an update is needed. */
+function tableColumnsSignature(props) {
+  return (props || []).map(function(p) {
+    var cond = p.dataValidationRule && p.dataValidationRule.condition;
+    var values = (cond && cond.values || []).map(function(v) { return String(v.userEnteredValue); }).join("\u0001");
+    return [p.columnIndex || 0, p.columnName || "", p.columnType || "TEXT", values].join("\u0002");
+  }).join("\u0003");
+}
+
 /**
  * Lists every native table in the spreadsheet. Returns [] if the lookup fails,
  * so table creation falls back to adding the table.
  *
  * @param {string} spreadsheetId
- * @return {Array<{tableId: string, name: string, sheetId: number, range: Object}>}
+ * @return {Array<{tableId: string, name: string, sheetId: number, range: Object, columnProperties: (Array|null)}>}
  */
 function listSheetTables(spreadsheetId) {
   var found = [];
   try {
-    var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name,range))" });
+    var meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: "sheets(properties(sheetId,title),tables(tableId,name,range,columnProperties))" });
     var sheets = (meta && meta.sheets) || [];
     for (var i = 0; i < sheets.length; i++) {
       var tables = sheets[i].tables || [];
       for (var t = 0; t < tables.length; t++) {
-        found.push({ tableId: tables[t].tableId, name: tables[t].name, sheetId: sheets[i].properties.sheetId, range: tables[t].range });
+        found.push({ tableId: tables[t].tableId, name: tables[t].name, sheetId: sheets[i].properties.sheetId,
+          range: tables[t].range, columnProperties: tables[t].columnProperties || null });
       }
     }
   } catch (eGet) {
@@ -186,6 +200,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     applyTypography: applyTypography,
     createGoogleSheetsTable: createGoogleSheetsTable,
-    listSheetTables: listSheetTables
+    listSheetTables: listSheetTables,
+    tableColumnsSignature: tableColumnsSignature
   };
 }

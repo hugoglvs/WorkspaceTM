@@ -29,8 +29,21 @@ function setupOrUpgrade(targetSpreadsheet) {
     Logger.log("setupOrUpgrade rename note: " + errRename);
   }
 
+  // Dropdown models first, so tables built below leave those columns to them (ADR 0054)
+  try { if (typeof ensureDropdownsTab === "function") ensureDropdownsTab(ss); } catch (errDd0) { Logger.log("Dropdowns note: " + errDd0); }
+
   var res = freshInit(ss);
   res.renamedTabs = renamedTabs;
+
+  // Dropdowns tab: model dropdowns (chip style, colours) copied onto the tables (ADR 0054)
+  try {
+    if (typeof ensureDropdownsTab === "function") {
+      ensureDropdownsTab(ss);
+      res.dropdowns = applyTableDropdowns(ss);
+    }
+  } catch (errDd) {
+    Logger.log("setupOrUpgrade dropdowns note: " + errDd);
+  }
 
   // One-time restore of the reverted merged presence table (ADR 0036)
   try {

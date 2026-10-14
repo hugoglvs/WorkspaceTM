@@ -142,7 +142,13 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
       var vals = this.getValues();
       return (vals.length > 0 && vals[0].length > 0) ? vals[0][0] : "";
     },
-    copyTo: function(destinationRange) {
+    copyTo: function(destinationRange, pasteType) {
+      if (pasteType === "PASTE_DATA_VALIDATION") {
+        var rule = this.getDataValidation();
+        destinationRange.copiedValidationFrom = this;
+        destinationRange.setDataValidation(rule);
+        return destinationRange;
+      }
       var vals = this.getValues();
       destinationRange.setValues(vals);
       return destinationRange;
@@ -259,13 +265,21 @@ function createMockRange(sheet, startRow, startCol, numRows, numCols) {
     setNote: function(n) { this.note = n; return this; },
     setDataValidation: function(rule) {
       this.dataValidation = rule;
+      var cells = this.sheet.cellValidations = this.sheet.cellValidations || {};
+      for (var vr = 0; vr < numRows; vr++) for (var vc = 0; vc < numCols; vc++) cells[(startRow + vr) + ":" + (startCol + vc)] = rule;
       return this;
+    },
+    getDataValidation: function() {
+      var cells = this.sheet.cellValidations || {};
+      return cells[startRow + ":" + startCol] || null;
     },
     setDataValidations: function(rules) {
       this.dataValidations = rules;
       return this;
     },
     clearDataValidations: function() {
+      var cellsC = this.sheet.cellValidations || {};
+      for (var cr = 0; cr < numRows; cr++) for (var cc = 0; cc < numCols; cc++) delete cellsC[(startRow + cr) + ":" + (startCol + cc)];
       this.dataValidation = null;
       this.validationCleared = true;
       return this;
@@ -600,6 +614,7 @@ function setupGasGlobals(mockSpreadsheet) {
     getActiveSpreadsheet: function() { return mockSpreadsheet; },
     getUi: function() { return mockUi; },
     BandingTheme: { LIGHT_GREY: "LIGHT_GREY" },
+    CopyPasteType: { PASTE_DATA_VALIDATION: "PASTE_DATA_VALIDATION", PASTE_NORMAL: "PASTE_NORMAL", PASTE_VALUES: "PASTE_VALUES" },
     ProtectionType: { RANGE: "RANGE", SHEET: "SHEET" },
     newConditionalFormatRule: function() {
       var rule = {
@@ -641,6 +656,11 @@ function setupGasGlobals(mockSpreadsheet) {
         },
         requireCheckbox: function() {
           this.checkbox = true;
+          return this;
+        },
+        requireValueInRange: function(range, showDropdown) {
+          this.sourceRange = range;
+          this.showDropdown = showDropdown;
           return this;
         },
         setAllowInvalid: function(allow) {
@@ -774,7 +794,7 @@ function setupGasGlobals(mockSpreadsheet) {
               return {
                 properties: { sheetId: sh.getSheetId(), title: sh.getName() },
                 tables: mockTables.filter(function(t) { return t.sheetId === sh.getSheetId(); }).map(function(t) {
-                  return { tableId: t.tableId, name: t.name, range: t.range };
+                  return { tableId: t.tableId, name: t.name, range: t.range, columnProperties: t.columnProperties };
                 })
               };
             })

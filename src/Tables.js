@@ -22,7 +22,8 @@ var TABLE_REGISTRY = {
   taskTypes:    { sheetName: "Task Templates",  legacyName: "tbl_task_types", formerNames: ["Task Types"] },
   recurringTasks: { sheetName: "Recurring Tasks", legacyName: "tbl_recurring_tasks" },
   taskCalendar: { sheetName: "Calendar",        legacyName: "view_task_calendar" },
-  settings:     { sheetName: "Settings",        legacyName: "tbl_settings" }
+  settings:     { sheetName: "Settings",        legacyName: "tbl_settings" },
+  dropdowns:    { sheetName: "Dropdowns",       legacyName: "tbl_dropdowns" }
 };
 
 var ARCHIVE_PREFIX = "Archive – ";

@@ -140,7 +140,7 @@ test('checkBaselineDateOverlap: should detect overlaps between ranges including 
   // Overlapping bounded
   assert.strictEqual(sidebar.checkBaselineDateOverlap('2026-01-01', '2026-08-01', '2026-06-01', '2026-12-31'), true);
   // Adjacent: s2 == e1 (non-overlapping because previous ended on the start date of next)
-  assert.strictEqual(sidebar.checkBaselineDateOverlap('2026-01-01', '2026-06-01', '2026-06-01', ''), false);
+  assert.strictEqual(sidebar.checkBaselineDateOverlap('2026-01-01', '2026-06-01', '2026-06-01', ''), true, 'end dates are inclusive');
   // Completely separated: s2 > e1
   assert.strictEqual(sidebar.checkBaselineDateOverlap('2026-01-01', '2026-05-31', '2026-06-01', '2026-12-31'), false);
 });
@@ -178,8 +178,8 @@ test('saveMemberBaselines: should not override previous baseline, should detect 
   });
   assert.strictEqual(res2.success, false);
   assert.strictEqual(res2.overlap, true);
-  assert.ok(res2.message.includes('A previous baseline overlaps'));
-  assert.ok(res2.message.includes('2026-06-01'));
+  assert.ok(res2.message.includes('overlaps 1 existing routine'));
+  assert.ok(res2.message.includes('will end on 2026-05-31'), res2.message);
 
   // Verify sheet still only has the original 5 rows
   assert.strictEqual(baselinesSheet.getRange(2, 1, 5, 7).getValues().length, 5);
@@ -204,10 +204,10 @@ test('saveMemberBaselines: should not override previous baseline, should detect 
   var allRows = baselinesSheet.getRange(2, 1, 10, 7).getValues();
   assert.strictEqual(allRows.length, 10);
 
-  // First 5 rows (original baseline) now have end_date set to 2026-06-01!
+  // First 5 rows (original baseline) now end the day before the new one (inclusive end dates)
   for (var r = 0; r < 5; r++) {
     assert.strictEqual(allRows[r][2], '2026-01-01'); // start_date
-    assert.strictEqual(allRows[r][3], '2026-06-01'); // end_date updated!
+    assert.strictEqual(allRows[r][3], '2026-05-31'); // end_date updated!
     assert.strictEqual(allRows[r][5], 'Main Office');
   }
 

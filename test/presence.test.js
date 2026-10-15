@@ -457,3 +457,39 @@ test('onOpen should include Compile Presence Logs (Migration / Undefined Start D
   assert.strictEqual(foundMigrationItem, true, 'Menu should include migration compilation item');
 });
 
+
+function routineRows(sheet) {
+  return sheet.getRange(2, 1, 30, 7).getValues().filter(r => r[0])
+    .map(r => [formatDateIso(r[2]), r[3] ? formatDateIso(r[3]) : '', r[4], r[5]]);
+}
+const WEEK = loc => ({ Monday: { location_am: loc, location_pm: loc }, Tuesday: { location_am: loc, location_pm: loc },
+  Wednesday: { location_am: loc, location_pm: loc }, Thursday: { location_am: loc, location_pm: loc }, Friday: { location_am: loc, location_pm: loc } });
+
+test('routine overlaps: an earlier routine ends the day before; a later one is kept and caps the new one; same start replaces', () => {
+  freshInit(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([['Hugo', '', '', 'Dev', 'Eng', 'Active', '']]);
+  var routines = mockSpreadsheet.getSheetByName('Routines');
+  saveMemberBaselines({ member: 'Hugo', startDate: '2026-10-15', days: WEEK('C04') });
+
+  // A routine declared BEFORE the existing one (the reported case)
+  var ask = saveMemberBaselines({ member: 'Hugo', startDate: '2026-09-02', days: WEEK('OneRoof') });
+  assert.strictEqual(ask.overlap, true);
+  assert.ok(/kept: this routine will end on 2026-10-14/.test(ask.message), ask.message);
+  saveMemberBaselines({ member: 'Hugo', startDate: '2026-09-02', days: WEEK('OneRoof'), adjustPreviousEnd: true });
+  var rows = routineRows(routines);
+  assert.ok(rows.filter(r => r[0] === '2026-10-15').every(r => r[1] === ''), 'the later routine is untouched');
+  assert.ok(rows.filter(r => r[0] === '2026-09-02').every(r => r[1] === '2026-10-14'), 'the new routine ends the day before');
+  assert.ok(rows.every(r => !r[1] || r[1] >= r[0]), 'never an end before a start');
+
+  // A routine declared AFTER: the running one ends the day before
+  saveMemberBaselines({ member: 'Hugo', startDate: '2026-11-02', days: WEEK('Remote'), adjustPreviousEnd: true });
+  rows = routineRows(routines);
+  assert.ok(rows.filter(r => r[0] === '2026-10-15').every(r => r[1] === '2026-11-01'));
+  assert.ok(rows.filter(r => r[0] === '2026-11-02').every(r => r[1] === ''));
+
+  // Same start date: replaced
+  saveMemberBaselines({ member: 'Hugo', startDate: '2026-11-02', days: WEEK('JLL'), adjustPreviousEnd: true });
+  rows = routineRows(routines);
+  assert.deepStrictEqual([...new Set(rows.filter(r => r[0] === '2026-11-02').map(r => r[3]))], ['JLL']);
+  assert.strictEqual(rows.length, 15);
+});

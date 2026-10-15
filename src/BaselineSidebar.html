@@ -236,6 +236,7 @@
       margin-bottom: 8px;
     }
     .modal-body {
+      white-space: pre-line;
       font-size: 12px;
       color: #3c4043;
       line-height: 1.4;
@@ -962,7 +963,7 @@
             return;
           }
           var msg = (res && res.overlapAdjusted)
-            ? 'New presence baseline saved and previous baseline end date updated!'
+            ? 'Routine saved; the overlapping routines were adjusted.'
             : 'Presence baseline successfully saved!';
           showStatus(msg, 'success');
         })

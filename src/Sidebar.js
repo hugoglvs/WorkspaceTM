@@ -733,9 +733,39 @@ function getSidebarInitialData() {
 }
 
 /**
- * Checks whether two date ranges overlap.
- * Open-ended ranges (null or empty string) extend infinitely.
- * Adjacent ranges where s2 == e1 do NOT overlap.
+ * How overlapping routines are resolved for a new routine [startDate, endDate]
+ * (ISO, endDate "" = open). End dates are inclusive.
+ *
+ * @param {Array<{rowNumber: number, startDate: string, endDate: string}>} rows overlapping rows
+ * @return {{endRows: Array<{rowNumber: number, endDate: string}>, replaceRows: number[],
+ *   newEndDate: string, lines: string[]}}
+ */
+function planBaselineOverlaps(rows, startDate, endDate) {
+  var plan = { endRows: [], replaceRows: [], newEndDate: endDate || "", lines: [] };
+  var byStart = {};
+  rows.forEach(function(r) { (byStart[r.startDate] = byStart[r.startDate] || []).push(r); });
+  var dayBefore = shiftIso(startDate, -1);
+  Object.keys(byStart).sort().forEach(function(start) {
+    var group = byStart[start];
+    var label = "the routine from " + start + (group[0].endDate ? " to " + group[0].endDate : " (no end date)");
+    if (start < startDate) {
+      group.forEach(function(r) { plan.endRows.push({ rowNumber: r.rowNumber, endDate: dayBefore }); });
+      plan.lines.push("• " + label + " will end on " + dayBefore + ".");
+    } else if (start === startDate) {
+      group.forEach(function(r) { plan.replaceRows.push(r.rowNumber); });
+      plan.lines.push("• " + label + " will be replaced by this one.");
+    } else {
+      var cap = shiftIso(start, -1);
+      if (!plan.newEndDate || cap < plan.newEndDate) plan.newEndDate = cap;
+      plan.lines.push("• " + label + " is kept: this routine will end on " + cap + ", the day before.");
+    }
+  });
+  return plan;
+}
+
+/**
+ * Checks whether two date ranges overlap. End dates are inclusive (a routine
+ * ending on a day still applies that day); open-ended ranges extend infinitely.
  *
  * @param {string} s1Str
  * @param {string} e1Str
@@ -755,9 +785,9 @@ function checkBaselineDateOverlap(s1Str, e1Str, s2Str, e2Str) {
   var e2 = e2Str ? new Date(e2Str) : null;
   if (e2) e2.setHours(0, 0, 0, 0);
 
-  // Overlap if s1 <= (e2 || infinity) AND s2 < (e1 || infinity)
+  // Overlap if s1 <= (e2 || infinity) AND s2 <= (e1 || infinity)
   var cond1 = !e2 || s1 <= e2;
-  var cond2 = !e1 || s2 < e1;
+  var cond2 = !e1 || s2 <= e1;
 
   return cond1 && cond2;
 }
@@ -840,9 +870,12 @@ function getMemberBaselines(memberIdentifier) {
 /**
  * Saves a new baseline routine into tbl_presence_baselines.
  * Does NOT overwrite older historical baselines; appends new rows.
- * Checks for date overlaps with existing baselines for the member.
- * If overlapping and adjustPreviousEnd is not true, prompts the user.
- * If adjustPreviousEnd is true, updates the end date of overlapping previous baselines to new startDate.
+ * Checks for date overlaps with the member's existing routines and, once the
+ * person confirms (adjustPreviousEnd), resolves them so no day has two
+ * routines (end dates are inclusive):
+ * - a routine that started earlier ends the day before the new one starts;
+ * - a routine that starts later is kept, and the new one ends the day before it;
+ * - a routine with the same start date is replaced.
  *
  * @param {Object} payload { member, startDate, endDate, days, adjustPreviousEnd }
  * @return {Object} Status report
@@ -895,23 +928,25 @@ function saveMemberBaselines(payload) {
     }
   }
 
-  // 2. If overlap detected and confirmation not yet given, ask user
+  // 2. What resolving the overlaps would do, routine by routine (grouped by start date)
+  var plan = planBaselineOverlaps(overlappingRows, startDate, endDate);
+
+  // 3. If overlap detected and confirmation not yet given, ask user
   if (overlappingRows.length > 0 && !adjustPreviousEnd) {
-    var overlapStart = overlappingRows[0].startDate;
     return {
       success: false,
       overlap: true,
-      message: "A previous baseline overlaps with the new date range (starts " + overlapStart + "). Do you want to set the end date of the previous baseline to the start date of the new baseline (" + startDate + ")?",
-      overlappingStartDate: overlapStart,
+      message: "This routine overlaps " + plan.lines.length + " existing routine" + (plan.lines.length > 1 ? "s" : "") + ". Apply these changes?\n" + plan.lines.join("\n"),
+      overlappingStartDate: overlappingRows[0].startDate,
       newStartDate: startDate
     };
   }
 
-  // 3. If overlap confirmed, update end date of previous overlapping baselines to new startDate
+  // 3b. Confirmed: end or replace the existing rows, and cap the new routine
   if (overlappingRows.length > 0 && adjustPreviousEnd) {
-    for (var ov = 0; ov < overlappingRows.length; ov++) {
-      sheet.getRange(overlappingRows[ov].rowNumber, 4).setValue(startDate);
-    }
+    plan.endRows.forEach(function(e) { sheet.getRange(e.rowNumber, 4).setValue(e.endDate); });
+    plan.replaceRows.forEach(function(rowNumber) { sheet.getRange(rowNumber, 1, 1, 7).clearContent(); });
+    endDate = plan.newEndDate;
   }
 
   // 4. Find next available row to append the new baseline rows
@@ -1297,6 +1332,7 @@ if (typeof module !== 'undefined' && module.exports) {
     submitMemberLeave: submitMemberLeave,
     refreshPresenceAfterDeclaration: refreshPresenceAfterDeclaration,
     checkBaselineDateOverlap: checkBaselineDateOverlap,
+    planBaselineOverlaps: planBaselineOverlaps,
     extractCellValue: extractCellValue,
     extractEmailFromChip: extractEmailFromChip,
     isUserMemberMatch: isUserMemberMatch,

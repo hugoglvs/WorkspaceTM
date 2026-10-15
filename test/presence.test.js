@@ -171,9 +171,9 @@ test('compilePresenceLogs: should override baseline locations with approved leav
 
   // Approved Vacation on Wednesday June 3 to Thursday June 4
   // Pending Sick Leave on Friday June 5 (should NOT override because not Approved)
-  leavesSheet.getRange(2, 1, 2, 6).setValues([
-    ['leave_01', 'bob@accenture.com', '2026-06-03', '2026-06-04', 'Vacation', 'Approved'],
-    ['leave_02', 'bob@accenture.com', '2026-06-05', '2026-06-05', 'Sick Leave', 'Requested']
+  leavesSheet.getRange(2, 1, 2, 8).setValues([
+    ['leave_01', 'bob@accenture.com', '2026-06-03', 'AM', '2026-06-04', 'PM', 'Vacation', 'Approved'],
+    ['leave_02', 'bob@accenture.com', '2026-06-05', 'AM', '2026-06-05', 'PM', 'Sick Leave', 'Requested']
   ]);
 
   var res = compilePresenceLogs(new Date(2026, 5, 1), new Date(2026, 5, 5), mockSpreadsheet);

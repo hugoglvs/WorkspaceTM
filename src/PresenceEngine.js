@@ -263,85 +263,9 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
   // Weekdays without a routine default to the first active office (Locations tab, ADR 0040)
   var defaultOffice = (typeof defaultOfficeLocation === "function") ? defaultOfficeLocation(ss) : "Office";
 
-  // 3. Read Baselines from tbl_presence_baselines
-  // Columns: baseline_id(1), member(2), start_date(3), end_date(4), day_of_week(5), location_am(6), location_pm(7)
-  var baselinesByMember = {};
-  if (baselinesSheet) {
-    var bMaxRows = readRowLimit(baselinesSheet, 500);
-    if (bMaxRows > 1) {
-      var bValues = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7).getValues();
-      for (var b = 0; b < bValues.length; b++) {
-        var bMember = typeof extractCellValue === "function" ? extractCellValue(bValues[b][1]) : String(bValues[b][1] || "").trim();
-        if (!bMember) continue;
-
-        var bKey = bMember.toLowerCase();
-        if (!baselinesByMember[bKey]) baselinesByMember[bKey] = [];
-
-        var sDate = bValues[b][2] ? new Date(bValues[b][2]) : null;
-        var eDate = bValues[b][3] ? new Date(bValues[b][3]) : null;
-        if (sDate) sDate.setHours(0, 0, 0, 0);
-        if (eDate) eDate.setHours(0, 0, 0, 0);
-
-        var dow = typeof extractCellValue === "function" ? extractCellValue(bValues[b][4]) : String(bValues[b][4] || "").trim();
-        var locAm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][5]) : String(bValues[b][5] || "").trim();
-        var locPm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][6]) : String(bValues[b][6] || "").trim();
-
-        baselinesByMember[bKey].push({
-          startDate: sDate,
-          endDate: eDate,
-          dayOfWeek: dow,
-          locationAm: locAm || defaultOffice,
-          locationPm: locPm || defaultOffice
-        });
-      }
-    }
-  }
-
-  // 4. Read Leaves from tbl_leaves
-  // Supports both modern 8-column (with start_period & end_period) and legacy 6-column schemas
-  var leavesByMember = {};
-  if (leavesSheet) {
-    var lColMap = (typeof getLeaveColumnMap === "function")
-      ? getLeaveColumnMap(leavesSheet)
-      : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
-    var lMaxRows = readRowLimit(leavesSheet, 500);
-    if (lMaxRows > 1) {
-      var lValues = leavesSheet.getRange(2, 1, lMaxRows - 1, Math.max(leavesSheet.getLastColumn(), 6)).getValues();
-      for (var l = 0; l < lValues.length; l++) {
-        var lMember = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.member - 1]) : String(lValues[l][lColMap.member - 1] || "").trim();
-        if (!lMember) continue;
-
-        var lStatus = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.status - 1]) : String(lValues[l][lColMap.status - 1] || "").trim();
-        // Only factor Approved leaves
-        if (lStatus && lStatus.toLowerCase() !== "approved") continue;
-
-        var lKey = lMember.toLowerCase();
-        if (!leavesByMember[lKey]) leavesByMember[lKey] = [];
-
-        var lStart = lValues[l][lColMap.start_date - 1] ? new Date(lValues[l][lColMap.start_date - 1]) : null;
-        var lEnd = lValues[l][lColMap.end_date - 1] ? new Date(lValues[l][lColMap.end_date - 1]) : null;
-        if (lStart) lStart.setHours(0, 0, 0, 0);
-        if (lEnd) lEnd.setHours(0, 0, 0, 0);
-
-        var lStartPeriod = (lColMap.start_period > 0 && lValues[l][lColMap.start_period - 1])
-          ? String(lValues[l][lColMap.start_period - 1]).toUpperCase().trim()
-          : "AM";
-        var lEndPeriod = (lColMap.end_period > 0 && lValues[l][lColMap.end_period - 1])
-          ? String(lValues[l][lColMap.end_period - 1]).toUpperCase().trim()
-          : "PM";
-
-        var lType = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.leave_type - 1]) : String(lValues[l][lColMap.leave_type - 1] || "").trim();
-
-        leavesByMember[lKey].push({
-          startDate: lStart,
-          startPeriod: lStartPeriod,
-          endDate: lEnd,
-          endPeriod: lEndPeriod,
-          leaveType: lType || "Vacation"
-        });
-      }
-    }
-  }
+  // 3. Routines and approved leaves (shared with the Weekly Presence plan, ADR 0058)
+  var baselinesByMember = readPresenceRoutines(ss, defaultOffice);
+  var leavesByMember = readPresenceLeaves(ss, false);
 
   // 5. Read Existing tbl_presence_log to Ensure Idempotence and Preserve Manual Edits
   // Columns: log_id(1), date(2), member(3), location_am(4), location_pm(5), timestamp(6)
@@ -368,75 +292,11 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
     }
   }
 
-  // Helper to resolve baseline location for a member on a specific date
   function resolveBaseline(mKey, dateObj, dayName) {
-    var isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
-    var rules = baselinesByMember[mKey] || [];
-    for (var r = 0; r < rules.length; r++) {
-      var rule = rules[r];
-      if (rule.dayOfWeek && rule.dayOfWeek !== "All" && rule.dayOfWeek.toLowerCase() !== dayName.toLowerCase()) {
-        continue;
-      }
-      if (rule.startDate && dateObj < rule.startDate) continue;
-      if (rule.endDate && dateObj > rule.endDate) continue;
-      return { am: rule.locationAm, pm: rule.locationPm };
-    }
-    var defaultLoc = isWeekend ? "Off" : defaultOffice;
-    return { am: defaultLoc, pm: defaultLoc };
+    return routineOn(baselinesByMember[mKey], dateObj, dayName, defaultOffice);
   }
-
-  // Helper to check if member has an approved leave on date, returning { am, pm } honoring half-day boundaries
   function resolveLeave(mKey, dateObj) {
-    var lList = leavesByMember[mKey] || [];
-    var dTime = dateObj.getTime();
-
-    for (var i = 0; i < lList.length; i++) {
-      var lv = lList[i];
-      if (!lv.startDate || !lv.endDate) continue;
-      var sTime = lv.startDate.getTime();
-      var eTime = lv.endDate.getTime();
-
-      if (dTime < sTime || dTime > eTime) continue;
-
-      var amLeave = null;
-      var pmLeave = null;
-
-      if (sTime === eTime) {
-        // Single day leave
-        if (lv.startPeriod === "AM" && lv.endPeriod === "PM") {
-          amLeave = lv.leaveType;
-          pmLeave = lv.leaveType;
-        } else if (lv.startPeriod === "AM" && lv.endPeriod === "AM") {
-          amLeave = lv.leaveType;
-          pmLeave = null;
-        } else if (lv.startPeriod === "PM" && lv.endPeriod === "PM") {
-          amLeave = null;
-          pmLeave = lv.leaveType;
-        } else {
-          amLeave = lv.leaveType;
-          pmLeave = lv.leaveType;
-        }
-      } else {
-        // Multi-day leave
-        if (dTime === sTime) {
-          amLeave = (lv.startPeriod === "PM") ? null : lv.leaveType;
-          pmLeave = lv.leaveType;
-        } else if (dTime === eTime) {
-          amLeave = lv.leaveType;
-          pmLeave = (lv.endPeriod === "AM") ? null : lv.leaveType;
-        } else {
-          amLeave = lv.leaveType;
-          pmLeave = lv.leaveType;
-        }
-      }
-
-      return {
-        am: amLeave,
-        pm: pmLeave,
-        leaveType: lv.leaveType
-      };
-    }
-    return null;
+    return leaveOn(leavesByMember[mKey], dateObj);
   }
 
   // 6. Generate New Daily Presence Records
@@ -706,6 +566,152 @@ function compilePresenceMigration(targetSpreadsheet) {
   return res;
 }
 
+
+/**
+ * Routines by member key (lower case), from the Routines tab.
+ * @return {Object<string, Array<{startDate: (Date|null), endDate: (Date|null), dayOfWeek: string, locationAm: string, locationPm: string}>>}
+ */
+function readPresenceRoutines(ss, defaultOffice) {
+  var baselinesSheet = getTable(ss, "baselines");
+  var baselinesByMember = {};
+  if (!baselinesSheet) return baselinesByMember;
+  var bMaxRows = readRowLimit(baselinesSheet, 500);
+  if (bMaxRows < 2) return baselinesByMember;
+  var bValues = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7).getValues();
+  for (var b = 0; b < bValues.length; b++) {
+    var bMember = typeof extractCellValue === "function" ? extractCellValue(bValues[b][1]) : String(bValues[b][1] || "").trim();
+    if (!bMember) continue;
+    var bKey = bMember.toLowerCase();
+    if (!baselinesByMember[bKey]) baselinesByMember[bKey] = [];
+    var sDate = bValues[b][2] ? new Date(bValues[b][2]) : null;
+    var eDate = bValues[b][3] ? new Date(bValues[b][3]) : null;
+    if (sDate) sDate.setHours(0, 0, 0, 0);
+    if (eDate) eDate.setHours(0, 0, 0, 0);
+    var dow = typeof extractCellValue === "function" ? extractCellValue(bValues[b][4]) : String(bValues[b][4] || "").trim();
+    var locAm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][5]) : String(bValues[b][5] || "").trim();
+    var locPm = typeof extractCellValue === "function" ? extractCellValue(bValues[b][6]) : String(bValues[b][6] || "").trim();
+    baselinesByMember[bKey].push({ startDate: sDate, endDate: eDate, dayOfWeek: dow,
+      locationAm: locAm || defaultOffice, locationPm: locPm || defaultOffice });
+  }
+  return baselinesByMember;
+}
+
+/**
+ * Leaves by member key (lower case): approved ones, plus requested ones when
+ * includeRequested (flagged requested: true). Rejected / cancelled are left out.
+ * @return {Object<string, Array<{startDate: Date, startPeriod: string, endDate: Date, endPeriod: string, leaveType: string, requested: boolean}>>}
+ */
+function readPresenceLeaves(ss, includeRequested) {
+  var leavesSheet = getTable(ss, "leaves");
+  var leavesByMember = {};
+  if (!leavesSheet) return leavesByMember;
+  var colMapFn = (typeof getLeaveColumnMap === "function") ? getLeaveColumnMap
+    : (typeof require !== "undefined" ? require("./Sidebar").getLeaveColumnMap : null);
+  var lColMap = colMapFn
+    ? colMapFn(leavesSheet)
+    : { leave_id: 1, member: 2, start_date: 3, start_period: -1, end_date: 4, end_period: -1, leave_type: 5, status: 6, numCols: 6 };
+  var lMaxRows = readRowLimit(leavesSheet, 500);
+  if (lMaxRows < 2) return leavesByMember;
+  var lValues = leavesSheet.getRange(2, 1, lMaxRows - 1, Math.max(leavesSheet.getLastColumn(), 6)).getValues();
+  for (var l = 0; l < lValues.length; l++) {
+    var lMember = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.member - 1]) : String(lValues[l][lColMap.member - 1] || "").trim();
+    if (!lMember) continue;
+    var lStatus = String((typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.status - 1]) : lValues[l][lColMap.status - 1]) || "").trim().toLowerCase();
+    var requested = lStatus === "requested";
+    // Approved (or no status, as before) always; requested only when asked for
+    if (lStatus && lStatus !== "approved" && !(includeRequested && requested)) continue;
+    var lStart = lValues[l][lColMap.start_date - 1] ? new Date(lValues[l][lColMap.start_date - 1]) : null;
+    var lEnd = lValues[l][lColMap.end_date - 1] ? new Date(lValues[l][lColMap.end_date - 1]) : null;
+    if (lStart) lStart.setHours(0, 0, 0, 0);
+    if (lEnd) lEnd.setHours(0, 0, 0, 0);
+    var lStartPeriod = (lColMap.start_period > 0 && lValues[l][lColMap.start_period - 1])
+      ? String(lValues[l][lColMap.start_period - 1]).toUpperCase().trim() : "AM";
+    var lEndPeriod = (lColMap.end_period > 0 && lValues[l][lColMap.end_period - 1])
+      ? String(lValues[l][lColMap.end_period - 1]).toUpperCase().trim() : "PM";
+    var lType = typeof extractCellValue === "function" ? extractCellValue(lValues[l][lColMap.leave_type - 1]) : String(lValues[l][lColMap.leave_type - 1] || "").trim();
+    var lKey = lMember.toLowerCase();
+    (leavesByMember[lKey] = leavesByMember[lKey] || []).push({
+      startDate: lStart, startPeriod: lStartPeriod, endDate: lEnd, endPeriod: lEndPeriod,
+      leaveType: lType || "Vacation", requested: requested
+    });
+  }
+  return leavesByMember;
+}
+
+/** A member's routine location on a date ({am, pm}); weekdays without a routine use the default office, weekends Off. */
+function routineOn(rules, dateObj, dayName, defaultOffice) {
+  var list = rules || [];
+  for (var r = 0; r < list.length; r++) {
+    var rule = list[r];
+    if (rule.dayOfWeek && rule.dayOfWeek !== "All" && rule.dayOfWeek.toLowerCase() !== dayName.toLowerCase()) continue;
+    if (rule.startDate && dateObj < rule.startDate) continue;
+    if (rule.endDate && dateObj > rule.endDate) continue;
+    return { am: rule.locationAm, pm: rule.locationPm };
+  }
+  var isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+  var defaultLoc = isWeekend ? "Off" : defaultOffice;
+  return { am: defaultLoc, pm: defaultLoc };
+}
+
+/** A member's leave on a date, honouring half days: {am, pm, leaveType, requested} or null. */
+function leaveOn(list, dateObj) {
+  var lList = list || [];
+  var dTime = dateObj.getTime();
+  for (var i = 0; i < lList.length; i++) {
+    var lv = lList[i];
+    if (!lv.startDate || !lv.endDate) continue;
+    var sTime = lv.startDate.getTime();
+    var eTime = lv.endDate.getTime();
+    if (dTime < sTime || dTime > eTime) continue;
+    var amLeave = lv.leaveType, pmLeave = lv.leaveType;
+    if (sTime === eTime) {
+      if (lv.startPeriod === "AM" && lv.endPeriod === "AM") pmLeave = null;
+      else if (lv.startPeriod === "PM" && lv.endPeriod === "PM") amLeave = null;
+    } else if (dTime === sTime) {
+      if (lv.startPeriod === "PM") amLeave = null;
+    } else if (dTime === eTime) {
+      if (lv.endPeriod === "AM") pmLeave = null;
+    }
+    return { am: amLeave, pm: pmLeave, leaveType: lv.leaveType, requested: !!lv.requested };
+  }
+  return null;
+}
+
+/**
+ * Planned presence for days after today (ADR 0058): what the routines and the
+ * declared leaves (approved, and requested ones flagged) say, as compile would
+ * log it. Public holidays and plain weekends are left out.
+ *
+ * @return {{days: Object<string, {am: string, pm: string, requested: boolean}>, lastLeaveEnd: (Date|null)}}
+ *   days keyed "YYYY-MM-DD::memberkey"
+ */
+function plannedPresence(ss, fromDate, toDate, memberKeys) {
+  var res = { days: {}, lastLeaveEnd: null };
+  var defaultOffice = (typeof defaultOfficeLocation === "function") ? defaultOfficeLocation(ss) : "Office";
+  var routines = readPresenceRoutines(ss, defaultOffice);
+  var leaves = readPresenceLeaves(ss, true);
+  Object.keys(leaves).forEach(function(k) {
+    leaves[k].forEach(function(lv) { if (lv.endDate && (!res.lastLeaveEnd || lv.endDate > res.lastLeaveEnd)) res.lastLeaveEnd = new Date(lv.endDate.getTime()); });
+  });
+  if (!fromDate || !toDate || fromDate > toDate) return res;
+  var holidays = (typeof readHolidays === "function") ? readHolidays(ss) : {};
+  getAllDaysBetween(fromDate, toDate).forEach(function(d) {
+    var iso = isoDate(d);
+    if (holidays[iso]) return;
+    var weekend = d.getDay() === 0 || d.getDay() === 6;
+    var dayName = getWeekdayName(d);
+    (memberKeys || []).forEach(function(k) {
+      var loc = routineOn(routines[k], d, dayName, defaultOffice);
+      var am = loc.am, pm = loc.pm;
+      var lv = leaveOn(leaves[k], d);
+      if (lv) { if (lv.am) am = lv.am; if (lv.pm) pm = lv.pm; }
+      if (weekend && am === "Off" && pm === "Off" && !lv) return;
+      res.days[iso + "::" + k] = { am: am, pm: pm, requested: !!(lv && lv.requested) };
+    });
+  });
+  return res;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     compilePresenceLogs: compilePresenceLogs,
@@ -713,6 +719,11 @@ if (typeof module !== 'undefined' && module.exports) {
     findEarliestHistoricalDate: findEarliestHistoricalDate,
     getWeekdaysBetween: getWeekdaysBetween,
     getAllDaysBetween: getAllDaysBetween,
-    getWeekdayName: getWeekdayName
+    getWeekdayName: getWeekdayName,
+    readPresenceRoutines: readPresenceRoutines,
+    readPresenceLeaves: readPresenceLeaves,
+    routineOn: routineOn,
+    leaveOn: leaveOn,
+    plannedPresence: plannedPresence
   };
 }

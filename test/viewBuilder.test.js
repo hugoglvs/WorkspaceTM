@@ -119,7 +119,7 @@ test('renderWeeklyMatrixView: should build view_weekly_matrix with merged People
   assert.strictEqual(matrixSheet.columnWidths[3], 110);
 });
 
-test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks', () => {
+test('renderWeeklyMatrixView: hides the weeks before the 3 prior to the current one', () => {
   freshInit(mockSpreadsheet);
 
   var membersSheet = mockSpreadsheet.getSheetByName('Members');
@@ -128,7 +128,7 @@ test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks
   ]);
 
   // 6 weeks of days (42 days) from 2026-01-05 (W02) to 2026-02-15 (W07)
-  var res = viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-02-15', mockSpreadsheet);
+  var res = viewBuilder.renderWeeklyMatrixView('2026-01-05', '2026-02-15', mockSpreadsheet, '2026-02-12');
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.totalWeeks, 6);
 
@@ -138,6 +138,27 @@ test('renderWeeklyMatrixView: should hide prior weeks and only show last 4 weeks
   assert.strictEqual(matrixSheet.isRowHiddenByUser(16), true, 'Row 16 should be hidden');
   // Row 17 (start of last 4 weeks) should NOT be hidden
   assert.strictEqual(matrixSheet.isRowHiddenByUser(17), false, 'Row 17 should be visible');
+  // The current week (W07, rows 38-44) is highlighted
+  assert.strictEqual(matrixSheet.getRange(38, 1, 7, 1).getBackground(), '#D2E3FC');
+});
+
+test('renderWeeklyMatrixView: runs to the last declared leave and shows the plan after today (ADR 0058)', () => {
+  freshInit(mockSpreadsheet);
+  mockSpreadsheet.getSheetByName('Members').getRange(2, 1, 1, 7).setValues([['Alice Smith', '', '', 'Engineer', 'Core', 'Active', '']]);
+  mockSpreadsheet.getSheetByName('Routines').getRange(2, 1, 1, 7).setValues([['b1', 'Alice Smith', '2026-01-01', '', 'Monday', 'Remote', 'Remote']]);
+  mockSpreadsheet.getSheetByName('Leaves').getRange(2, 1, 2, 8).setValues([
+    ['l1', 'Alice Smith', '2026-11-18', 'AM', '2026-11-18', 'PM', 'Vacation', 'Approved'],
+    ['l2', 'Alice Smith', '2026-12-02', 'AM', '2026-12-03', 'AM', 'Vacation', 'Requested']
+  ]);
+  var res = viewBuilder.renderWeeklyMatrixView(null, null, mockSpreadsheet, '2026-10-15');
+  assert.strictEqual(res.success, true);
+  var sheet = mockSpreadsheet.getSheetByName('Weekly Presence');
+  var dates = sheet.getRange(3, 2, 200, 1).getValues().map(r => r[0]).filter(Boolean);
+  assert.strictEqual(dates[dates.length - 1], '2026-12-06', 'until the Sunday of the last leave week');
+  var rowOf = d => 3 + dates.indexOf(d);
+  assert.deepStrictEqual(sheet.getRange(rowOf('2026-10-19'), 3, 1, 2).getValues()[0], ['Remote', 'Remote'], 'routine planned');
+  assert.deepStrictEqual(sheet.getRange(rowOf('2026-11-18'), 3, 1, 2).getValues()[0], ['Vacation', 'Vacation'], 'approved leave');
+  assert.deepStrictEqual(sheet.getRange(rowOf('2026-12-03'), 3, 1, 2).getValues()[0][0], 'Vacation', 'requested leave shown');
 });
 
 test('handleWeeklyMatrixEdit: should sync in-sheet presence declaration to tbl_presence_log and tbl_members', () => {

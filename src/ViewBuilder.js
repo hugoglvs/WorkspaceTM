@@ -220,12 +220,16 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
     }
   }
 
+  // Planned presence after today: routines and declared leaves (ADR 0058)
+  var planFn = (typeof plannedPresence === "function") ? plannedPresence
+    : (typeof require !== "undefined" ? require("./PresenceEngine").plannedPresence : null);
+  var lastLeaveEnd = planFn ? planFn(ss, null, null, []).lastLeaveEnd : null;
+
   if (!endD) {
-    if (maxLoggedDate && maxLoggedDate > today) {
-      endD = new Date(maxLoggedDate.getTime());
-    } else {
-      endD = new Date(today.getTime());
-    }
+    endD = new Date(today.getTime());
+    if (maxLoggedDate && maxLoggedDate > endD) endD = new Date(maxLoggedDate.getTime());
+    // Up to the last declared leave, so it can be seen in its week
+    if (lastLeaveEnd && lastLeaveEnd > endD) endD = new Date(lastLeaveEnd.getTime());
     // Expand forward to Sunday of that week
     var eDay = endD.getDay();
     var forwardToSun = (eDay === 0 ? 0 : 7 - eDay);
@@ -267,6 +271,13 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
     row2Headers.push("PM");
   }
 
+  // Days after today without a log entry show the plan (routine, then leave)
+  var tomorrow = new Date(today.getTime());
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  var plan = (planFn && tomorrow <= endD)
+    ? planFn(ss, tomorrow, endD, activeMembers.map(function(m) { return m.key; })) : { days: {} };
+  var requestedNotes = []; // [rowOffset, colOffset] of cells showing a requested leave
+
   // 6. Build Matrix Data Rows
   var rows = [];
   var weekGroups = []; // Array of { weekStr: string, startRowIndex: number, rowCount: number }
@@ -300,6 +311,10 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
       var member = activeMembers[mIdx];
       var key = dateStr + "::" + member.key;
       var log = presenceData[key];
+      if (!log && plan.days[key]) {
+        log = plan.days[key];
+        if (log.requested) requestedNotes.push([w, 2 + mIdx * 2]);
+      }
 
       if (isWeekend) {
         // Weekends have dark gray background, no default presence required
@@ -470,14 +485,28 @@ function renderWeeklyMatrixView(startDateStr, endDateStr, targetSpreadsheet, asO
       }
     }
 
-    // Hide prior weeks: only display the last 4 weeks by default
-    var totalWeeks = weekGroups.length;
-    if (totalWeeks > 4) {
-      var weeksToHide = totalWeeks - 4;
-      var rowsToHideCount = 0;
-      for (var h = 0; h < weeksToHide; h++) {
-        rowsToHideCount += weekGroups[h].rowCount;
-      }
+    // Requested (not yet approved) leaves shown from the plan get a note (ADR 0058)
+    requestedNotes.forEach(function(rc) {
+      try { viewSheet.getRange(3 + rc[0], 1 + rc[1], 1, 2).setNotes([["Leave requested, not approved yet", "Leave requested, not approved yet"]]); } catch (eNote) {}
+    });
+
+    // The current week's number is highlighted (ADR 0058)
+    var currentWeekLabel = formatIsoWeekString(today);
+    for (var cg = 0; cg < weekGroups.length; cg++) {
+      if (weekGroups[cg].weekStr !== currentWeekLabel) continue;
+      try { viewSheet.getRange(3 + weekGroups[cg].startRowIndex, 1, weekGroups[cg].rowCount, 1).setBackground("#D2E3FC").setFontColor("#1967D2"); } catch (eCur) {}
+    }
+
+    // Hide prior weeks: the current week, the 3 before it and every later week stay visible
+    var firstVisible = new Date(today.getTime());
+    firstVisible.setDate(firstVisible.getDate() - ((firstVisible.getDay() + 6) % 7) - 21);
+    var rowsToHideCount = 0;
+    for (var h = 0; h < weekGroups.length; h++) {
+      var lastDayOfGroup = allDays[weekGroups[h].startRowIndex + weekGroups[h].rowCount - 1];
+      if (lastDayOfGroup >= firstVisible) break;
+      rowsToHideCount += weekGroups[h].rowCount;
+    }
+    if (rowsToHideCount > 0) {
       try {
         viewSheet.hideRows(3, rowsToHideCount);
       } catch (eHide) {}

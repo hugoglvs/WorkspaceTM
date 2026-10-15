@@ -349,6 +349,9 @@ function compilePresenceLogs(startDateParam, endDateParam, targetSpreadsheet, as
         if (leaveRes.pm) locPm = leaveRes.pm;
       }
 
+      // No routine and no leave that day: nothing is logged, the person declares it (ADR 0059)
+      if (!locAm && !locPm) continue;
+
       // 3. Weekend handling: Saturday/Sunday only logged if member actually works or has leave
       if (isWeekendDay) {
         var isWorkingWeekend = (locAm !== "Off" || locPm !== "Off");
@@ -577,9 +580,13 @@ function readPresenceRoutines(ss, defaultOffice) {
   if (!baselinesSheet) return baselinesByMember;
   var bMaxRows = readRowLimit(baselinesSheet, 500);
   if (bMaxRows < 2) return baselinesByMember;
-  var bValues = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7).getValues();
+  var bRange = baselinesSheet.getRange(2, 1, bMaxRows - 1, 7);
+  var bValues = bRange.getValues();
+  // Read the member like Members is read (chip rich text included), so the keys match
+  var bRich = (typeof bRange.getRichTextValues === "function") ? bRange.getRichTextValues() : [];
   for (var b = 0; b < bValues.length; b++) {
-    var bMember = typeof extractCellValue === "function" ? extractCellValue(bValues[b][1]) : String(bValues[b][1] || "").trim();
+    var bRichM = (bRich && bRich[b]) ? bRich[b][1] : null;
+    var bMember = typeof extractCellValue === "function" ? extractCellValue(bValues[b][1], bRichM) : String(bValues[b][1] || "").trim();
     if (!bMember) continue;
     var bKey = bMember.toLowerCase();
     if (!baselinesByMember[bKey]) baselinesByMember[bKey] = [];
@@ -638,7 +645,11 @@ function readPresenceLeaves(ss, includeRequested) {
   return leavesByMember;
 }
 
-/** A member's routine location on a date ({am, pm}); weekdays without a routine use the default office, weekends Off. */
+/**
+ * A member's routine location on a date ({am, pm}). Without a routine for that
+ * day: weekends are Off, weekdays are empty (none: true) — nothing is assumed
+ * (ADR 0059).
+ */
 function routineOn(rules, dateObj, dayName, defaultOffice) {
   var list = rules || [];
   for (var r = 0; r < list.length; r++) {
@@ -649,8 +660,8 @@ function routineOn(rules, dateObj, dayName, defaultOffice) {
     return { am: rule.locationAm, pm: rule.locationPm };
   }
   var isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
-  var defaultLoc = isWeekend ? "Off" : defaultOffice;
-  return { am: defaultLoc, pm: defaultLoc };
+  if (isWeekend) return { am: "Off", pm: "Off" };
+  return { am: "", pm: "", none: true };
 }
 
 /** A member's leave on a date, honouring half days: {am, pm, leaveType, requested} or null. */
@@ -706,6 +717,7 @@ function plannedPresence(ss, fromDate, toDate, memberKeys) {
       var lv = leaveOn(leaves[k], d);
       if (lv) { if (lv.am) am = lv.am; if (lv.pm) pm = lv.pm; }
       if (weekend && am === "Off" && pm === "Off" && !lv) return;
+      if (!am && !pm) return; // no routine, no leave: nothing planned (ADR 0059)
       res.days[iso + "::" + k] = { am: am, pm: pm, requested: !!(lv && lv.requested) };
     });
   });

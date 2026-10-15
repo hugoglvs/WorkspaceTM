@@ -204,6 +204,9 @@ test('compilePresenceLogs: should be idempotent and preserve existing manual edi
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
   ]);
+  // A routine for every day (no location is assumed without one, ADR 0059)
+  mockSpreadsheet.getSheetByName('Routines').getRange(2, 1, 5, 7).setValues(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    .map((d, i) => ['b' + i, 'alice@accenture.com', '2026-01-01', '', d, 'Main Office', 'Main Office']));
 
   // First compilation
   var res1 = compilePresenceLogs(new Date(2026, 5, 1), new Date(2026, 5, 3), mockSpreadsheet);
@@ -247,6 +250,9 @@ test('compilePresenceLogs: should strictly cap compilation at today as ground tr
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
   ]);
+  // A routine for every day (no location is assumed without one, ADR 0059)
+  mockSpreadsheet.getSheetByName('Routines').getRange(2, 1, 5, 7).setValues(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    .map((d, i) => ['b' + i, 'alice@accenture.com', '2026-01-01', '', d, 'Main Office', 'Main Office']));
 
   // Suppose asOfDate is Wednesday June 3, 2026.
   // The caller requests compiling until Friday June 5, 2026 (future).
@@ -277,6 +283,9 @@ test('compilePresenceLogs: should only compile weekdays and omit weekend logs wh
   membersSheet.getRange(2, 1, 1, 7).setValues([
     ['alice@accenture.com', 'alice@accenture.com', '', 'Lead', 'Delivery', 'Active', 'Not Logged']
   ]);
+  // A routine for every day (no location is assumed without one, ADR 0059)
+  mockSpreadsheet.getSheetByName('Routines').getRange(2, 1, 5, 7).setValues(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    .map((d, i) => ['b' + i, 'alice@accenture.com', '2026-01-01', '', d, 'Main Office', 'Main Office']));
 
   // Saturday June 6, 2026
   var asOfSaturday = new Date(2026, 5, 6);

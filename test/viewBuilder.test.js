@@ -157,6 +157,7 @@ test('renderWeeklyMatrixView: runs to the last declared leave and shows the plan
   assert.strictEqual(dates[dates.length - 1], '2026-12-06', 'until the Sunday of the last leave week');
   var rowOf = d => 3 + dates.indexOf(d);
   assert.deepStrictEqual(sheet.getRange(rowOf('2026-10-19'), 3, 1, 2).getValues()[0], ['Remote', 'Remote'], 'routine planned');
+  assert.deepStrictEqual(sheet.getRange(rowOf('2026-10-20'), 3, 1, 2).getValues()[0], ['', ''], 'no routine that day: nothing assumed (ADR 0059)');
   assert.deepStrictEqual(sheet.getRange(rowOf('2026-11-18'), 3, 1, 2).getValues()[0], ['Vacation', 'Vacation'], 'approved leave');
   assert.deepStrictEqual(sheet.getRange(rowOf('2026-12-03'), 3, 1, 2).getValues()[0][0], 'Vacation', 'requested leave shown');
 });

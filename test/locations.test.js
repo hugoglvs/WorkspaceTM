@@ -134,14 +134,15 @@ test('KPI Data: client-site days are worked days of their own category', () => {
   assert.deepStrictEqual(facts.rows.map(r => [r[cat], r[worked]]), [['client_site', 0.5], ['office', 0.5]]);
 });
 
-test('compile: a weekday without any routine defaults to the first active office', () => {
+test('compile: a weekday without any routine logs nothing, no location is assumed (ADR 0059)', () => {
   freshInit(mockSpreadsheet);
   seedMembers([['Alice', '', '', 'Dev', 'Eng', 'Active', '']]);
 
-  compilePresenceLogs('2026-10-05', '2026-10-05', mockSpreadsheet, '2026-10-05');
+  var res = compilePresenceLogs('2026-10-05', '2026-10-05', mockSpreadsheet, '2026-10-05');
 
-  var log = getTable(mockSpreadsheet, 'presenceLog').getRange(2, 1, 1, 6).getValues()[0];
-  assert.deepStrictEqual([log[3], log[4]], ['OneRoof', 'OneRoof']);
+  assert.strictEqual(res.createdCount, 0);
+  assert.strictEqual(getTable(mockSpreadsheet, 'presenceLog').getRange(2, 1, 1, 6).getValues()[0][1], '');
+  assert.strictEqual(getTable(mockSpreadsheet, 'members').getRange(2, 7).getValue(), 'Not Logged');
 });
 
 test('editing Locations refreshes the dropdowns, and the menu can show the hidden tab', () => {

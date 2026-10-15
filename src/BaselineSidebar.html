@@ -101,6 +101,30 @@
       margin-bottom: 6px;
       color: #202124;
     }
+    .day-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .day-head .day-title {
+      margin-bottom: 0;
+    }
+    .split-toggle {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      color: #1a73e8;
+      cursor: pointer;
+    }
+    .split-toggle:hover {
+      text-decoration: underline;
+    }
+    .whole-col select {
+      font-size: 12px;
+      padding: 6px 8px;
+    }
     .period-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -567,6 +591,9 @@
         .getSidebarInitialData();
     }
 
+    // Which days declare AM and PM separately (default: one location for the whole day)
+    var splitDays = {};
+
     function buildWeekdayGrid() {
       var container = document.getElementById('weekContainer');
       var currentVals = {};
@@ -585,16 +612,41 @@
         var isWeekend = (day === 'Saturday' || day === 'Sunday');
         var dayDiv = document.createElement('div');
         dayDiv.className = isWeekend ? 'day-row weekend-row' : 'day-row';
+        dayDiv.id = day + '_row';
 
+        var head = document.createElement('div');
+        head.className = 'day-head';
         var title = document.createElement('div');
         title.className = 'day-title';
         title.textContent = isWeekend ? (day + ' (Weekend)') : day;
-        dayDiv.appendChild(title);
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.id = day + '_toggle';
+        toggle.className = 'split-toggle';
+        toggle.onclick = function() { setDaySplit(day, !splitDays[day]); };
+        head.appendChild(title);
+        head.appendChild(toggle);
+        dayDiv.appendChild(head);
 
+        // Whole day: one location for AM and PM
+        var wholeCol = document.createElement('div');
+        wholeCol.className = 'period-col whole-col';
+        wholeCol.id = day + '_whole';
+        var wholeSelect = document.createElement('select');
+        wholeSelect.id = day + '_all';
+        populateSelectOptions(wholeSelect);
+        wholeSelect.onchange = function() {
+          document.getElementById(day + '_am').value = wholeSelect.value;
+          document.getElementById(day + '_pm').value = wholeSelect.value;
+        };
+        wholeCol.appendChild(wholeSelect);
+        dayDiv.appendChild(wholeCol);
+
+        // Split: AM and PM separately
         var grid = document.createElement('div');
         grid.className = 'period-grid';
+        grid.id = day + '_split';
 
-        // AM
         var amCol = document.createElement('div');
         amCol.className = 'period-col';
         var amLabel = document.createElement('span');
@@ -603,15 +655,9 @@
         var amSelect = document.createElement('select');
         amSelect.id = day + '_am';
         populateSelectOptions(amSelect);
-        if (currentVals[day + '_am']) {
-          amSelect.value = currentVals[day + '_am'];
-        } else if (isWeekend) {
-          amSelect.value = 'Off';
-        }
         amCol.appendChild(amLabel);
         amCol.appendChild(amSelect);
 
-        // PM
         var pmCol = document.createElement('div');
         pmCol.className = 'period-col';
         var pmLabel = document.createElement('span');
@@ -620,11 +666,6 @@
         var pmSelect = document.createElement('select');
         pmSelect.id = day + '_pm';
         populateSelectOptions(pmSelect);
-        if (currentVals[day + '_pm']) {
-          pmSelect.value = currentVals[day + '_pm'];
-        } else if (isWeekend) {
-          pmSelect.value = 'Off';
-        }
         pmCol.appendChild(pmLabel);
         pmCol.appendChild(pmSelect);
 
@@ -632,7 +673,58 @@
         grid.appendChild(pmCol);
         dayDiv.appendChild(grid);
         container.appendChild(dayDiv);
+
+        var am0 = currentVals[day + '_am'] || (isWeekend ? 'Off' : '');
+        var pm0 = currentVals[day + '_pm'] || (isWeekend ? 'Off' : '');
+        if (am0) amSelect.value = am0;
+        if (pm0) pmSelect.value = pm0;
+        // Keep a day split once its AM and PM differ
+        if (amSelect.value !== pmSelect.value) splitDays[day] = true;
+        wholeSelect.value = amSelect.value;
+        showDayMode(day);
       });
+    }
+
+    // Shows the single "whole day" select or the AM / PM pair for a day
+    function showDayMode(day) {
+      var split = splitDays[day] === true;
+      var whole = document.getElementById(day + '_whole');
+      var grid = document.getElementById(day + '_split');
+      var toggle = document.getElementById(day + '_toggle');
+      if (whole) whole.style.display = split ? 'none' : '';
+      if (grid) grid.style.display = split ? '' : 'none';
+      if (toggle) toggle.textContent = split ? 'Whole day' : 'Split AM / PM';
+    }
+
+    // Switches a day between whole-day and AM / PM. Back to whole day, the AM location applies to both halves.
+    function setDaySplit(day, split) {
+      splitDays[day] = split === true;
+      var am = document.getElementById(day + '_am');
+      var pm = document.getElementById(day + '_pm');
+      var all = document.getElementById(day + '_all');
+      if (am && pm && all) {
+        if (split) {
+          am.value = all.value;
+          pm.value = all.value;
+        } else {
+          all.value = am.value;
+          pm.value = am.value;
+        }
+      }
+      showDayMode(day);
+    }
+
+    // Sets a day's locations (preset or saved routine): split only when AM and PM differ
+    function setDayValues(day, am, pm) {
+      var elAm = document.getElementById(day + '_am');
+      var elPm = document.getElementById(day + '_pm');
+      var elAll = document.getElementById(day + '_all');
+      if (!elAm || !elPm || !elAll) return;
+      if (am) elAm.value = am;
+      if (pm) elPm.value = pm;
+      elAll.value = elAm.value;
+      splitDays[day] = elAm.value !== elPm.value;
+      showDayMode(day);
     }
 
     function populateSelectOptions(selectElem) {
@@ -789,10 +881,7 @@
               if (existing.days[day]) {
                 var am = existing.days[day].location_am;
                 var pm = existing.days[day].location_pm;
-                var elAm = document.getElementById(day + '_am');
-                var elPm = document.getElementById(day + '_pm');
-                if (elAm && am) elAm.value = am;
-                if (elPm && pm) elPm.value = pm;
+                setDayValues(day, am, pm);
               }
             });
             if (existing.startDate) {
@@ -811,23 +900,15 @@
 
     function applyPreset(presetType) {
       weekDays.forEach(function(day) {
-        var am = document.getElementById(day + '_am');
-        var pm = document.getElementById(day + '_pm');
+        var loc;
         if (presetType === 'all-office') {
-          am.value = defaultOffice;
-          pm.value = defaultOffice;
+          loc = defaultOffice;
         } else if (presetType === 'all-remote') {
-          am.value = defaultRemote;
-          pm.value = defaultRemote;
+          loc = defaultRemote;
         } else if (presetType === 'hybrid') {
-          if (day === 'Monday' || day === 'Friday') {
-            am.value = defaultRemote;
-            pm.value = defaultRemote;
-          } else {
-            am.value = defaultOffice;
-            pm.value = defaultOffice;
-          }
+          loc = (day === 'Monday' || day === 'Friday') ? defaultRemote : defaultOffice;
         }
+        if (loc) setDayValues(day, loc, loc);
       });
     }
 

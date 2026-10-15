@@ -356,7 +356,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   await divider(2, "Using it day to day", "For every team member. Declare your week once, change single days when plans move, and let the sheet keep projects covered.", ["Declaring where you work", "The Presence & Leaves sidebar", "Weekly Presence", "Members & Contracts", "Projects and coverage", "Interim backups", "Tasks and events", "Check Workspace and emails", "Good habits"]);
   {
     const s = content("Three ways to say where you work");
-    const st = [["MdRepeat", "1 · Routine", "Your usual week", "Set once in Declare Presence & Leaves: AM and PM location for each weekday, from a start date. It fills every day automatically.", HX.purple, HX.tPurple],
+    const st = [["MdRepeat", "1 · Routine", "Your usual week", "Set once in Declare Presence & Leaves: one location per weekday (or split AM and PM), from a start date. It fills every day automatically.", HX.purple, HX.tPurple],
       ["MdEditCalendar", "2 · One-off change", "A single half-day", "Type in your AM or PM cell in Weekly Presence. It is saved immediately as that day's record.", HX.green, HX.tGreen],
       ["MdBeachAccess", "3 · Leave", "An absence", "Declare it in the sidebar, as Requested then Approved. Half-days are supported with AM/PM on the first and last day.", HX.red, HX.tRed]];
     const c3 = cols(3);
@@ -384,7 +384,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   }
   {
     const s = content("The Presence & Leaves sidebar");
-    const panels = [["Routine Baseline", ["Team Member: you, pre-selected", "Quick Presets: All Office, All Remote, Hybrid (Mon/Fri Remote)", "Weekly Schedule: AM and PM per weekday; + Weekend Days if you work them", "Effective Start Date; End Date optional", "Save Baseline"]],
+    const panels = [["Routine Baseline", ["Team Member: you, pre-selected", "Quick Presets: All Office, All Remote, Hybrid (Mon/Fri Remote)", "Weekly Schedule: one location per weekday, or Split AM / PM; + Weekend Days if you work them", "Effective Start Date; End Date optional", "Save Baseline"]],
       ["Submit Leave", ["Leave Type: Vacation, Sick Leave, Maternity/Paternity, Unpaid Leave", "Start and End Date, each with AM / PM for half-days", "Quick ranges: Today Only, Current Week, Next Week", "Status: Requested or Approved", "Submit Leave"]]];
     const pw = 3.55; const lhs = panels.map((p) => listH(p[1], 15, pw - 0.4, 7));
     const ph = Math.min(H, 0.6 + 0.25 + Math.max(...lhs) + 0.3);

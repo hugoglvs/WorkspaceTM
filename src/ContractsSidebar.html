@@ -36,6 +36,8 @@
     .status-msg.info { background: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; display: block; }
     .hidden { display: none !important; }
     .optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .add-end { display: block; margin-top: 9px; }
+    .end-remove { display: block; margin-top: 4px; }
   </style>
 </head>
 <body data-prefill="<?= prefillMember ?>">
@@ -64,12 +66,19 @@
       <datalist id="roles"></datalist>
       <datalist id="departments"></datalist>
       <div class="row">
-        <div class="form-group"><label for="contractType">Contract</label><select id="contractType"></select></div>
+        <div class="form-group"><label for="contractType">Contract</label><select id="contractType" onchange="refreshEnd()"></select></div>
         <div class="form-group"><label for="fte">FTE %</label><input id="fte" type="number" min="1" max="100" value="100"></div>
       </div>
       <div class="row">
         <div class="form-group"><label for="startDate">Start</label><input id="startDate" type="date" oninput="onStartChange()"></div>
-        <div class="form-group"><label for="endDate">End <span class="optional">(optional)</span></label><input id="endDate" type="date" oninput="checkGap()"></div>
+        <div class="form-group">
+          <label for="endDate">End <span class="optional">(optional)</span></label>
+          <button type="button" id="addEndBtn" class="btn-link add-end" onclick="showEnd()">+ Add an end date</button>
+          <div id="endBox" class="hidden">
+            <input id="endDate" type="date" oninput="checkGap()">
+            <button type="button" class="btn-link end-remove" onclick="removeEnd()">Remove the end date</button>
+          </div>
+        </div>
       </div>
       <p id="gapHint" class="hint hidden"></p>
       <button id="saveBtn" class="btn-primary" onclick="save()">Save contract</button>
@@ -150,6 +159,17 @@
       });
     }
 
+    // End date: a permanent contract usually has none, so its field stays behind
+    // "+ Add an end date"; other contract types, or a contract with an end, show it.
+    var endOpen = false;
+    function refreshEnd() {
+      var show = endOpen || !!$('endDate').value || $('contractType').value !== 'Permanent';
+      $('endBox').classList.toggle('hidden', !show);
+      $('addEndBtn').classList.toggle('hidden', show);
+    }
+    function showEnd() { endOpen = true; refreshEnd(); $('endDate').focus(); }
+    function removeEnd() { endOpen = false; $('endDate').value = ''; refreshEnd(); checkGap(); }
+
     function fill(c) {
       $('role').value = c ? c.role : '';
       $('department').value = c ? c.department : '';
@@ -165,6 +185,8 @@
       fill(last);                      // a new contract starts from the latest one
       $('startDate').value = data.today;
       $('endDate').value = '';
+      endOpen = false;
+      refreshEnd();
       $('formTitle').textContent = m.contracts.length ? 'New contract' : 'First contract';
       $('saveBtn').textContent = 'Save contract';
       $('form').classList.remove('hidden');
@@ -177,6 +199,8 @@
       fill(c);
       $('startDate').value = c.startDate;
       $('endDate').value = c.endDate || '';
+      endOpen = false;
+      refreshEnd();
       $('formTitle').textContent = 'Edit contract from ' + c.startDate;
       $('saveBtn').textContent = 'Save changes';
       $('currentBox').classList.add('hidden');

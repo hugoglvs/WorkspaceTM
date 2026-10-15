@@ -157,31 +157,33 @@ test('calendar: checkboxes; inserting one assigns, ticking marks done, deleting 
   cal.getRange(1, 2).setValue('Quiz');
   handleTaskCalendarEdit({ range: cal.getRange(1, 2), source: mockSpreadsheet }, MON);
   assert.strictEqual(cal.getRange(1, 2).getValue(), 'Quiz');
-  assert.deepStrictEqual(cal.getRange(4, 1, 3, 1).getValues().map(r => r[0]), ['Alice', 'Bob', 'Carol'], 'departed hidden');
+  assert.deepStrictEqual(cal.getRange(5, 1, 3, 1).getValues().map(r => r[0]), ['Alice', 'Bob', 'Carol'], 'departed hidden');
+  assert.strictEqual(cal.getRange(2, 2).getValue(), '2026', 'year above the weeks');
+  assert.strictEqual(cal.getRange(3, 1).getValue(), 'Member');
   var col = 2 + 4; // current week (4 weeks of history first)
   var edit = (row, c, value, old) => { cal.getRange(row, c).setValue(value); return handleTaskCalendarEdit({ range: cal.getRange(row, c), oldValue: old, source: mockSpreadsheet }, MON); };
 
-  assert.strictEqual(edit(4, col, false, undefined), 'assigned', 'checkbox inserted');
+  assert.strictEqual(edit(5, col, false, undefined), 'assigned', 'checkbox inserted');
   assert.strictEqual(iso(tasksOf('Quiz')[0].due), '2026-10-16');
-  assert.strictEqual(cal.getRange(4, col).getValue(), false);
-  assert.strictEqual(cal.getRange(3, col).getValue(), '0/1');
+  assert.strictEqual(cal.getRange(5, col).getValue(), false);
+  assert.strictEqual(cal.getRange(4, col).getValue(), '0/1');
 
-  assert.strictEqual(edit(5, col + 1, false, undefined), 'refused_leave', 'Bob on leave Fri 23 Oct');
-  assert.strictEqual(cal.getRange(5, col + 1).getValue(), '');
+  assert.strictEqual(edit(6, col + 1, false, undefined), 'refused_leave', 'Bob on leave Fri 23 Oct');
+  assert.strictEqual(cal.getRange(6, col + 1).getValue(), '');
 
-  assert.strictEqual(edit(4, col, true, 'FALSE'), 'done');
+  assert.strictEqual(edit(5, col, true, 'FALSE'), 'done');
   var t = tasksOf('Quiz')[0];
   assert.strictEqual(t.status, 'Done');
   assert.strictEqual(iso(toDate(t.doneOn)), MON);
-  assert.strictEqual(cal.getRange(4, col).getValue(), true);
-  assert.strictEqual(cal.getRange(3, col).getValue(), '1/1');
+  assert.strictEqual(cal.getRange(5, col).getValue(), true);
+  assert.strictEqual(cal.getRange(4, col).getValue(), '1/1');
 
-  assert.strictEqual(edit(4, col, false, 'TRUE'), 'reopened');
+  assert.strictEqual(edit(5, col, false, 'TRUE'), 'reopened');
   assert.strictEqual(tasksOf('Quiz')[0].status, 'Todo');
 
-  assert.strictEqual(edit(4, col, '', 'FALSE'), 'cancelled', 'checkbox deleted');
+  assert.strictEqual(edit(5, col, '', 'FALSE'), 'cancelled', 'checkbox deleted');
   assert.strictEqual(tasksOf('Quiz').length, 0);
-  assert.strictEqual(cal.getRange(3, col).getValue(), '');
+  assert.strictEqual(cal.getRange(4, col).getValue(), '');
 });
 
 test('calendar: a closed month asks first; "No" keeps the old value', () => {
@@ -189,11 +191,26 @@ test('calendar: a closed month asks first; "No" keeps the old value', () => {
   renderTaskCalendar(mockSpreadsheet, MON);
   var cal = getTable(mockSpreadsheet, 'taskCalendar');
   SpreadsheetApp.getUi().alertResponse = 'NO';
-  cal.getRange(4, 2).setValue(true); // 4 weeks back = September
-  var out = handleTaskCalendarEdit({ range: cal.getRange(4, 2), oldValue: undefined, source: mockSpreadsheet }, MON);
+  cal.getRange(5, 2).setValue(true); // 4 weeks back = September
+  var out = handleTaskCalendarEdit({ range: cal.getRange(5, 2), oldValue: undefined, source: mockSpreadsheet }, MON);
   assert.strictEqual(out, 'kept');
-  assert.strictEqual(cal.getRange(4, 2).getValue(), '');
+  assert.strictEqual(cal.getRange(5, 2).getValue(), '');
   SpreadsheetApp.getUi().alertResponse = null;
+});
+
+test('calendar: a year row above the periods, one label per year, months without their year', () => {
+  seed();
+  var st = { type: 'Forecast' };
+  PropertiesService.getDocumentProperties().setProperty('TASK_CALENDAR_STATE', JSON.stringify(st));
+  renderTaskCalendar(mockSpreadsheet, MON);
+  var cal = getTable(mockSpreadsheet, 'taskCalendar');
+  // Monthly: Jul 2026 to Jun 2027 (3 back, 8 ahead)
+  var years = cal.getRange(2, 2, 1, 12).getValues()[0];
+  var labels = cal.getRange(3, 2, 1, 12).getValues()[0];
+  assert.strictEqual(years[0], '2026');
+  assert.strictEqual(years[1], '', 'one label per year');
+  assert.strictEqual(years[labels.indexOf('Jan')], '2027');
+  assert.strictEqual(labels[0], 'Jul');
 });
 
 test('tasks grid: setting Done stamps Done on, reopening clears it', () => {

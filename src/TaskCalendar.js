@@ -1,8 +1,9 @@
 /**
  * Calendar view (ADR 0045, 0052): the Tasks list as a planning grid, like
  * Weekly Presence. Pick a Type (B1) and a Project (D1); rows are members,
- * columns are the type's periods (weeks, half months or months). Row 3 counts
- * the tasks done per period ("9/12"). A cell shows that member's task of that
+ * columns are the type's periods (weeks, half months or months). Row 2 shows
+ * the year above its periods, row 3 the periods, row 4 counts the tasks done
+ * per period ("9/12"). A cell shows that member's task of that
  * type in that period:
  *   checkbox, unticked  assigned        (blue; red once overdue)
  *   checkbox, ticked    done            (green)
@@ -15,7 +16,7 @@
 
 var CALENDAR_STATE_PROP = "TASK_CALENDAR_STATE";
 var CALENDAR_ALL_PROJECTS = "All projects";
-var CALENDAR_FIRST_ROW = 4;
+var CALENDAR_FIRST_ROW = 5;
 var CALENDAR_STYLES = {
   todo: "#E8F0FE", late: "#FCE8E6", done: "#E6F4EA", leave: "#E8EAED", requested: "#FEF7E0", none: "#FFFFFF"
 };
@@ -49,6 +50,16 @@ function calPeriods(type, today) {
 
 function calFrequency(type) {
   return periodFrequency(type && type.frequency);
+}
+
+/** Year a period belongs to (its key's year: the ISO year for weeks). */
+function calPeriodYear(p) {
+  return parseInt(String(p.key).slice(0, 4), 10);
+}
+
+/** A period's column label without its year, which row 2 shows. */
+function calPeriodLabel(p) {
+  return String(p.label).replace(/\s+\d{4}$/, "");
 }
 
 /** A Calendar cell value as "done", "todo" or "" (checkbox or text). */
@@ -128,6 +139,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
     checks.push(ck);
   });
 
+  try { sheet.getRange(2, 1, 1, Math.max(sheet.getMaxColumns(), width)).breakApart(); } catch (eBa) {}
   sheet.clear();
   try { sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 3), Math.max(sheet.getMaxColumns(), width)).clearDataValidations(); } catch (eV) {}
   sheet.getRange(1, 1, 1, 5).setValues([["Type", type.name, "Project", project || CALENDAR_ALL_PROJECTS,
@@ -142,24 +154,34 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
     sheet.getRange(1, 5).setFontColor("#5F6368");
   } catch (eF) {}
 
-  var header = ["Member"].concat(periods.map(function(p) { return p.label; }));
-  // Plain text, or Sheets turns "Oct 2026" into a date
-  try { sheet.getRange(2, 1, 1, width).setNumberFormat("@"); } catch (eNf) {}
-  sheet.getRange(2, 1, 1, width).setValues([header]);
+  // Row 2: the year above its periods (merged per year); row 3: the periods
+  var years = periods.map(calPeriodYear);
+  try { sheet.getRange(2, 1, 2, width).setNumberFormat("@"); } catch (eNf) {}
+  sheet.getRange(2, 1, 1, width).setValues([["Year"].concat(years.map(function(y, i) { return i === 0 || y !== years[i - 1] ? String(y) : ""; }))]);
+  // Plain text, or Sheets turns "Oct" into a date
+  sheet.getRange(3, 1, 1, width).setValues([["Member"].concat(periods.map(calPeriodLabel))]);
   try {
-    sheet.getRange(2, 1, 1, width).setFontWeight("bold").setBackground("#E8EAED");
+    sheet.getRange(2, 1, 2, width).setFontWeight("bold").setBackground("#E8EAED");
+    sheet.getRange(2, 2, 1, periods.length).setHorizontalAlignment("center");
+    var runStart = 0;
+    for (var yi = 1; yi <= years.length; yi++) {
+      if (yi === years.length || years[yi] !== years[runStart]) {
+        if (yi - runStart > 1) sheet.getRange(2, runStart + 2, 1, yi - runStart).merge();
+        runStart = yi;
+      }
+    }
     var current = periodOf(freq, today).key;
     var curIdx = periods.map(function(p) { return p.key; }).indexOf(current);
-    if (curIdx >= 0) sheet.getRange(2, curIdx + 2).setBackground("#D2E3FC");
+    if (curIdx >= 0) sheet.getRange(3, curIdx + 2).setBackground("#D2E3FC");
   } catch (eH) {}
 
-  // Row 3: done per period, for the manager's check (ADR 0052)
-  try { sheet.getRange(3, 1, 1, width).setNumberFormat("@"); } catch (eNf3) {}
-  sheet.getRange(3, 1, 1, width).setValues([["Done"].concat(counts.map(function(c) { return c.total ? c.done + "/" + c.total : ""; }))]);
+  // Row 4: done per period, for the manager's check (ADR 0052)
+  try { sheet.getRange(4, 1, 1, width).setNumberFormat("@"); } catch (eNf3) {}
+  sheet.getRange(4, 1, 1, width).setValues([["Done"].concat(counts.map(function(c) { return c.total ? c.done + "/" + c.total : ""; }))]);
   try {
-    sheet.getRange(3, 1, 1, width).setFontColor("#5F6368").setHorizontalAlignment("center");
-    sheet.getRange(3, 1).setHorizontalAlignment("left");
-    sheet.getRange(3, 2, 1, periods.length).setBackgrounds([counts.map(function(c, i) {
+    sheet.getRange(4, 1, 1, width).setFontColor("#5F6368").setHorizontalAlignment("center");
+    sheet.getRange(4, 1).setHorizontalAlignment("left");
+    sheet.getRange(4, 2, 1, periods.length).setBackgrounds([counts.map(function(c, i) {
       if (!c.total) return "#FFFFFF";
       if (c.done === c.total) return CALENDAR_STYLES.done;
       return periods[i].end < today ? CALENDAR_STYLES.late : "#FFFFFF";
@@ -175,7 +197,7 @@ function renderTaskCalendar(targetSpreadsheet, asOf) {
     try { sheet.getRange(CALENDAR_FIRST_ROW, 2, values.length, periods.length).setHorizontalAlignment("center"); } catch (eA) {}
   }
   try {
-    sheet.setFrozenRows(3);
+    sheet.setFrozenRows(4);
     sheet.setFrozenColumns(1);
   } catch (eFz) {}
 

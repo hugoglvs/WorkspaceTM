@@ -207,19 +207,21 @@ var SCHEMA_SPEC = {
       done_on: "Done on",
       task_id: "ID",
       google_task_id: "Google Task ID",
-      origin: "Origin"
+      origin: "Origin",
+      assigned_by: "Assigned by"
     },
     // One row = one task for one person with one deadline (ADR 0051).
     // Deadline (key due_date) drives reminders, overdue and the Calendar; Planned date is the
     // day shown in Google Tasks, the deadline when empty (ADR 0050). Origin: "<rule>|<period>"
     // (recurring, "|manual" once changed by hand), "manual", or "trigger:<event>" (ADR 0051).
-    columns: ["task_type", "title", "assigned_member", "project", "planned_date", "due_date", "status", "description", "done_on", "task_id", "google_task_id", "origin"],
+    columns: ["task_type", "title", "assigned_member", "project", "planned_date", "due_date", "status", "description", "done_on", "task_id", "google_task_id", "origin", "assigned_by"],
+    // Assigned by is last so adding it was not a column move (no table rebuild, ADR 0061)
     hiddenColumns: ["task_id", "google_task_id", "origin"],
     // Labels of earlier layouts, so Initialize / Upgrade recognises a moved table (ADR 0051)
     formerHeaders: { due_date: ["Due date"], origin: ["Recurring", "recurrence"], project: ["Project ID", "project_id"] },
     removedHeaders: ["Done by", "done_by"],
     requiredColumns: ["task_id", "title", "status"],
-    nullableColumns: ["task_type", "project", "assigned_member", "planned_date", "due_date", "description", "done_on", "google_task_id", "origin"],
+    nullableColumns: ["task_type", "project", "assigned_member", "planned_date", "due_date", "description", "done_on", "google_task_id", "origin", "assigned_by"],
     strictlyProtectedColumns: ["task_id", "google_task_id", "origin"],
     warningProtectedColumns: [],
     protectedColumns: ["task_id", "google_task_id", "origin"],
@@ -238,7 +240,8 @@ var SCHEMA_SPEC = {
       done_on: "DATE",
       task_id: "TEXT",
       google_task_id: "TEXT",
-      origin: "TEXT"
+      origin: "TEXT",
+      assigned_by: "PEOPLE_CHIP"
     },
     validations: {
       status: ["Todo", "In Progress", "Done", "Blocked", "Cancelled"]

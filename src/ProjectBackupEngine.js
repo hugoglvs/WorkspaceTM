@@ -405,7 +405,7 @@ function checkProjectBackupConflicts(targetSpreadsheet, options) {
           member: assigneeRoster ? { name: assigneeRoster.name, row: assigneeRoster.row } : (assignee ? { name: assignee } : null),
           title: "Organize interim backup for project " + project.name,
           description: "Nobody (lead or backup) is available from " + startStr + " to " + endStr + ". Add an interim backup for these dates with Project Management → Interim Backups.",
-          due: startStr, status: "Todo", origin: "trigger:coverageGap"
+          due: startStr, status: "Todo", origin: "trigger:coverageGap", assignedBy: "Automatic"
         });
         openBackupTasks[project.key] = true;
         taskCreated = true;

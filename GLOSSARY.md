@@ -197,6 +197,10 @@ _Avoid_: Category, Task kind
 A rule that creates dated tasks of one Task Type every period, either for each person it applies to or for one person in rotation (ADR 0045).
 _Avoid_: Routine (that is presence), Template
 
+**Assigned by**:
+The person who created a Task (people chip), "Automatic" for tasks the Library creates from rules and events (ADR 0061).
+_Avoid_: Owner, Creator, Done by
+
 **Rotation**:
 A Recurring Task given to one person per period, the one whose last turn is the oldest, skipping people on approved leave. A newcomer joins after the joiner delay, at the back of the queue (ADR 0060).
 _Avoid_: Round robin, Duty roster

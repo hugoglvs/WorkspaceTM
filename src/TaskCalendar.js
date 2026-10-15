@@ -294,7 +294,7 @@ function handleTaskCalendarEdit(e, asOf) {
     if (existing.length) existing.forEach(function(t) { setTaskStatus(ss, t.row, "Done", today); });
     else {
       var made = createTaskRow(ss, { project: state.project || "", member: member, title: type.name, due: due, type: type.name,
-        description: type.instructions });
+        description: type.instructions, assignedBy: currentTaskAuthor(ss) });
       setTaskStatus(ss, made.row, "Done", today);
     }
     outcome = "done";
@@ -313,7 +313,7 @@ function handleTaskCalendarEdit(e, asOf) {
         try { ss.toast(member.name + " has requested leave on " + isoDate(due) + ".", "Leave requested", 6); } catch (eT3) {}
       }
       createTaskRow(ss, { project: state.project || "", member: member, title: type.name, due: due, type: type.name,
-        description: type.instructions });
+        description: type.instructions, assignedBy: currentTaskAuthor(ss) });
       outcome = "assigned";
     }
   }

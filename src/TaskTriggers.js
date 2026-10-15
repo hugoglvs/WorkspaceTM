@@ -90,7 +90,7 @@ function fireTaskTrigger(ss, eventKey, ctx) {
       createTask(ss, {
         type: type.name, title: type.name, description: type.instructions || "",
         member: person, project: ctx.project || "",
-        due: addDays(anchor, type.daysAfter || 0), origin: origin
+        due: addDays(anchor, type.daysAfter || 0), origin: origin, assignedBy: "Automatic"
       });
       res.created++;
     });

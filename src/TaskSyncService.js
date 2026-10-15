@@ -221,7 +221,8 @@ function getTaskColumnMap(tasksSheet) {
     status: 7,
     googleTaskId: 8,
     plannedDate: 0,
-    origin: 0
+    origin: 0,
+    assignedBy: 0
   };
   if (!tasksSheet) return map;
   var lastCol = Math.max(typeof tasksSheet.getLastColumn === "function" ? (tasksSheet.getLastColumn() || 0) : 0, 8);
@@ -249,6 +250,8 @@ function getTaskColumnMap(tasksSheet) {
       map.plannedDate = c + 1;
     } else if (norm === "origin" || norm === "recurring" || norm === "recurrence") {
       map.origin = c + 1;
+    } else if (norm === "assignedby") {
+      map.assignedBy = c + 1;
     } else if (norm === "status" || norm === "state") {
       map.status = c + 1;
     } else if (norm === "googletaskid" || norm === "gtaskid" || norm === "googletasks" || norm === "googletask") {
@@ -1044,6 +1047,12 @@ function handleTaskEdit(e) {
     taskId = generateTaskId();
     sheet.getRange(editedRow, colMap.taskId).setValue(taskId);
     rowVals[colMap.taskId - 1] = taskId;
+    // A row typed by hand: Assigned by is the person typing, when Google says who (ADR 0061)
+    if (colMap.assignedBy && !String(rowVals[colMap.assignedBy - 1] || "").trim()) {
+      var authorFn = (typeof currentTaskAuthor === "function") ? currentTaskAuthor : require("./RecurringTasks").currentTaskAuthor;
+      var setAuthor = (typeof setTaskAuthor === "function") ? setTaskAuthor : require("./RecurringTasks").setTaskAuthor;
+      try { setAuthor(ss, sheet, editedRow, authorFn(ss)); } catch (eAuthor) { Logger.log("Assigned by note: " + eAuthor); }
+    }
   }
 
   // 2. Default Status to Todo immediately if missing

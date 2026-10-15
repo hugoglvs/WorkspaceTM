@@ -174,9 +174,42 @@ function copyMemberChip(ss, member, targetSheet, row, col) {
   try { copyCellChip(mSheet, member.row, 1, targetSheet, row, col, member.name, ss.getId ? ss.getId() : ""); } catch (e) {}
 }
 
+/** Assigned by of tasks the Library creates on its own (rules, events, coverage gaps). */
+var TASK_AUTHOR_AUTOMATIC = "Automatic";
+
+/**
+ * The person using the sheet, for Assigned by (ADR 0061): their Members entry
+ * when their Google account matches one (the chip is copied), else their
+ * email, else "" when Google does not say who it is (edit triggers for
+ * accounts outside the owner's domain).
+ * @return {Object|string}
+ */
+function currentTaskAuthor(ss) {
+  var email = "";
+  try { email = String(Session.getActiveUser().getEmail() || "").trim().toLowerCase(); } catch (e) {}
+  if (!email) return "";
+  var match = rtMembers(ss).filter(function(m) {
+    return String(m.email || "").toLowerCase() === email || String(m.googleEmail || "").toLowerCase() === email;
+  })[0];
+  return match || email;
+}
+
+/** Writes Assigned by: a member (chip copied from Members) or a text. */
+function setTaskAuthor(ss, sheet, row, author) {
+  if (!author) return;
+  var col = taskCol("assigned_by");
+  if (typeof author === "object") {
+    sheet.getRange(row, col).setValue(author.name);
+    copyMemberChip(ss, author, sheet, row, col);
+  } else {
+    sheet.getRange(row, col).setValue(author);
+  }
+}
+
 /**
  * Adds a task row. t: {project, member (rtMembers entry), title, description,
- * due (Date, the deadline), planned (Date), type, origin, status}.
+ * due (Date, the deadline), planned (Date), type, origin, status,
+ * assignedBy (member, text, or nothing)}.
  * @return {{row: number, id: string}}
  */
 function createTaskRow(ss, t) {
@@ -187,11 +220,13 @@ function createTaskRow(ss, t) {
     task_id: id, project: t.project || "", assigned_member: t.member ? t.member.name : "",
     title: t.title || t.type || "Task", description: t.description || "",
     due_date: t.due ? isoDate(t.due) : "", planned_date: t.planned ? isoDate(t.planned) : "",
-    status: t.status || "Todo", google_task_id: "", task_type: t.type || "", done_on: "", origin: t.origin || "manual"
+    status: t.status || "Todo", google_task_id: "", task_type: t.type || "", done_on: "", origin: t.origin || "manual",
+    assigned_by: !t.assignedBy ? "" : (typeof t.assignedBy === "object" ? t.assignedBy.name : String(t.assignedBy))
   };
   var values = [SCHEMA_SPEC.tasks.columns.map(function(k) { return byKey.hasOwnProperty(k) ? byKey[k] : ""; })];
   sheet.getRange(row, 1, 1, values[0].length).setValues(values);
   copyMemberChip(ss, t.member, sheet, row, taskCol("assigned_member"));
+  if (t.assignedBy && typeof t.assignedBy === "object") copyMemberChip(ss, t.assignedBy, sheet, row, taskCol("assigned_by"));
   if (typeof applyTypography === "function") {
     try { applyTypography(sheet.getRange(row, 1, 1, values[0].length)); } catch (eT) {}
   }
@@ -412,7 +447,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
           if (!rtWorksOn(ctx, m, due)) return;
           if (inPeriod.some(function(t) { return t.memberKey === m.key; })) return;
           var made = createTaskRow(ss, { project: rule.project, member: m, title: type.name, due: due, type: type.name,
-            description: type.instructions, origin: rule.id + "|" + p.key });
+            description: type.instructions, origin: rule.id + "|" + p.key, assignedBy: TASK_AUTHOR_AUTOMATIC });
           var t = { row: made.row, memberKey: m.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due };
           ruleTasks.push(t);
           res.created++;
@@ -422,7 +457,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key, rule);
         if (!pick) { res.unassigned.push(type.name + " " + p.key); continue; }
         var made2 = createTaskRow(ss, { project: rule.project, member: pick, title: type.name, due: due, type: type.name,
-          description: type.instructions, origin: rule.id + "|" + p.key });
+          description: type.instructions, origin: rule.id + "|" + p.key, assignedBy: TASK_AUTHOR_AUTOMATIC });
         ruleTasks.push({ row: made2.row, memberKey: pick.key, periodKey: p.key, ruleId: rule.id, status: "Todo", due: due });
         res.created++;
       }
@@ -582,6 +617,9 @@ if (typeof module !== 'undefined' && module.exports) {
     readTaskRows: readTaskRows,
     isOpenStatus: isOpenStatus,
     createTaskRow: createTaskRow,
+    currentTaskAuthor: currentTaskAuthor,
+    setTaskAuthor: setTaskAuthor,
+    TASK_AUTHOR_AUTOMATIC: TASK_AUTHOR_AUTOMATIC,
     setTaskStatus: setTaskStatus,
     stampTaskDone: stampTaskDone,
     setTaskMember: setTaskMember,

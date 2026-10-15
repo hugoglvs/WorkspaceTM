@@ -181,5 +181,5 @@ test('Tasks without data in the former 13-column layout: headers rewritten in pl
   var same = own.getSheetByName('Tasks');
   assert.strictEqual(same, tasks, 'no archive without data');
   assert.strictEqual(same.getRange(1, 1).getValue(), 'Type');
-  assert.strictEqual(same.getRange(1, 13).getValue(), '', 'former 13th column cleared');
+  assert.strictEqual(same.getRange(1, 13).getValue(), 'Assigned by', 'former 13th column rewritten (ADR 0061)');
 });

@@ -376,3 +376,37 @@ test('rotation: a newcomer waits the joiner delay, then joins at the back of the
   ]);
   assert.strictEqual(replanRotationsForNewcomer(mockSpreadsheet, 'carol', MON), 0, 'idempotent');
 });
+
+test('Assigned by: the sidebar user, "Automatic" for rules, the typist for a typed row (ADR 0061)', () => {
+  seed();
+  var realSession = global.Session;
+  var who = 'alice@accenture.com';
+  global.Session = { getActiveUser: () => ({ getEmail: () => who }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) };
+  try {
+    var tasks = getTable(mockSpreadsheet, 'tasks');
+    var byCol = taskCol('assigned_by');
+    assert.strictEqual(tasks.getRange(1, byCol).getValue(), 'Assigned by');
+    assignTasks({ type: 'Forecast', project: 'ACN', mode: 'Each person', appliesTo: 'Bob', date: MON }, mockSpreadsheet, MON);
+    var oneOff = readTaskRows(mockSpreadsheet).filter(t => t.type === 'Forecast')[0];
+    assert.strictEqual(tasks.getRange(oneOff.row, byCol).getValue(), 'Alice', 'the member using the sidebar');
+
+    addRecurringRule(mockSpreadsheet, { type: 'Quiz', project: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob', start: MON });
+    generateRecurringTasks(mockSpreadsheet, MON);
+    var turn = tasksOf('Quiz')[0];
+    assert.strictEqual(tasks.getRange(turn.row, byCol).getValue(), 'Automatic');
+
+    // A row typed by hand gets its ID and the typist; a user Google does not name leaves it empty
+    var row = tasks.getLastRow() + 1;
+    who = 'someone@gmail.com';
+    tasks.getRange(row, taskCol('title')).setValue('Typed task');
+    handleTaskEdit({ range: tasks.getRange(row, taskCol('title')), source: mockSpreadsheet });
+    assert.strictEqual(tasks.getRange(row, byCol).getValue(), 'someone@gmail.com', 'not a member: the email');
+    who = '';
+    tasks.getRange(row + 1, taskCol('title')).setValue('Typed by an unknown user');
+    handleTaskEdit({ range: tasks.getRange(row + 1, taskCol('title')), source: mockSpreadsheet });
+    assert.ok(tasks.getRange(row + 1, taskCol('task_id')).getValue(), 'ID generated');
+    assert.strictEqual(tasks.getRange(row + 1, byCol).getValue(), '');
+  } finally {
+    global.Session = realSession;
+  }
+});

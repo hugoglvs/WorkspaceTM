@@ -82,6 +82,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
         return t.due && String(t.status).toLowerCase() !== "cancelled" && t.type.toLowerCase() === type.name.toLowerCase() &&
           (t.project || "").toLowerCase() === (p.project || "").toLowerCase() && periodOf(freq, t.due).key === period.key;
       });
+      var author = currentTaskAuthor(ss);
       var created = 0;
       var onLeave = [];
       people.forEach(function(m) {
@@ -89,7 +90,7 @@ function assignTasks(payload, targetSpreadsheet, asOf) {
         if (existing.some(function(t) { return t.memberKey === m.key; })) return;
         if (leaveStatusOn(ctx.leaves, m.key, due) === "approved") onLeave.push(m.name);
         createTaskRow(ss, { project: p.project || "", member: m, title: type.name, due: due, type: type.name,
-          description: type.instructions });
+          description: type.instructions, assignedBy: author });
         created++;
       });
       message = created + " " + type.name + " task(s) assigned, due " + isoDate(due) + "." +

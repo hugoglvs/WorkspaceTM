@@ -118,6 +118,8 @@ function fireNewMemberTriggers(ss, asOf) {
     var start = first[m.key];
     if (!start || start < since) return;
     created += fireTaskTrigger(ss, "newMember", { subject: m.name, date: start, person: m }).created;
+    // The newcomer also takes their place in the rotations that include them (ADR 0060)
+    try { trigFn("replanRotationsForNewcomer", "./RecurringTasks")(ss, m.key, today); } catch (eRot) { Logger.log("Rotation re-plan note: " + eRot); }
   });
   return created;
 }

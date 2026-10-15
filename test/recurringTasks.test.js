@@ -354,3 +354,25 @@ test('projects: the Project columns are a dropdown of names, and a renamed proje
   assert.strictEqual(getTable(mockSpreadsheet, 'backups').getRange(2, 2).getValue(), 'ACN Paris', 'permanent backup row');
   assert.deepStrictEqual(projectNames(mockSpreadsheet), ['ACN Paris']);
 });
+
+test('rotation: a newcomer waits the joiner delay, then joins at the back of the queue (ADR 0060)', () => {
+  seed();
+  getTable(mockSpreadsheet, 'tenures').getRange(2, 1, 3, 7).setValues([
+    ['Alice', 'Consultant', 'Eng', '2026-01-01', '', 'Permanent', 1],
+    ['Bob', 'Consultant', 'Eng', '2026-01-01', '', 'Permanent', 1],
+    ['Carol', 'Manager', 'Eng', '2026-10-13', '', 'Permanent', 1]
+  ]);
+  addRecurringRule(mockSpreadsheet, { type: 'Quiz', project: 'ACN', mode: 'Rotation', appliesTo: 'Alice; Bob', start: MON });
+  generateRecurringTasks(mockSpreadsheet, MON);
+  // Carol is added to the rotation after it started
+  getTable(mockSpreadsheet, 'recurringTasks').getRange(2, 5).setValue('Alice; Bob; Carol');
+  var moved = replanRotationsForNewcomer(mockSpreadsheet, 'carol', MON);
+  assert.ok(moved > 0);
+  var turns = tasksOf('Quiz').map(t => [iso(t.due), t.member]);
+  assert.deepStrictEqual(turns.slice(0, 5), [
+    ['2026-10-16', 'Alice'], ['2026-10-23', 'Bob'],   // before Carol can join (13 Oct + 14 days)
+    ['2026-10-30', 'Alice'], ['2026-11-06', 'Bob'],   // Carol queues behind those who served before her
+    ['2026-11-13', 'Carol']
+  ]);
+  assert.strictEqual(replanRotationsForNewcomer(mockSpreadsheet, 'carol', MON), 0, 'idempotent');
+});

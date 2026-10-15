@@ -12,6 +12,8 @@ var SETTINGS_DEFAULTS = [
     description: "Department shown in Members when a contract has no department." },
   { key: "manager_role", label: "Manager role", value: "Manager",
     description: "Role whose members get, the working day after a mandatory task is due, the list of who has not done it." },
+  { key: "rotation_joiner_delay", label: "Days before a newcomer joins a rotation", value: "14",
+    description: "Days after their first contract starts before a new member takes rotation turns; they then join at the back of the queue." },
   { key: "public_holidays", label: "Public holidays", value: "France",
     description: "Country whose public holidays are added to the Holidays tab each year: France, or None to add them yourself." }
 ];

@@ -90,8 +90,28 @@ function leaveStatusOn(leaves, key, date) {
   return found;
 }
 
+/** First contract start per member key (Date), for newcomers in rotations (ADR 0060). */
+function rtFirstStarts(ss) {
+  var fn = (typeof ctContracts === "function") ? ctContracts
+    : (typeof require !== "undefined" ? require("./Contracts").ctContracts : null);
+  var first = {};
+  (fn ? fn(ss) : []).forEach(function(c) {
+    var d = toDate(c.startDate);
+    if (d && (!first[c.key] || d < first[c.key])) first[c.key] = d;
+  });
+  return first;
+}
+
+/** Days a newcomer waits before taking rotation turns (Settings, ADR 0060). */
+function rtJoinerDelay(ss) {
+  var v = parseInt((typeof getSetting === "function") ? getSetting(ss, "rotation_joiner_delay") : "14", 10);
+  return isNaN(v) || v < 0 ? 14 : v;
+}
+
 function rtContext(ss) {
   return {
+    firstStarts: rtFirstStarts(ss),
+    joinerDelay: rtJoinerDelay(ss),
     members: rtMembers(ss),
     leaves: (typeof readCoverageLeaves === "function") ? readCoverageLeaves(ss) : {},
     contracts: (typeof readCoverageContracts === "function") ? readCoverageContracts(ss) : {},
@@ -240,18 +260,43 @@ function addRecurringRule(ss, rule) {
  * Next person for a rotation turn: among the rule's people working that day
  * and not on approved leave, the one whose last turn is the oldest (never
  * first), in list order on a tie.
+ * Newcomers (ADR 0060): someone whose first contract started less than the
+ * joiner delay (Settings) before the due date is skipped; someone who joined
+ * after the rotation began and never had a turn queues at the back.
+ *
+ * @param {Object} [rule] the rule, for its start date
  */
-function pickRotationMember(ctx, people, ruleTasks, due, excludeKey, periodKey) {
+function pickRotationMember(ctx, people, ruleTasks, due, excludeKey, periodKey, rule) {
   var lastTurn = {};
-  ruleTasks.forEach(function(t) {
-    if (String(t.status).toLowerCase() === "cancelled" || t.periodKey === periodKey) return;
-    if (!lastTurn[t.memberKey] || t.periodKey > lastTurn[t.memberKey]) lastTurn[t.memberKey] = t.periodKey;
+  var ruleStart = rule && rule.start ? rule.start : null;
+  var served = ruleTasks.filter(function(t) {
+    return String(t.status).toLowerCase() !== "cancelled" && t.periodKey !== periodKey;
   });
+  served.forEach(function(t) {
+    if (!lastTurn[t.memberKey] || t.periodKey > lastTurn[t.memberKey]) lastTurn[t.memberKey] = t.periodKey;
+    var td = t.due ? toDate(t.due) : null;
+    if (td && (!ruleStart || td < ruleStart)) ruleStart = td;
+  });
+  var firstStarts = ctx.firstStarts || {};
+  var delay = typeof ctx.joinerDelay === "number" ? ctx.joinerDelay : 14;
+  // The newest turn handed out before a newcomer could join: their place in the queue
+  function newestTurnBefore(date) {
+    var newest = "";
+    served.forEach(function(t) {
+      var td = t.due ? toDate(t.due) : null;
+      if (td && td < date && t.periodKey > newest) newest = t.periodKey;
+    });
+    return newest;
+  }
   var best = null;
   people.forEach(function(m, idx) {
     if (m.key === excludeKey) return;
     if (!rtWorksOn(ctx, m, due) || leaveStatusOn(ctx.leaves, m.key, due) === "approved") return;
+    var joined = firstStarts[m.key];
+    if (joined && due < addDays(joined, delay)) return;
     var turn = lastTurn[m.key] || "";
+    // Joined after the rotation began and never served: back of the queue
+    if (!turn && joined && ruleStart && joined > ruleStart) turn = newestTurnBefore(addDays(joined, delay));
     if (!best || turn < best.turn || (turn === best.turn && idx < best.idx)) best = { member: m, turn: turn, idx: idx };
   });
   return best ? best.member : null;
@@ -266,6 +311,51 @@ function notifyReassignment(ss, from, to, typeName, due) {
     if (to && to.email) MailApp.sendEmail({ to: to.email, subject: typeName + " on " + when + ": your turn",
       body: (from ? from.name : "The planned person") + " is on leave on " + when + ", so the " + typeName + " turn is yours. See the Calendar tab." });
   } catch (e) { Logger.log("Reassignment email note: " + e); }
+}
+
+/**
+ * A newcomer joins the rotations that include them (ADR 0060): the coming turns
+ * of each active Rotation rule, not changed by hand, are dealt again from the
+ * newcomer's first eligible day, so they get their place without waiting for
+ * the planning horizon. Turns already right are left alone (idempotent).
+ *
+ * @return {number} turns handed to someone else
+ */
+function replanRotationsForNewcomer(targetSpreadsheet, memberKey, asOf) {
+  var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
+  var today = rtToday(asOf);
+  var ctx = rtContext(ss);
+  var key = String(memberKey || "").toLowerCase();
+  var joined = ctx.firstStarts[key];
+  if (!joined) return 0;
+  var from = addDays(joined, ctx.joinerDelay);
+  if (from < today) from = today;
+  var tasks = readTaskRows(ss);
+  var changed = 0;
+  readRecurringRules(ss).filter(function(r) { return r.active && r.mode === "Rotation"; }).forEach(function(rule) {
+    var people = resolveAppliesTo(rule.appliesTo, ctx.members);
+    if (!people.some(function(m) { return m.key === key; })) return;
+    var ruleTasks = tasks.filter(function(t) { return t.ruleId === rule.id; });
+    var coming = ruleTasks.filter(function(t) {
+      return t.due && t.due >= from && !t.manual && isOpenStatus(t.status);
+    }).sort(function(a, b) { return a.due - b.due; });
+    if (!coming.length) return;
+    var comingRows = {};
+    coming.forEach(function(t) { comingRows[t.row] = true; });
+    var history = ruleTasks.filter(function(t) { return !comingRows[t.row]; });
+    coming.forEach(function(t) {
+      var pick = pickRotationMember(ctx, people, history, t.due, null, t.periodKey, rule);
+      if (!pick) { history.push(t); return; }
+      if (pick.key !== t.memberKey) {
+        setTaskMember(ss, t.row, pick);
+        t.memberKey = pick.key;
+        t.member = pick.name;
+        changed++;
+      }
+      history.push(t);
+    });
+  });
+  return changed;
 }
 
 /**
@@ -329,7 +419,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         });
       } else {
         if (inPeriod.length) continue;
-        var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key);
+        var pick = pickRotationMember(ctx, people, ruleTasks, due, null, p.key, rule);
         if (!pick) { res.unassigned.push(type.name + " " + p.key); continue; }
         var made2 = createTaskRow(ss, { project: rule.project, member: pick, title: type.name, due: due, type: type.name,
           description: type.instructions, origin: rule.id + "|" + p.key });
@@ -344,7 +434,7 @@ function generateRecurringTasks(targetSpreadsheet, asOf) {
         if (!t.due || t.due < today || t.manual || !isOpenStatus(t.status)) return;
         if (leaveStatusOn(ctx.leaves, t.memberKey, t.due) !== "approved") return;
         var from = ctx.members.filter(function(m) { return m.key === t.memberKey; })[0] || null;
-        var to = pickRotationMember(ctx, people, ruleTasks, t.due, t.memberKey, t.periodKey);
+        var to = pickRotationMember(ctx, people, ruleTasks, t.due, t.memberKey, t.periodKey, rule);
         if (!to) return;
         setTaskMember(ss, t.row, to);
         t.memberKey = to.key;
@@ -499,6 +589,7 @@ if (typeof module !== 'undefined' && module.exports) {
     addRecurringRule: addRecurringRule,
     pickRotationMember: pickRotationMember,
     generateRecurringTasks: generateRecurringTasks,
+    replanRotationsForNewcomer: replanRotationsForNewcomer,
     sendManagerDigest: sendManagerDigest,
     sendTaskReminders: sendTaskReminders,
     findOverdueTasks: findOverdueTasks,

@@ -198,5 +198,5 @@ A rule that creates dated tasks of one Task Type every period, either for each p
 _Avoid_: Routine (that is presence), Template
 
 **Rotation**:
-A Recurring Task given to one person per period, the one whose last turn is the oldest, skipping people on approved leave.
+A Recurring Task given to one person per period, the one whose last turn is the oldest, skipping people on approved leave. A newcomer joins after the joiner delay, at the back of the queue (ADR 0060).
 _Avoid_: Round robin, Duty roster

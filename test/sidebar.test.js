@@ -336,7 +336,9 @@ test('checkActiveUserStatus: should report clean status when member is fully con
   assert.strictEqual(status.baselinesCount, 5);
   assert.strictEqual(status.missingFields.length, 0);
   assert.strictEqual(status.warnings.length, 0);
-  assert.strictEqual(status.todayPresence, 'Main Office');
+  // Saving the routine fills today's presence from it (ADR 0055), so it depends on the weekday
+  assert.strictEqual(status.todayPresence, String(membersSheet.getRange(2, 7).getValue()));
+  assert.ok(status.todayPresence);
   assert.strictEqual(mockSpreadsheet.lastToast, null); // No toast when all clean!
 });
 

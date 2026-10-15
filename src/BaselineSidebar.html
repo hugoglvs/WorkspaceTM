@@ -1108,6 +1108,31 @@
     }
 
     window.onload = initForm;
+  
+    /**
+     * Date ranges: once a start date is set, the end date follows it. A required
+     * end (fill true) takes the start date when empty or earlier; an optional end
+     * only moves when it would be before the start. The end's picker can't go
+     * before the start (min).
+     */
+    function linkDateRange(startId, endId, fill) {
+      var s = document.getElementById(startId), e = document.getElementById(endId);
+      if (!s || !e) return;
+      function sync() {
+        e.min = s.value || '';
+        if (!s.value) return;
+        var mustFill = typeof fill === 'function' ? fill() : fill;
+        if ((mustFill && !e.value) || (e.value && e.value < s.value)) {
+          e.value = s.value;
+          e.dispatchEvent(new Event('input'));
+        }
+      }
+      s.addEventListener('input', sync);
+      s.addEventListener('change', sync);
+      e.addEventListener('focus', function() { e.min = s.value || ''; });
+    }
+    linkDateRange('startDate', 'endDate', false);
+    linkDateRange('leaveStartDate', 'leaveEndDate', true);
   </script>
 </body>
 </html>

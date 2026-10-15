@@ -1019,12 +1019,45 @@ function saveMemberBaselines(payload) {
     } catch (eProt) {}
   }
 
+  // The new routine shows in the daily log and in Weekly Presence at once (ADR 0055)
+  refreshPresenceAfterDeclaration(ss, payload.asOfDate, true);
+
   return {
     success: true,
     savedRows: newRows.length,
     member: targetMember,
     overlapAdjusted: overlappingRows.length > 0
   };
+}
+
+/**
+ * After a routine or a leave is declared: bring Weekly Presence up to date (ADR 0055).
+ * The tab is created here when it does not exist yet. Quiet: the sidebar shows its own result.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} [asOfDate] Optional YYYY-MM-DD
+ * @param {boolean} compile True to rebuild the daily presence log first
+ * @return {{compiled: boolean, matrix: boolean}}
+ */
+function refreshPresenceAfterDeclaration(ss, asOfDate, compile) {
+  var out = { compiled: false, matrix: false };
+  if (compile && typeof compilePresenceLogs === "function") {
+    try {
+      compilePresenceLogs(null, null, ss, asOfDate);
+      out.compiled = true;
+    } catch (eComp) {
+      Logger.log("Presence compilation note after declaration: " + eComp);
+    }
+  }
+  if (typeof refreshWeeklyMatrix === "function") {
+    try {
+      refreshWeeklyMatrix(ss, true);
+      out.matrix = true;
+    } catch (eMatrix) {
+      Logger.log("Weekly Presence refresh note after declaration: " + eMatrix);
+    }
+  }
+  return out;
 }
 
 /**
@@ -1223,6 +1256,9 @@ function submitMemberLeave(payload, targetSpreadsheet) {
     }
   }
 
+  // Weekly Presence follows the leave (created if missing, ADR 0055)
+  refreshPresenceAfterDeclaration(ss, payload.asOfDate, false);
+
   // Check project backup conflicts across active projects
   var backupReport = null;
   if (typeof checkProjectBackupConflicts === "function") {
@@ -1259,6 +1295,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getMemberBaselines: getMemberBaselines,
     saveMemberBaselines: saveMemberBaselines,
     submitMemberLeave: submitMemberLeave,
+    refreshPresenceAfterDeclaration: refreshPresenceAfterDeclaration,
     checkBaselineDateOverlap: checkBaselineDateOverlap,
     extractCellValue: extractCellValue,
     extractEmailFromChip: extractEmailFromChip,

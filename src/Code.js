@@ -296,14 +296,14 @@ function compilePresenceMigration(targetSpreadsheet) {
 /**
  * Refreshes the Weekly Matrix planning view.
  */
-function refreshWeeklyMatrix(targetSpreadsheet) {
+function refreshWeeklyMatrix(targetSpreadsheet, quiet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   if (typeof viewBuilder !== "undefined" && typeof viewBuilder.refreshWeeklyMatrix === "function") {
-    return viewBuilder.refreshWeeklyMatrix(ss);
+    return viewBuilder.refreshWeeklyMatrix(ss, quiet);
   }
   if (typeof renderWeeklyMatrixView === "function") {
     var res = renderWeeklyMatrixView(null, null, ss);
-    if (res.success && ss && typeof ss.toast === "function") {
+    if (res.success && ss && quiet !== true && typeof ss.toast === "function") {
       try {
         ss.toast(
           "Refreshed Weekly Matrix view with " + res.rowsRendered + " weekdays across " + res.membersCount + " members.",
@@ -729,7 +729,6 @@ function onOpen(e, skipMenu) {
         .addItem("Validate Required Fields", "validateAndReport")
         .addItem("Compile Daily Presence Logs", "compilePresence")
         .addItem("Compile Presence Logs (Migration / Undefined Start Date)", "compilePresenceMigration")
-        .addItem("Refresh Weekly Matrix View", "refreshWeeklyMatrix")
         .addItem("Refresh KPI Data for Looker", "refreshKpis")
         .addItem("Check Project Backup Conflicts", "checkBackupConflicts")
         .addItem("Sync Google Tasks", "syncTasks")

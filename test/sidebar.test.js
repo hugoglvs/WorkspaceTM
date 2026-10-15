@@ -88,7 +88,7 @@ test('showBaselineSidebar and onOpen should create UI sidebar and menus without 
   onOpen();
   var menu = SpreadsheetApp.getUi().menu;
   assert.strictEqual(menu.name, 'Project Management');
-  assert.strictEqual(menu.items.length, 15); // init, sync, validate, compilePresence, compilePresenceMigration, refreshMatrix, refreshKpis, checkBackupConflicts, syncTasks, syncCalendarEvents, installLiveTaskSync, cleanupForeignTasks, separator, sidebar, debugUserIdentity
+  assert.strictEqual(menu.items.length, 14); // init, sync, validate, compilePresence, compilePresenceMigration, refreshKpis, checkBackupConflicts, syncTasks, syncCalendarEvents, installLiveTaskSync, cleanupForeignTasks, separator, sidebar, debugUserIdentity
 
   sidebar.showBaselineSidebar();
   var shown = SpreadsheetApp.getUi().shownSidebar;

@@ -54,9 +54,15 @@ global.clearStaticCellBackgrounds = clearStaticCellBackgrounds;
 global.applyRequiredValidationFormatting = applyRequiredValidationFormatting;
 
 const { freshInit } = require('../src/Init');
-const { extractCellValue, formatDateIso, saveMemberBaselines, submitMemberLeave, getMemberBaselines, getLeaveColumnMap } = require('../src/Sidebar');
+const { extractCellValue, formatDateIso, saveMemberBaselines: saveMemberBaselinesAndRefresh, submitMemberLeave, getMemberBaselines, getLeaveColumnMap } = require('../src/Sidebar');
 global.extractCellValue = extractCellValue;
 global.formatDateIso = formatDateIso;
+// These tests compile the log themselves: keep the routine save from compiling it first (ADR 0055)
+const saveMemberBaselines = function(payload) {
+  var compile = global.compilePresenceLogs;
+  delete global.compilePresenceLogs;
+  try { return saveMemberBaselinesAndRefresh(payload); } finally { if (compile) global.compilePresenceLogs = compile; }
+};
 global.saveMemberBaselines = saveMemberBaselines;
 global.submitMemberLeave = submitMemberLeave;
 global.getMemberBaselines = getMemberBaselines;

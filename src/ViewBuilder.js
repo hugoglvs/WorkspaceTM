@@ -678,10 +678,10 @@ function handleWeeklyMatrixEdit(e) {
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object}
  */
-function refreshWeeklyMatrix(targetSpreadsheet) {
+function refreshWeeklyMatrix(targetSpreadsheet, quiet) {
   var ss = targetSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var res = renderWeeklyMatrixView(null, null, ss);
-  if (res.success && ss) {
+  if (res.success && ss && quiet !== true) {
     try {
       ss.toast(
         "Refreshed Weekly Matrix view with " + res.rowsRendered + " days across " + res.membersCount + " members.",

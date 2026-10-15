@@ -86,6 +86,9 @@ function editMemberPromptContract(e) { edCall("promptContractForNewMember", "./C
 /** Members or Contracts edited: directory sync (new people, onboarding, formulas). */
 function editSyncMembers(e, ctx) { edCall("syncMembersAndTenures", "./SyncEngine", [ctx.ss, { fromEdit: true }]); }
 
+/** After the directory sync: Weekly Presence is created or updated for the new, changed or departed member (ADR 0055). */
+function editRefreshWeeklyPresence(e, ctx) { edCall("refreshWeeklyMatrix", "./ViewBuilder", [ctx.ss, true]); }
+
 // ---- Settings, locations, projects, coverage --------------------------------
 
 function editSettings(e) { edCall("handleSettingsEdit", "./Settings", [e]); }
@@ -115,8 +118,8 @@ var EDIT_HANDLERS = {
   taskTypes:      { before: [editTaskTypes] },
   recurringTasks: { before: [editRecurringTasks] },
   events:         { before: [editEventRow] },
-  members:        { after: [editMemberNameDeleted, editMemberBirthday, editMemberPromptContract, editSyncMembers] },
-  tenures:        { after: [editSyncMembers] },
+  members:        { after: [editMemberNameDeleted, editMemberBirthday, editMemberPromptContract, editSyncMembers, editRefreshWeeklyPresence] },
+  tenures:        { after: [editSyncMembers, editRefreshWeeklyPresence] },
   settings:       { after: [editSettings] },
   locations:      { after: [editLocations] },
   projects:       { after: [editProjectName, editProjectBackupPrompt, editCoverage] },
@@ -204,6 +207,7 @@ function dispatchSheetEdit(e) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     EDIT_HANDLERS: EDIT_HANDLERS,
-    dispatchSheetEdit: dispatchSheetEdit
+    dispatchSheetEdit: dispatchSheetEdit,
+    editRefreshWeeklyPresence: editRefreshWeeklyPresence
   };
 }

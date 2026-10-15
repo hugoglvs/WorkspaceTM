@@ -2,7 +2,7 @@
 
 ## Project facts
 
-- **WorkspacePM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
+- **WorkspaceTM**: a Google Apps Script **Library** (V8, `src/`) consumed by team **Consumer Sheets** through the thin wrapper `consumer/Code.js`. Deployment: `docs/distribution-guide.md`.
 - No build, no `package.json`. Each `src/*.js` and `consumer/Code.js` is a global script in Apps Script and ends with a `if (typeof module !== 'undefined') module.exports = {...}` guard so Node tests can `require` it. Keep that guard when adding files or exports.
 - Tests: `node --test test/*.js`, all GAS services mocked in `test/mockGas.js` (add new service mocks there). Baseline 2026-10-15: **258 pass, 0 fail**.
 - Spec and tickets: `.scratch/workspace-pm-library/` (`spec.md`, `issues/NN-*.md`). Status words in use: `resolved`/`closed` = done, `open`, `ready-for-agent`.

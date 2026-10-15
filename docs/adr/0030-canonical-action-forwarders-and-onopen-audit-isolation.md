@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-When running in Library distribution mode, team spreadsheets link to the `WorkspacePM` Google Apps Script Library via a lightweight container script (`ConsumerWrapper.gs`).
+When running in Library distribution mode, team spreadsheets link to the `WorkspaceTM` Google Apps Script Library via a lightweight container script (`ConsumerWrapper.gs`).
 
 Upon clicking **Project Management** > **Presence & Leaves Sidebar** in the consumer Google Sheet, Google Apps Script triggered the following system error:
 ```text
@@ -14,8 +14,8 @@ Script function not found: showBaselineSidebar
 ### Root Cause Analysis
 1. **Google Apps Script Menu Execution Context:**
    - In Google Sheets, custom menus created via `SpreadsheetApp.getUi().createMenu().addItem(caption, functionName)` bind `functionName` strictly to global functions declared in the **active container-bound project** (`ConsumerWrapper.gs`).
-   - Apps Script custom menus do not support namespaced function references (e.g., `"WorkspacePM.showBaselineSidebar"`).
-   - When `WorkspacePM.onOpen()` was invoked during the consumer sheet's lifecycle, the library script executed its own `ui.createMenu("Project Management").addItem(..., "showBaselineSidebar")`. Because both menus shared the same title, the library menu replaced the consumer menu in the Google Sheets UI.
+   - Apps Script custom menus do not support namespaced function references (e.g., `"WorkspaceTM.showBaselineSidebar"`).
+   - When `WorkspaceTM.onOpen()` was invoked during the consumer sheet's lifecycle, the library script executed its own `ui.createMenu("Project Management").addItem(..., "showBaselineSidebar")`. Because both menus shared the same title, the library menu replaced the consumer menu in the Google Sheets UI.
 2. **Missing Canonical Forwarder in Consumer Wrapper:**
    - In `ConsumerWrapper.gs`, the sidebar function was defined under the alias `clientShowSidebar()`, while the canonical name `showBaselineSidebar()` (and other canonical names like `init()`, `sync()`, `compilePresence()`) was not defined in the consumer script's global scope.
    - When the user clicked the menu item targeting `"showBaselineSidebar"`, Apps Script searched the consumer script, found no function named `showBaselineSidebar`, and aborted with `Script function not found: showBaselineSidebar`.

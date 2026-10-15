@@ -1,4 +1,4 @@
-// WorkspacePM User Guide — v2 layout engine: fixed grid, measured text, no body placeholders.
+// WorkspaceTM User Guide — v2 layout engine: fixed grid, measured text, no body placeholders.
 const pptxgen = require("pptxgenjs");
 const React = require("react");
 const ReactDOMServer = require("react-dom/server");
@@ -6,9 +6,9 @@ const sharp = require("sharp");
 const md = require("react-icons/md");
 const { applyTheme } = require("/mnt/skills/public/pptx/scripts/apply_theme.js");
 
-const OUT = process.argv[2] || "WorkspacePM User Guide.pptx";
+const OUT = process.argv[2] || "WorkspaceTM User Guide.pptx";
 const THEME = {
-  name: "WorkspacePM", headFontFace: "Arial", bodyFontFace: "Calibri",
+  name: "WorkspaceTM", headFontFace: "Arial", bodyFontFace: "Calibri",
   colors: { dk1: "1E1B2E", lt1: "FFFFFF", dk2: "3B1E66", lt2: "F5F1FA", accent1: "7500C0", accent2: "1967D2", accent3: "137333", accent4: "C5221F", accent5: "B06000", accent6: "5F6368", hlink: "1967D2", folHlink: "7500C0" },
 };
 const HX = {
@@ -52,7 +52,7 @@ function listH(items, pt, w, space, bullet = true) {
 // ---------- pres + layouts ----------
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE";
-pres.title = "WorkspacePM User Guide"; pres.author = "Hugo"; pres.company = "WorkspacePM";
+pres.title = "WorkspaceTM User Guide"; pres.author = "Hugo"; pres.company = "WorkspaceTM";
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 const C = pres.SchemeColor;
 pres.defineSlideMaster({ title: "COVER", background: { color: HX.ink }, objects: [
@@ -63,7 +63,7 @@ pres.defineSlideMaster({ title: "SECTION", background: { color: HX.ink }, object
 ], slideNumber: { x: 12.13, y: 6.95, w: 0.6, h: 0.3, fontSize: 10, color: "9A8FB5", align: "right" } });
 pres.defineSlideMaster({ title: "CONTENT", background: { color: HX.white }, margin: [0.6, 0.6, 0.7, 0.6], objects: [
   { placeholder: { options: { name: "title", type: "title", x: X0, y: 0.72, w: W, h: 0.7, fontSize: 32, bold: true, color: C.text1, fontFace: "Arial", valign: "top", align: "left", margin: 0 }, text: "" } },
-  { text: { text: "WorkspacePM User Guide", options: { x: X0, y: 6.98, w: 5, h: 0.3, fontSize: 10, color: HX.soft, margin: 0 } } },
+  { text: { text: "WorkspaceTM User Guide", options: { x: X0, y: 6.98, w: 5, h: 0.3, fontSize: 10, color: HX.soft, margin: 0 } } },
 ], slideNumber: { x: X1 - 0.6, y: 6.98, w: 0.6, h: 0.3, fontSize: 10, color: HX.soft, align: "right" } });
 
 // ---------- icons ----------
@@ -204,8 +204,8 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   // ---- 1 cover
   {
     const s = pres.addSlide({ masterName: "COVER", sectionTitle: curSection });
-    pill(s, "WorkspacePM · Google Sheets + Apps Script", 0.8, 1.5, { fill: HX.purple, color: HX.white, fontSize: 12, h: 0.38 });
-    s.addText("WorkspacePM User Guide", { placeholder: "title" });
+    pill(s, "WorkspaceTM · Google Sheets + Apps Script", 0.8, 1.5, { fill: HX.purple, color: HX.white, fontSize: 12, h: 0.38 });
+    s.addText("WorkspaceTM User Guide", { placeholder: "title" });
     T(s, "Team presence, contracts, projects and coverage in one Google Sheet: what it does, how to set it up, and how it works under the cover.", { x: 0.8, y: 3.45, w: 10.5, h: 1.0, fontSize: 20, color: HX.lilac });
     let x = 0.8; CHIPS.forEach(([t, f, c]) => { x += pill(s, t, x, 4.95, { fill: f, color: c, fontSize: 13, h: 0.38 }) + 0.15; });
     T(s, "Version of 12 October 2026 · Library build deploy-20261012-0813", { x: 0.8, y: 6.5, w: 8, h: 0.3, fontSize: 12, color: "9A8FB5" });
@@ -244,7 +244,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   await divider(1, "What the system does", "One shared Google Sheet becomes the team's operating picture: who works where, under which contract, who covers which project, and what is due.", ["Six jobs in one sheet", "The five visible tabs", "The menu", "Key terms", "Colour legend", "What runs automatically"]);
   {
     const s = content("One Google Sheet runs the team's day to day");
-    const intro = "WorkspacePM is a Google Apps Script Library behind a normal Google Sheet. People type in grids or use guided sidebars; the Library keeps every table consistent and talks to Google Tasks, Calendar and Gmail.";
+    const intro = "WorkspaceTM is a Google Apps Script Library behind a normal Google Sheet. People type in grids or use guided sidebars; the Library keeps every table consistent and talks to Google Tasks, Calendar and Gmail.";
     const ih = textH(intro, 17, W); T(s, intro, { x: X0, y: Y0, w: W, h: ih + 0.1, fontSize: 17, color: HX.body });
     const caps = [["MdBadge", "Directory & contracts", "Members with role, department and status derived from their contracts."],
       ["MdEventAvailable", "Presence & leaves", "Where each person works, morning and afternoon: routines, one-off changes, leaves, public holidays."],
@@ -513,7 +513,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
     const lw = 4.0, lh = H;
     box(s, X0, Y0, lw, lh, HX.deep);
     await iconCircle(s, "MdLibraryBooks", X0 + 0.3, Y0 + 0.3, 0.7, HX.purple, HX.white);
-    T(s, "WorkspacePM Library", { x: X0 + 0.3, y: Y0 + 1.2, w: lw - 0.6, h: 0.45, fontSize: 20, bold: true, color: HX.white, fontFace: "Arial" });
+    T(s, "WorkspaceTM Library", { x: X0 + 0.3, y: Y0 + 1.2, w: lw - 0.6, h: 0.45, fontSize: 20, bold: true, color: HX.white, fontFace: "Arial" });
     T(s, "One Apps Script project with all the logic: schema, sync, presence, coverage, Google Tasks, Calendar, emails and sidebars.", { x: X0 + 0.3, y: Y0 + 1.75, w: lw - 0.6, h: 1.8, fontSize: 16, color: HX.lilac });
     T(s, "Source: src/ in the repository, pushed with clasp", { x: X0 + 0.3, y: Y0 + lh - 0.7, w: lw - 0.6, h: 0.5, fontSize: 13, color: "B9A6E0" });
     const tx = X0 + lw + 1.0, tw = 3.0, th = (H - 2 * 0.3) / 3;
@@ -538,7 +538,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   }
   {
     const s = content("Setup in seven steps");
-    const steps = [["Open the team's Google Sheet", "Create a new sheet or use an existing one, signed in as the owner account."], ["Open Extensions → Apps Script", "Rename the project, e.g. “Team Alpha – WorkspacePM”."], ["Add the three services", "Services + → Google Sheets API, Tasks API, Calendar API, with their default identifiers."], ["Add the Library", "Libraries + → paste the Script ID → Look up → Identifier WorkspacePM (exact) → pick a version."], ["Paste the wrapper", "Replace Code.gs with consumer/Code.js from the repository, then save."], ["Initialize", "Reload the sheet → Project Management → Initialize / Upgrade Spreadsheet → authorise when Google asks."], ["Configure", "Check Locations and Holidays, then add the team in Members & Contracts."]];
+    const steps = [["Open the team's Google Sheet", "Create a new sheet or use an existing one, signed in as the owner account."], ["Open Extensions → Apps Script", "Rename the project, e.g. “Team Alpha – WorkspaceTM”."], ["Add the three services", "Services + → Google Sheets API, Tasks API, Calendar API, with their default identifiers."], ["Add the Library", "Libraries + → paste the Script ID → Look up → Identifier WorkspaceTM (exact) → pick a version."], ["Paste the wrapper", "Replace Code.gs with consumer/Code.js from the repository, then save."], ["Initialize", "Reload the sheet → Project Management → Initialize / Upgrade Spreadsheet → authorise when Google asks."], ["Configure", "Check Locations and Holidays, then add the team in Members & Contracts."]];
     const c2 = cols(2); const rh = (H - 3 * 0.2) / 4;
     steps.forEach(([t, b], i) => {
       const col = i < 4 ? 0 : 1, row = i < 4 ? i : i - 4; const { x, w } = c2[col]; const y = Y0 + row * (rh + 0.2);
@@ -589,11 +589,11 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
     T(s, [
       { text: "function configureWorkspace() {", options: { breakLine: true } },
       { text: "  // Team calendar for Events (optional)", options: { color: "9A8FB5", breakLine: true } },
-      { text: "  WorkspacePM.setCalendarId(\"team@group.calendar.google.com\");", options: { breakLine: true } },
+      { text: "  WorkspaceTM.setCalendarId(\"team@group.calendar.google.com\");", options: { breakLine: true } },
       { text: "  // Who besides the owner may edit locked columns", options: { color: "9A8FB5", breakLine: true } },
-      { text: "  WorkspacePM.setAuthorizedAdmins([\"lead@example.com\"]);", options: { breakLine: true } },
+      { text: "  WorkspaceTM.setAuthorizedAdmins([\"lead@example.com\"]);", options: { breakLine: true } },
       { text: "  // Reuse an existing Google Tasks list (optional)", options: { color: "9A8FB5", breakLine: true } },
-      { text: "  WorkspacePM.setTasksListId(\"<task list id>\");", options: { breakLine: true } },
+      { text: "  WorkspaceTM.setTasksListId(\"<task list id>\");", options: { breakLine: true } },
       { text: "}", options: {} }], { x: X0 + 0.3, y: cy + 0.3, w: cw - 0.6, h: chh - 0.6, fontSize: 13, color: "E8E3F5", fontFace: "Courier New", lineSpacingMultiple: 1.15 });
     const rx = X0 + cw + 0.4, rw = X1 - rx;
     heading(s, "What each setting changes", rx, cy, rw);
@@ -608,7 +608,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   }
   {
     const s = content("Upgrading, deploying and rolling back");
-    await cardRow(s, [{ icon: "MdSystemUpdateAlt", title: "Upgrade a team sheet", body: ["Apps Script → Libraries → WorkspacePM → choose the new version → Save.", "Back in the sheet: Initialize / Upgrade.", "Development mode (HEAD) gets every push at once: fine for testing, not for production."] },
+    await cardRow(s, [{ icon: "MdSystemUpdateAlt", title: "Upgrade a team sheet", body: ["Apps Script → Libraries → WorkspaceTM → choose the new version → Save.", "Back in the sheet: Initialize / Upgrade.", "Development mode (HEAD) gets every push at once: fine for testing, not for production."] },
       { icon: "MdCloudUpload", title: "Deploy (maintainer)", body: ["Run the tests: node --test test/*.js", "Commit and tag deploy-YYYYMMDD-HHMM.", "clasp push in src/ (Library), and in consumer/ when the wrapper changed.", "Verify by pulling into .scratch/live/ and diffing."] },
       { icon: "MdHistory", title: "Roll back", body: ["Check out the previous deploy-* tag.", "Push src/ (and consumer/) again with clasp.", "Pinned sheets: select the previous numbered version instead.", "Data is not rolled back: upgrades are additive, so older code still reads it."] }], Y0, 3, { base: { space: 9 } });
   }
@@ -619,7 +619,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   {
     const s = content("Architecture: three layers");
     const lw = 8.3;
-    const layers = [["Team sheet", HX.tGreen, HX.green, ["Visible tabs", "Hidden tabs", "Sidebars & dialogs", "Code.gs wrapper"]], ["WorkspacePM Library", HX.tPurple, HX.purple, ["Edit router", "Sync engines", "Presence & coverage", "Integrations"]], ["Google services", HX.tBlue, HX.blue, ["Sheets API v4", "Tasks API", "Calendar", "Gmail, Lock, Properties"]]];
+    const layers = [["Team sheet", HX.tGreen, HX.green, ["Visible tabs", "Hidden tabs", "Sidebars & dialogs", "Code.gs wrapper"]], ["WorkspaceTM Library", HX.tPurple, HX.purple, ["Edit router", "Sync engines", "Presence & coverage", "Integrations"]], ["Google services", HX.tBlue, HX.blue, ["Sheets API v4", "Tasks API", "Calendar", "Gmail, Lock, Properties"]]];
     const lh = (H - 2 * 0.45) / 3;
     layers.forEach(([t, f, c, bx], i) => {
       const y = Y0 + i * (lh + 0.45);
@@ -631,7 +631,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
     });
     const rx = X0 + lw + 0.4, rw = X1 - rx;
     heading(s, "How calls travel", rx, Y0, rw);
-    bullets(s, [["Menus and triggers ", "call functions in Code.gs, which forward to WorkspacePM."], ["Sidebars ", "use google.script.run, which reaches the sheet's script; a forwarder passes the call on."], ["The Library ", "reads and writes the tabs, using the Sheets API for native tables."], ["Integrations ", "use Google Tasks, Calendar and Gmail as the trigger owner."], ["State ", "lives in tabs and document properties."]], rx, Y0 + 0.5, rw, { fontSize: 14, space: 8 });
+    bullets(s, [["Menus and triggers ", "call functions in Code.gs, which forward to WorkspaceTM."], ["Sidebars ", "use google.script.run, which reaches the sheet's script; a forwarder passes the call on."], ["The Library ", "reads and writes the tabs, using the Sheets API for native tables."], ["Integrations ", "use Google Tasks, Calendar and Gmail as the trigger owner."], ["State ", "lives in tabs and document properties."]], rx, Y0 + 0.5, rw, { fontSize: 14, space: 8 });
   }
   {
     const s = content("Library modules and what each owns");
@@ -834,7 +834,7 @@ const CHIPS = [["Office", HX.tPurple, HX.purple], ["Client site", HX.tBlue, HX.b
   await divider(6, "Troubleshooting & reference", "Common symptoms and their fixes, performance figures and limits, and where to find the detail.", ["Symptoms and fixes", "Performance and limits", "Reference"]);
   {
     const s = content("Symptoms and fixes");
-    table(s, [["Symptom", "Likely cause", "Fix"], ["No Project Management menu", "Sheet opened before the script loaded, or Library not linked", "Reload; check Libraries → WorkspacePM in Apps Script"], ["“Sync in progress” toast", "The nightly job holds the Sync Lock", "Wait a minute; retype a Weekly Presence entry"], ["Status says No Contract", "The Member has no contract", "Members & Contracts → first contract"], ["Today says Not Logged", "No Presence Log row for today yet", "Type today in Weekly Presence, or wait for the next compile"], ["Role, Status or Today changed back", "Derived columns are rewritten from contracts and presence", "Change the contract or the presence instead"], ["A location is refused", "It is retired (Active unticked) or not listed", "Edit Locations: add it or tick Active"], ["Project row red or orange", "A coverage gap", "Interim Backups, or change the backup"], ["Task not in my Google Tasks", "The sync uses the account that runs it, for its own tasks", "Check Assigned to; run the sync as that account"], ["Nightly steps skipped", "Five-minute budget reached", "See Apps Script → Executions; they run the next night"]], { x: X0, y: Y0, colW: [3.3, 4.5, W - 7.8], fontSize: 14, fillH: H });
+    table(s, [["Symptom", "Likely cause", "Fix"], ["No Project Management menu", "Sheet opened before the script loaded, or Library not linked", "Reload; check Libraries → WorkspaceTM in Apps Script"], ["“Sync in progress” toast", "The nightly job holds the Sync Lock", "Wait a minute; retype a Weekly Presence entry"], ["Status says No Contract", "The Member has no contract", "Members & Contracts → first contract"], ["Today says Not Logged", "No Presence Log row for today yet", "Type today in Weekly Presence, or wait for the next compile"], ["Role, Status or Today changed back", "Derived columns are rewritten from contracts and presence", "Change the contract or the presence instead"], ["A location is refused", "It is retired (Active unticked) or not listed", "Edit Locations: add it or tick Active"], ["Project row red or orange", "A coverage gap", "Interim Backups, or change the backup"], ["Task not in my Google Tasks", "The sync uses the account that runs it, for its own tasks", "Check Assigned to; run the sync as that account"], ["Nightly steps skipped", "Five-minute budget reached", "See Apps Script → Executions; they run the next night"]], { x: X0, y: Y0, colW: [3.3, 4.5, W - 7.8], fontSize: 14, fillH: H });
   }
   {
     const s = content("Performance and platform limits");

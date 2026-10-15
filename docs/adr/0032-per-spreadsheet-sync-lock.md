@@ -10,7 +10,7 @@ Accepted (resolves issue 13)
    - `compilePresence` and a Weekly Matrix View declaration both append to `tbl_presence_log` at a "next free row" computed from a snapshot.
    - `sync` (directory) and backup-conflict checks run from both paths.
 3. Apps Script cannot lock cells against a human typing. It can only serialise script executions (`LockService`).
-4. Google's library resource scoping: a lock created in a library "is visible to all including scripts". A **script lock** taken in the WorkspacePM Library is therefore shared by every Consumer Sheet, and all teams' 02:00 jobs would queue behind each other and time out.
+4. Google's library resource scoping: a lock created in a library "is visible to all including scripts". A **script lock** taken in the WorkspaceTM Library is therefore shared by every Consumer Sheet, and all teams' 02:00 jobs would queue behind each other and time out.
 
 ## Decision
 1. **Sync Lock** = `LockService.getDocumentLock()` (one per Consumer Sheet), falling back to `getScriptLock()` only when there is no containing document. Helper: `acquireSyncLock(timeoutMs)` in `src/Code.js`.

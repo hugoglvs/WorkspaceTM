@@ -12,7 +12,7 @@ let mockSpreadsheet;
 test.beforeEach(() => {
   mockSpreadsheet = createMockSpreadsheet();
   setupGasGlobals(mockSpreadsheet);
-  delete global.WorkspacePM;
+  delete global.WorkspaceTM;
 });
 
 const schema = require('../src/Schema');
@@ -56,20 +56,20 @@ test('ConsumerWrapper: onOpen creates minimal streamlined Project Management men
   assert.ok(captions.includes('Connect my Google Tasks'));
 });
 
-test('ConsumerWrapper: surfaces actionable UI alert when WorkspacePM library is missing', () => {
-  // WorkspacePM is undefined
+test('ConsumerWrapper: surfaces actionable UI alert when WorkspaceTM library is missing', () => {
+  // WorkspaceTM is undefined
   var res = consumerWrapper.clientSetupOrUpgrade();
   assert.strictEqual(res.success, false);
   assert.strictEqual(res.error, 'LIBRARY_NOT_LINKED');
 
   var ui = SpreadsheetApp.getUi();
   assert.ok(ui.lastAlert);
-  assert.strictEqual(ui.lastAlert.title, 'WorkspacePM Library Not Found');
-  assert.ok(ui.lastAlert.msg.includes("The 'WorkspacePM' library is not linked"));
+  assert.strictEqual(ui.lastAlert.title, 'WorkspaceTM Library Not Found');
+  assert.ok(ui.lastAlert.msg.includes("The 'WorkspaceTM' library is not linked"));
 });
 
 test('ConsumerWrapper: surfaces toast when library method is unsupported', () => {
-  global.WorkspacePM = {}; // Linked but empty object
+  global.WorkspaceTM = {}; // Linked but empty object
   var res = consumerWrapper.clientSetupOrUpgrade();
   assert.strictEqual(res.success, false);
   assert.strictEqual(res.error, 'METHOD_NOT_SUPPORTED');
@@ -79,7 +79,7 @@ test('ConsumerWrapper: surfaces toast when library method is unsupported', () =>
 });
 
 test('ConsumerWrapper: invokes setupOrUpgrade and initializes tables when library is linked', () => {
-  global.WorkspacePM = code; // Link library
+  global.WorkspaceTM = code; // Link library
 
   var res = consumerWrapper.clientSetupOrUpgrade();
   assert.strictEqual(res.success, true);
@@ -92,7 +92,7 @@ test('ConsumerWrapper: invokes setupOrUpgrade and initializes tables when librar
 
 test('ConsumerWrapper: client actions forward correctly to linked library', () => {
   var invokedMethods = [];
-  global.WorkspacePM = {
+  global.WorkspaceTM = {
     init: function() { invokedMethods.push('init'); return { success: true }; },
     setupOrUpgrade: function() { invokedMethods.push('setupOrUpgrade'); return { success: true }; },
     sync: function() { invokedMethods.push('sync'); return { success: true }; },
@@ -230,7 +230,7 @@ test('setupOrUpgrade: runs freshInit, installs triggers, and runs initial mainte
 
 test('ConsumerWrapper: Contracts sidebar calls reach the library with their payload', () => {
   var calls = [];
-  global.WorkspacePM = {
+  global.WorkspaceTM = {
     showContractsSidebar: function() { calls.push(['showContractsSidebar']); },
     getContractsSidebarData: function() { calls.push(['getContractsSidebarData']); return { members: [] }; },
     saveContract: function(p) { calls.push(['saveContract', p]); return { success: true }; }
@@ -242,5 +242,5 @@ test('ConsumerWrapper: Contracts sidebar calls reach the library with their payl
 
   assert.deepStrictEqual(calls, [['showContractsSidebar'], ['getContractsSidebarData'], ['saveContract', { member: 'A' }]]);
   assert.strictEqual(consumerWrapper.showMembersSidebar, undefined);
-  delete global.WorkspacePM;
+  delete global.WorkspaceTM;
 });

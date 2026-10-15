@@ -5,12 +5,12 @@
  * 1. Open your Google Sheet, navigate to Extensions > Apps Script.
  * 2. In the Apps Script editor, click '+' next to 'Libraries'.
  * 3. Enter the Project Management Library Script ID and click 'Look up'.
- * 4. Set the Identifier to 'WorkspacePM' and select the latest version.
+ * 4. Set the Identifier to 'WorkspaceTM' and select the latest version.
  * 5. Paste the contents of this file into your project's Code.gs.
  * 6. Reload the spreadsheet or run onOpen() to activate the 'Project Management' menu.
  */
 
-var LIBRARY_ID = "WorkspacePM";
+var LIBRARY_ID = "WorkspaceTM";
 
 /**
  * Creates the Project Management menu on spreadsheet open.
@@ -72,16 +72,16 @@ function onEdit(e) {
 }
 
 /**
- * Resolves the WorkspacePM library instance.
+ * Resolves the WorkspaceTM library instance.
  *
  * @return {Object|null}
  */
 function getLibraryInstance() {
-  if (typeof WorkspacePM !== "undefined") {
-    return WorkspacePM;
+  if (typeof WorkspaceTM !== "undefined") {
+    return WorkspaceTM;
   }
-  if (typeof global !== "undefined" && typeof global.WorkspacePM !== "undefined") {
-    return global.WorkspacePM;
+  if (typeof global !== "undefined" && typeof global.WorkspaceTM !== "undefined") {
+    return global.WorkspaceTM;
   }
   return null;
 }
@@ -99,12 +99,12 @@ function safeInvokeLibrary(methodName, args) {
     try {
       var ui = SpreadsheetApp.getUi();
       ui.alert(
-        "WorkspacePM Library Not Found",
-        "The 'WorkspacePM' library is not linked to this Google Sheet.\n\n" +
+        "WorkspaceTM Library Not Found",
+        "The 'WorkspaceTM' library is not linked to this Google Sheet.\n\n" +
         "To link the library:\n" +
         "1. In Apps Script, click '+' next to 'Libraries' in the left navigation.\n" +
         "2. Paste the Library Script ID and click 'Look up'.\n" +
-        "3. Set the Identifier to 'WorkspacePM'.\n" +
+        "3. Set the Identifier to 'WorkspaceTM'.\n" +
         "4. Select the latest version and click 'Add'.",
         ui.ButtonSet.OK
       );
@@ -118,7 +118,7 @@ function safeInvokeLibrary(methodName, args) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (ss && typeof ss.toast === "function") {
       ss.toast(
-        "Action '" + methodName + "' is not supported in the currently linked WorkspacePM library version.",
+        "Action '" + methodName + "' is not supported in the currently linked WorkspaceTM library version.",
         "Unsupported Library Action",
         6
       );
@@ -140,7 +140,7 @@ function safeInvokeLibrary(methodName, args) {
 
 /**
  * Canonical Library Action Forwarders
- * Defines top-level functions matching WorkspacePM library methods so that any
+ * Defines top-level functions matching WorkspaceTM library methods so that any
  * menu items, buttons, or macros targeting these canonical names execute seamlessly.
  */
 function showBaselineSidebar() {

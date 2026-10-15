@@ -1,10 +1,10 @@
-# WorkspacePM: Distribution & Deployment Guide
+# WorkspaceTM: Distribution & Deployment Guide
 
 _Last updated 2026-10-12 (library state: ADR 0045)._
 
 ## Overview
 
-WorkspacePM is a **Google Apps Script library** (`WorkspacePM`, source in `src/`). Each team spreadsheet (a **Consumer Sheet**) contains only a thin wrapper script (source in `consumer/`) that forwards menus, triggers and sidebar calls to the library.
+WorkspaceTM is a **Google Apps Script library** (`WorkspaceTM`, source in `src/`). Each team spreadsheet (a **Consumer Sheet**) contains only a thin wrapper script (source in `consumer/`) that forwards menus, triggers and sidebar calls to the library.
 
 - **One code base:** fixes and features land in the library; every linked sheet gets them.
 - **Additive upgrades:** *Initialize / Upgrade* creates or widens tables and never deletes team rows.
@@ -12,7 +12,7 @@ WorkspacePM is a **Google Apps Script library** (`WorkspacePM`, source in `src/`
 
 | | Script ID |
 | :--- | :--- |
-| Library `WorkspacePM` | `1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v` |
+| Library `WorkspaceTM` | `1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v` |
 | Reference Consumer Sheet "[NEW] ACN" (bound script) | `1IVORKENsN2r81QcA5hXa5qa-tgXub2RFFlhzD0-8fopojfAoQFixFujH` |
 
 ---
@@ -29,11 +29,11 @@ WorkspacePM is a **Google Apps Script library** (`WorkspacePM`, source in `src/`
 
 ### Option A: by hand in the Apps Script editor
 
-1. Open the Google Sheet → **Extensions → Apps Script**. Rename the project (e.g. `Team Alpha – WorkspacePM`).
+1. Open the Google Sheet → **Extensions → Apps Script**. Rename the project (e.g. `Team Alpha – WorkspaceTM`).
 2. **Project Settings** (gear) → tick **Show "appsscript.json" manifest file in editor**.
 3. Replace `appsscript.json` with the content of [`consumer/appsscript.json`](../consumer/appsscript.json). It declares the library and the three advanced services. For a production sheet, change the library entry to a numbered version (see §7):
    ```json
-   { "userSymbol": "WorkspacePM", "libraryId": "1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v", "version": "<N>", "developmentMode": false }
+   { "userSymbol": "WorkspaceTM", "libraryId": "1vyJiEQTSluHaPbh8-B9gSOj2SeciqPEzHpJ5Xug0I_NVhDvtYHdZ1b6v", "version": "<N>", "developmentMode": false }
    ```
 4. Replace `Code.gs` with the full content of [`consumer/Code.js`](../consumer/Code.js). **Copy the file from the repo; do not retype it from an older guide.** Every menu item, sidebar button and trigger needs a top-level forwarder there (see §3).
 5. Save, then reload the Google Sheet.
@@ -125,7 +125,7 @@ The reference sheet uses the library in **development mode** (`"developmentMode"
 ### Production
 
 1. In the library project: **Deploy → New deployment → Library**, with a description. This creates version *N*.
-2. In each consumer sheet: Apps Script → **Libraries → WorkspacePM** → choose version *N* (development mode off) → **Save**. Or edit the `version` in `appsscript.json`.
+2. In each consumer sheet: Apps Script → **Libraries → WorkspaceTM** → choose version *N* (development mode off) → **Save**. Or edit the `version` in `appsscript.json`.
 3. If the release changed `consumer/`, update the wrapper (§2) as well.
 4. In the sheet: **Project Management → Initialize / Upgrade Spreadsheet**. Approve any new authorization.
 
@@ -138,9 +138,9 @@ Recommended: keep one test copy of the sheet in development mode and move the re
 These are **document properties**, which the Apps Script UI does not show. Set them once by running a small function in the consumer editor (select it, **Run**), then delete it:
 
 ```javascript
-function configureWorkspacePM() {
-  WorkspacePM.setCalendarId("department-events@group.calendar.google.com"); // Events tab → this calendar (default: owner's "primary")
-  WorkspacePM.setTasksListId("<tasks list id>");                             // Tasks tab → this list (default: "@default")
+function configureWorkspaceTM() {
+  WorkspaceTM.setCalendarId("department-events@group.calendar.google.com"); // Events tab → this calendar (default: owner's "primary")
+  WorkspaceTM.setTasksListId("<tasks list id>");                             // Tasks tab → this list (default: "@default")
   PropertiesService.getDocumentProperties().setProperty("ADMIN_EMAILS", "lead@example.com,pm@example.com");
 }
 ```
@@ -156,7 +156,7 @@ Members Role, Department and Status are formulas reading Contracts (ADR 0047): t
 | Symptom | Where to look / what to do |
 | :--- | :--- |
 | A menu item or sidebar button says the function is not found | The wrapper is older than the library: copy the current `consumer/Code.js` (§2). |
-| "WorkspacePM Library Not Found" | The library is not linked or its identifier is not exactly `WorkspacePM`. |
+| "WorkspaceTM Library Not Found" | The library is not linked or its identifier is not exactly `WorkspaceTM`. |
 | Something did not update after an edit | Apps Script editor → **Executions**: open the latest `installedTaskEditHandler` run. Edits over 3 s log an `[edit timing]` line with the slow part. |
 | Nightly work missing | **Executions** → `nightlySyncJob`: one line per step with its duration; `Out of time, skipped: …` lists steps cut by the 6-minute budget. |
 | "The nightly sync is running…" toast on an edit | The edit happened during the nightly run; the value is saved, re-enter it a few minutes later if its follow-up (task, event, presence row) is missing. |

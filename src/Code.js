@@ -4,7 +4,7 @@
 
 /**
  * Public initialization entry point.
- * Can be called directly from consumer sheets via: WorkspacePM.init() or WorkspacePM.setupOrUpgrade()
+ * Can be called directly from consumer sheets via: WorkspaceTM.init() or WorkspaceTM.setupOrUpgrade()
  */
 function init(targetSpreadsheet) {
   return freshInit(targetSpreadsheet);
@@ -12,7 +12,7 @@ function init(targetSpreadsheet) {
 
 /**
  * Public library boundary for spreadsheet initialization or upgrade.
- * Can be called from consumer sheets via: WorkspacePM.setupOrUpgrade()
+ * Can be called from consumer sheets via: WorkspaceTM.setupOrUpgrade()
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object} Status report
@@ -93,7 +93,7 @@ function setupOrUpgrade(targetSpreadsheet) {
 
 /**
  * Public library alias for synchronizing calendar events.
- * Can be called from consumer sheets via: WorkspacePM.syncEvents()
+ * Can be called from consumer sheets via: WorkspaceTM.syncEvents()
  *
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [targetSpreadsheet]
  * @return {Object} Status report

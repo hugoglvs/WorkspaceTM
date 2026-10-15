@@ -208,7 +208,7 @@ download_project() {
   printf '  %s✓ downloaded%s %s → %s\n' "$GREEN" "$RESET" "$name" "${dir#"$REPO_ROOT"/}"
 }
 
-banner "Connect WorkspacePM to Apps Script (clasp)"
+banner "Connect WorkspaceTM to Apps Script (clasp)"
 
 stage "Node.js"
 if command -v node >/dev/null 2>&1; then

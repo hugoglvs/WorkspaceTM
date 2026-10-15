@@ -196,7 +196,7 @@ function birthdayCalendarLink(name, date) {
     "&dates=" + compact(date) + "/" + compact(end) +
     "&recur=" + encodeURIComponent("RRULE:FREQ=YEARLY") +
     "&crm=AVAILABLE" +
-    "&details=" + encodeURIComponent("Added from the team's WorkspacePM reminder.");
+    "&details=" + encodeURIComponent("Added from the team's WorkspaceTM reminder.");
 }
 
 function birthdaySubscribeLink() {

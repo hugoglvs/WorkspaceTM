@@ -6,7 +6,7 @@ Accepted
 ## Context
 1. The project management codebase has grown into an extensive suite of engines covering schemas, typography, protections, presence baselines, historical migrations, matrix views, active responsibles, remote work KPIs, Google Tasks synchronization, and Google Calendar event management.
 2. In enterprise Google Workspace environments, duplicating this codebase across dozens of departmental spreadsheets causes code drift, maintenance debt, and security update challenges.
-3. Teams require a lightweight container-bound client script (`ConsumerWrapper.gs`) that imports an immutable, versioned Google Apps Script Library (`WorkspacePM`), delegates custom UI menus and triggers, and provides clear user alerts if dependencies or permissions are unconfigured.
+3. Teams require a lightweight container-bound client script (`ConsumerWrapper.gs`) that imports an immutable, versioned Google Apps Script Library (`WorkspaceTM`), delegates custom UI menus and triggers, and provides clear user alerts if dependencies or permissions are unconfigured.
 
 ## Decision
 
@@ -30,9 +30,9 @@ Accepted
        - "Sync Calendar Events"
        - "Presence & Leaves Sidebar"
        - "Enable Real-Time Triggers"
-     - `onEdit(e)` forwarder to `WorkspacePM.onEdit(e)`.
+     - `onEdit(e)` forwarder to `WorkspaceTM.onEdit(e)`.
      - `safeInvokeLibrary(methodName, args)` guard:
-       - Displays a clear modal dialog if the `WorkspacePM` library is unlinked.
+       - Displays a clear modal dialog if the `WorkspaceTM` library is unlinked.
        - Dispatches toast notifications if an action is unsupported by the linked library version.
        - Catches and logs execution errors gracefully with actionable spreadsheet toasts.
 

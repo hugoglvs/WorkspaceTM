@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Following deployment of the versioned library (`WorkspacePM`) and the consumer sheet wrapper (`ConsumerWrapper.gs`), three defects were encountered in live consumer spreadsheets:
+Following deployment of the versioned library (`WorkspaceTM`) and the consumer sheet wrapper (`ConsumerWrapper.gs`), three defects were encountered in live consumer spreadsheets:
 
 1. **Protected Range Warnings Lacked Snooze Dialog:**
    When editing warning-protected cells (e.g. historical tenures), users received repetitive toast alerts with no option to temporarily dismiss them. The specification requires a modal confirmation dialog offering a 5-minute snooze.
